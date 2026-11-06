@@ -1,0 +1,31 @@
+{#- Gemeinsames Hauptmenü. Erwartet die Variable `active`:
+    vorschlaege | archiv | korrekturen | sicherungen | einstellungen -#}
+<a class="skip-link" href="#main">{{ _("Zum Inhalt springen") }}</a>
+<nav class="main-nav" aria-label="{{ _("Hauptmenü") }}">
+  <a class="brand" href="/">
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    {{ _("Kalender-Assistent") }}
+  </a>
+  <ul>
+    {% for key, href, label in [
+      ("vorschlaege", "/", _("Vorschläge")),
+      ("archiv", "/archiv", _("Archiv")),
+      ("korrekturen", "/korrekturen", _("Regeln")),
+      ("sicherungen", "/sicherungen", _("Sicherungen")),
+      ("protokoll", "/protokoll", _("Protokoll")),
+      ("einstellungen", "/einstellungen", _("Einstellungen")),
+    ] %}
+      <li><a class="item" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a></li>
+    {% endfor %}
+  </ul>
+  <div class="nav-tools">
+    <a class="help-link" href="/hilfe" aria-label="{{ _("Hilfe: So funktioniert’s") }}"{% if active == "hilfe" %} aria-current="page"{% endif %}>?</a>
+    {% set other = "en" if current_lang() == "de" else "de" %}
+    <button type="button" id="language-toggle" class="language-toggle" data-lang="{{ other }}" lang="{{ other }}" aria-label="{{ "Switch to English" if other == "en" else "Auf Deutsch umschalten" }}">{{ other|upper }}</button>
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ _("Darstellung wechseln") }}">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
+      <span class="theme-label">{{ _("Automatisch") }}</span>
+    </button>
+  </div>
+</nav>
+{% if demo_mode %}<p class="demo-banner" role="note">{{ _("Demo-Modus: erfundene Beispieldaten. Es werden keine Mails gelesen und nichts an iCloud gesendet.") }}</p>{% endif %}

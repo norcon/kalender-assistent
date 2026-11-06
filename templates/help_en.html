@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {% with page_title="Help" %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="hilfe" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main" class="help-page">
+  <h1>How it works</h1>
+
+  <section aria-labelledby="h-ablauf">
+    <h2 id="h-ablauf">The workflow</h2>
+    <ol>
+      <li><strong>Read emails:</strong> The app reads along in the mailbox. New emails are detected instantly, or at the latest every few minutes.</li>
+      <li><strong>Detect events:</strong> An AI on your own server looks for events in text, PDFs and images. These become <em>suggestions</em> – nothing is in the calendar yet.</li>
+      <li><strong>Review:</strong> On the start page, check title, date, time, location and the quote from the email. Everything can be changed by tapping it.</li>
+      <li><strong>Add:</strong> Tapping a calendar name adds the event to that iCloud calendar – including a reminder. The suggestion then moves to the archive. Which calendars are offered is set under <a href="/einstellungen#zielkalender">Settings → Target calendars</a>.</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="h-zeichen">
+    <h2 id="h-zeichen">What the markers mean</h2>
+    <dl>
+      <dt>Yellow border “Please check carefully”</dt>
+      <dd>The AI is unsure. Compare date and time with the quote in particular.</dd>
+      <dt>“Probably already in iCloud”</dt>
+      <dd>There is already an event with a similar name on the same day – maybe someone has added it already.</dd>
+      <dt>Red notice “Overlaps with …”</dt>
+      <dd>The chosen calendar already has an event at the same time. “… in iCloud: N events” shows what else is on that day.</dd>
+      <dt>“Possible duplicate”</dt>
+      <dd>A very similar suggestion already came from another email. Remove one of them.</dd>
+      <dt>Grey end time “(assumed)”</dt>
+      <dd>The email does not mention an end. The event is added with the configured default duration; tap to change.</dd>
+      <dt>“today”, “tomorrow”, “in 3 days”</dt>
+      <dd>When the event takes place – for a series, the next occurrence.</dd>
+      <dt>Quote marked “read from image/scan”</dt>
+      <dd>The quote comes from an image or scanned PDF and could not be matched word for word with the email.</dd>
+    </dl>
+  </section>
+
+  <section aria-labelledby="h-bedienen">
+    <h2 id="h-bedienen">Handy features</h2>
+    <ul>
+      <li><strong>Filter and search:</strong> Above the list, filter by calendar or search by title, location and subject.</li>
+      <li><strong>Several at once:</strong> Tick the boxes on the cards, then choose a calendar or “Remove” in the bar at the bottom.</li>
+      <li><strong>Undo:</strong> After “Remove” or “Reject”, “Undo” briefly appears at the bottom.</li>
+      <li><strong>Details:</strong> Set a calendar without adding the event, and see source and history under “Details” – or permanently via “Show all details”.</li>
+      <li><strong>Advertising and parcel notices:</strong> If a sender keeps producing unsuitable suggestions, choose “Hide sender” on the card – for that one address or the whole domain. Future suggestions from there end up collapsed under “Hidden” at the very bottom. The list of senders is under <a href="/korrekturen#absender">Rules</a>.</li>
+      <li><strong>Newsletters:</strong> Suggestions from newsletters with uncertain detection also end up under “Hidden”. “Always show …” exempts a sender.</li>
+      <li><strong>Calendar invitations:</strong> If an invitation (.ics) is attached to the email, the app takes the event exactly from it, without AI.</li>
+      <li><strong>Reminder:</strong> Selectable on every card; “Default” uses the value from the settings.</li>
+      <li><strong>Series:</strong> Under “Recurrence” you can set weekly, monthly etc. events with an end and exceptions.</li>
+      <li><strong>Follow-up emails:</strong> If a later email changes or cancels an event, “Changes and cancellations to review” appears at the top. iCloud is only changed after you confirm. For a series, only the affected event is cancelled.</li>
+      <li><strong>Reload:</strong> In the home-screen app, pull down from the very top. New versions are loaded automatically.</li>
+      <li><strong>Light/dark:</strong> Switch at the top right – Automatic follows the device.</li>
+      <li><strong>Language:</strong> The DE/EN button at the top switches the language on this device.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-zurueck">
+    <h2 id="h-zurueck">Getting something back</h2>
+    <dl>
+      <dt>A removed or added suggestion</dt>
+      <dd>Find it in the <a href="/archiv">archive</a> and choose “Restore”.</dd>
+      <dt>An event deleted or changed in the calendar app</dt>
+      <dd>Under <a href="/sicherungen">Backups</a> → “Search and restore events”, choose an earlier state and restore the event. The calendars are backed up regularly.</dd>
+      <dt>A hidden suggestion</dt>
+      <dd>At the very bottom of the start page, open “Hidden” and choose “Show”. Under <a href="/korrekturen#absender">Rules</a> a sender can be allowed again completely.</dd>
+      <dt>Having an email analysed again</dt>
+      <dd>On a suggestion under “Details” → “Analyse email again”; for skipped emails directly in the list. The email is only read; nothing in the mailbox is changed.</dd>
+      <dt>The whole app back to an earlier state</dt>
+      <dd>Restore a database backup under <a href="/sicherungen">Backups</a>. The current state is backed up automatically first.</dd>
+    </dl>
+  </section>
+
+  <section aria-labelledby="h-status">
+    <h2 id="h-status">Status bar</h2>
+    <p>Green = fine, yellow = notice, red = error, grey = not set up. When it is red, a look at the <a href="/protokoll">log</a> often helps.</p>
+  </section>
+
+  <section aria-labelledby="h-daten">
+    <h2 id="h-daten">Privacy</h2>
+    <p>Emails are only read, never changed. Stored are suggestions with subject, sender and a short quote as the source passage – not the emails themselves. The emails are sent to the AI server configured in .env; with a local AI everything stays in your home. The site has no login and should only be reachable on your home network.</p>
+  </section>
+  </main>
+  {% include "_footer.html" %}
+</body>
+</html>

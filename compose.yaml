@@ -1,0 +1,31 @@
+services:
+  kalender-assistent:
+    # Fertiges Image von GitHub; mit KALENDER_VERSION=0.16.0 in .env auf eine Version festlegen.
+    image: ghcr.io/norcon/kalender-assistent:${KALENDER_VERSION:-latest}
+    # Zum selbst Bauen (Entwicklung): docker compose build
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_DATABASE_PATH: /data/calendar-assistant.sqlite3
+      APP_BACKUP_DIR: /backups
+    ports:
+      - "${KALENDER_PORT:-8080}:8000"
+    volumes:
+      - ./data:/data
+      - ./backups:/backups
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

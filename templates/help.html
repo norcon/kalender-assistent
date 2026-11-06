@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% with page_title=_("Hilfe") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="hilfe" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main" class="help-page">
+  <h1>{{ _("So funktioniert’s") }}</h1>
+
+  <section aria-labelledby="h-ablauf">
+    <h2 id="h-ablauf">Der Ablauf</h2>
+    <ol>
+      <li><strong>Mails lesen:</strong> Die App liest das Postfach mit. Neue Mails werden sofort erkannt, spätestens aber alle paar Minuten.</li>
+      <li><strong>Termine erkennen:</strong> Eine KI auf dem eigenen Server sucht in Text, PDFs und Bildern nach Terminen. Daraus werden <em>Vorschläge</em> – es landet noch nichts im Kalender.</li>
+      <li><strong>Prüfen:</strong> Auf der Startseite Titel, Datum, Uhrzeit, Ort und das Zitat aus der Mail kontrollieren. Alles lässt sich durch Antippen ändern.</li>
+      <li><strong>Übertragen:</strong> Ein Tipp auf einen Kalendernamen trägt den Termin in diesen iCloud-Kalender ein – inklusive Erinnerung. Danach wandert der Vorschlag ins Archiv. Welche Kalender dafür zur Wahl stehen, legst du unter <a href="/einstellungen#zielkalender">Einstellungen → Zielkalender</a> fest.</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="h-zeichen">
+    <h2 id="h-zeichen">Was die Markierungen bedeuten</h2>
+    <dl>
+      <dt>Gelber Rand „Bitte genau prüfen“</dt>
+      <dd>Die KI ist sich unsicher. Besonders Datum und Uhrzeit mit dem Zitat vergleichen.</dd>
+      <dt>„Steht vermutlich schon in iCloud“</dt>
+      <dd>Am selben Tag gibt es schon einen ähnlich benannten Termin – vielleicht hat ihn schon jemand eingetragen.</dd>
+      <dt>Roter Hinweis „Überschneidet sich …“</dt>
+      <dd>Im gewählten Kalender liegt zur selben Zeit schon ein Termin. Unter „… in iCloud: N Termine“ steht, was an dem Tag sonst los ist.</dd>
+      <dt>„Mögliche Dublette“</dt>
+      <dd>Ein sehr ähnlicher Vorschlag kam schon aus einer anderen Mail. Einen davon entfernen.</dd>
+      <dt>Graue Endzeit „(angenommen)“</dt>
+      <dd>Die Mail nennt kein Ende. Übertragen wird mit der eingestellten Standarddauer; antippen zum Ändern.</dd>
+      <dt>„heute“, „morgen“, „in 3 Tagen“</dt>
+      <dd>Wann der Termin ist – bei Serien der nächste Termin.</dd>
+      <dt>Zitat mit „aus Bild/Scan gelesen“</dt>
+      <dd>Das Zitat stammt aus einem Bild oder gescannten PDF und konnte nicht wörtlich mit der Mail abgeglichen werden.</dd>
+    </dl>
+  </section>
+
+  <section aria-labelledby="h-bedienen">
+    <h2 id="h-bedienen">Praktisch</h2>
+    <ul>
+      <li><strong>Filter und Suche:</strong> Über der Liste nach Kalender filtern oder nach Titel, Ort und Betreff suchen.</li>
+      <li><strong>Mehrere auf einmal:</strong> Kästchen an den Karten anhaken, dann unten in der Leiste einen Kalender wählen oder „Entfernen“.</li>
+      <li><strong>Rückgängig:</strong> Nach „Entfernen“ oder „Ablehnen“ erscheint unten kurz „Rückgängig“.</li>
+      <li><strong>Details:</strong> Kalender ohne Übertragen setzen, Quelle und Verlauf stehen unter „Details“ – oder dauerhaft über „Alle Details zeigen“.</li>
+      <li><strong>Werbung und Paketmeldungen:</strong> Kommen von einem Absender immer wieder unpassende Vorschläge, auf der Karte „Absender ausblenden“ wählen – für die eine Adresse oder die ganze Domain. Künftige Vorschläge von dort landen zugeklappt unter „Ausgeblendet“ ganz unten. Die Liste der Absender steht unter <a href="/korrekturen#absender">Regeln</a>.</li>
+      <li><strong>Newsletter:</strong> Vorschläge aus Newslettern mit unsicherer Erkennung landen ebenfalls unter „Ausgeblendet“. „… immer zeigen“ nimmt einen Absender davon aus.</li>
+      <li><strong>Kalendereinladungen:</strong> Hängt eine Einladung (.ics) an der Mail, übernimmt die App den Termin exakt daraus, ohne KI.</li>
+      <li><strong>Erinnerung:</strong> Auf jeder Karte wählbar; „Standard“ nimmt den Wert aus den Einstellungen.</li>
+      <li><strong>Serien:</strong> Unter „Wiederholung“ lassen sich wöchentliche, monatliche usw. Termine mit Ende und Ausfällen festlegen.</li>
+      <li><strong>Folge-Mails:</strong> Ändert oder sagt eine spätere Mail einen Termin ab, erscheint oben „Änderungen und Absagen zur Prüfung“. Erst nach Bestätigung wird iCloud geändert. Bei Serien wird nur der betroffene Termin abgesagt.</li>
+      <li><strong>Neu laden:</strong> In der App vom Home-Bildschirm ganz oben nach unten ziehen. Neue Versionen lädt die Seite von selbst.</li>
+      <li><strong>Hell/Dunkel:</strong> Schalter oben rechts – Automatisch folgt dem Gerät.</li>
+      <li><strong>Sprache:</strong> Der Knopf DE/EN oben schaltet die Sprache auf diesem Gerät um.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-zurueck">
+    <h2 id="h-zurueck">Etwas zurückholen</h2>
+    <dl>
+      <dt>Einen entfernten oder übertragenen Vorschlag</dt>
+      <dd>Im <a href="/archiv">Archiv</a> suchen und „Wiederherstellen“ wählen.</dd>
+      <dt>Einen in der Kalender-App gelöschten oder veränderten Termin</dt>
+      <dd>Unter <a href="/sicherungen">Sicherungen</a> → „Termine durchsuchen und wiederherstellen“ einen Stand von vorher wählen und den Termin wiederherstellen. Die Kalender werden regelmäßig gesichert.</dd>
+      <dt>Einen ausgeblendeten Vorschlag</dt>
+      <dd>Ganz unten auf der Startseite „Ausgeblendet“ aufklappen und „Einblenden“ wählen. Unter <a href="/korrekturen#absender">Regeln</a> lässt sich ein Absender wieder ganz zulassen.</dd>
+      <dt>Eine Mail noch einmal auswerten lassen</dt>
+      <dd>An einem Vorschlag unter „Details“ → „Mail erneut auswerten“, bei übersprungenen Mails direkt in der Liste. Die Mail wird nur gelesen, nichts im Postfach geändert.</dd>
+      <dt>Die ganze App auf einen früheren Stand</dt>
+      <dd>Unter <a href="/sicherungen">Sicherungen</a> eine Datenbank-Sicherung wiederherstellen. Der aktuelle Stand wird vorher automatisch gesichert.</dd>
+    </dl>
+  </section>
+
+  <section aria-labelledby="h-status">
+    <h2 id="h-status">Statusleiste</h2>
+    <p>Grün = in Ordnung, gelb = Hinweis, rot = Fehler, grau = nicht eingerichtet. Bei Rot hilft oft ein Blick ins <a href="/protokoll">Protokoll</a>.</p>
+  </section>
+
+  <section aria-labelledby="h-daten">
+    <h2 id="h-daten">Datenschutz</h2>
+    <p>Mails werden nur gelesen, nie verändert. Gespeichert werden Vorschläge mit Betreff, Absender und einem kurzen Zitat als Fundstelle – nicht die Mails selbst. Die Mails gehen an den in .env eingestellten KI-Server; mit einer lokalen KI bleibt alles im Haus. Die Seite hat keine Anmeldung und sollte nur im Heimnetz erreichbar sein.</p>
+  </section>
+  </main>
+  {% include "_footer.html" %}
+</body>
+</html>

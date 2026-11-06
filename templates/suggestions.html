@@ -1,0 +1,206 @@
+{% from "_macros.html" import info %}
+<div id="suggestions-container" data-version="{{ suggestion_version }}" data-default-minutes="{{ default_event_minutes }}">
+  {% if suggestions and calendar_snapshot %}
+    <p class="meta sync-info">{{ _("Abgleich mit iCloud: Stand {age}", age=calendar_snapshot.taken_at|relative_time) }}</p>
+  {% endif %}
+  {% if suggestions %}
+    {% for group_label, group_items in suggestion_groups %}
+      <h2 class="group-heading">{{ group_label }} <span class="group-count">{{ group_items|length }}</span></h2>
+      {% for item in group_items %}
+      {% set uncertain = item.confidence < uncertain_threshold %}
+      {% set when = when_labels.get(item.id) %}
+      {% set view = day_views.get(item.id) %}
+      {% set add_label = _("Hinzufügen") %}
+      <article id="suggestion-{{ item.id }}" class="card{% if uncertain %} uncertain{% endif %}"
+               data-suggestion-id="{{ item.id }}"
+               data-person="{{ item.person if item.person in people else '' }}"
+               data-search="{{ [item.title, item.location or '', item.notes or '', item.source_subject, item.source_quote or '']|join(' ')|lower }}"
+               data-suggestion='{{ {"title": item.title, "start": item.starts_at, "end": item.ends_at, "location": item.location, "person": item.person, "notes": item.notes, "recurrence": item.recurrence}|tojson }}'>
+        <div class="card-head">
+          {% if not item.icloud_exported_at %}
+            <label class="select-card">
+              <input type="checkbox" class="card-select" value="{{ item.id }}">
+              <span class="visually-hidden">{{ _("„{title}“ auswählen", title=item.title) }}</span>
+            </label>
+          {% endif %}
+          <h3 class="card-title"><button type="button" class="editable-value editable-title" data-field="title" aria-label="{{ _("Titel bearbeiten: {title}", title=item.title) }}">{{ item.title }}</button></h3>
+          {% if when %}<span class="when-badge{% if when in (_("heute"), _("morgen")) %} soon{% endif %}">{{ when }}</span>{% endif %}
+        </div>
+        {% if item.source_quote %}
+          <figure class="source-quote">
+            <blockquote>„{{ item.source_quote }}“</blockquote>
+            <figcaption class="meta">{% if item.quote_source == 'image' %}{{ _("Aus Bild/Scan gelesen – nicht wörtlich geprüft") }}{% elif item.quote_source == 'ics' %}{{ _("Direkt aus der Kalendereinladung übernommen") }}{% else %}{{ _("Fundstelle") }}{% endif %}{% if item.source_part and item.source_part not in ('Nachrichtentext', 'Kalendereinladung') %} {% if item.quote_source == 'ics' %}({{ item.source_part }}){% else %}{{ _("in {part}", part=item.source_part) }}{% endif %}{% endif %}</figcaption>
+          </figure>
+        {% endif %}
+        {% if uncertain %}
+          <p class="uncertain-notice">{{ _("Bitte genau prüfen – die KI ist sich nur zu {percent} % sicher.", percent=(item.confidence * 100)|round|int) }}</p>
+        {% endif %}
+        <dl class="details">
+          <dt>{{ _("Beginn") }}</dt><dd>
+            <div class="datetime-parts">
+              <span class="datetime-part"><span class="part-label">{{ _("Datum") }}</span><button type="button" class="editable-value" data-field="start-date" aria-label="{{ _("Startdatum bearbeiten") }}"></button></span>
+              <span class="datetime-part"><span class="part-label">{{ _("Uhrzeit") }}</span><button type="button" class="editable-value" data-field="start-time" aria-label="{{ _("Startuhrzeit bearbeiten") }}"></button></span>
+            </div>
+          </dd>
+          <dt>{{ _("Ende") }}</dt><dd>
+            <div class="datetime-parts">
+              <span class="datetime-part"><span class="part-label">{{ _("Datum") }}</span><button type="button" class="editable-value" data-field="end-date" aria-label="{{ _("Enddatum bearbeiten") }}"></button></span>
+              <span class="datetime-part"><span class="part-label">{{ _("Uhrzeit") }}</span><button type="button" class="editable-value" data-field="end-time" aria-label="{{ _("Enduhrzeit bearbeiten") }}"></button></span>
+            </div>
+          </dd>
+          <dt>{{ _("Wiederholung") }}</dt>
+          <dd>
+            <button type="button" class="editable-value recurrence-value" data-field="recurrence" aria-label="{{ _("Wiederholung bearbeiten: {text}", text=item.recurrence|recurrence_text) }}">{{ item.recurrence|recurrence_text }}</button>
+            {% if item.recurrence %}
+              {% set upcoming = next_occurrences.get(item.id) %}
+              <span class="meta">{% if upcoming %}· {{ _("nächster Termin {date}", date=upcoming.isoformat()|event_time) }}{% else %}· {{ _("Serie beendet") }}{% endif %}</span>
+            {% endif %}
+            {{ info(_("Tippe auf den Text, um eine Serie anzulegen oder zu ändern: Art, Intervall, Wochentage, Ende und einzelne Ausfälle. Nach iCloud geht eine Serie als ein einziger Serientermin."), _("Wiederholung")) }}
+          </dd>
+          <dt>{{ _("Ort") }}</dt>
+          <dd><button type="button" class="editable-value" data-field="location" aria-label="{{ _("Ort bearbeiten: {value}", value=item.location or add_label) }}">{{ item.location or add_label }}</button>{% if item.location %} <a class="map-link" href="https://maps.apple.com/?q={{ item.location|urlencode }}" target="_blank" rel="noopener noreferrer">{{ _("In Karten öffnen") }}<span class="visually-hidden">: {{ item.location }}</span></a>{% endif %}</dd>
+          <dt>{{ _("Hinweise") }}</dt>
+          <dd><button type="button" class="editable-value" data-field="notes" aria-label="{{ _("Hinweise bearbeiten: {value}", value=item.notes or add_label) }}">{{ item.notes or add_label }}</button></dd>
+        </dl>
+        {% if view %}
+          {% for match in view.matches %}
+            <p class="notice icloud-match">{{ _("Steht vermutlich schon in iCloud: „{title}“ im Kalender „{calendar}“ ({when}). Bitte prüfen, bevor du überträgst.", title=match.summary, calendar=match.calendar, when=(_("ganztägig") if match.all_day else _("{time} Uhr", time=match.start.strftime('%H:%M')))) }}</p>
+          {% endfor %}
+          {% if view.overlaps_same_calendar %}
+            <p class="notice overlap-notice">{{ _("Überschneidet sich mit {count} Termin(en) im Kalender „{calendar}“.", count=view.overlaps_same_calendar, calendar=item.person) }}</p>
+          {% endif %}
+          <details class="day-view"{% if view.overlaps_same_calendar %} open{% endif %}>
+            <summary>{% if view.events %}{{ _("{date} in iCloud:", date=view.day.isoformat()|event_time) }} {{ _n("{count} Termin", "{count} Termine", view.events|length) }}{% if view.overlaps %} · {{ _n("{count} Überschneidung", "{count} Überschneidungen", view.overlaps) }}{% endif %}{% else %}{{ _("{date}: noch nichts in iCloud", date=view.day.isoformat()|event_time) }}{% endif %}</summary>
+            {% if view.events %}
+              <ul class="day-events">
+                {% for event in view.events %}
+                  <li class="{% if event.overlap %}overlap{% endif %}">
+                    <span class="cal-dot" style="--cal-color: {{ calendar_colors.get(event.calendar, 'var(--dot-off)') }}" aria-hidden="true"></span>
+                    <span class="day-time">{% if event.all_day %}{{ _("ganztägig") }}{% else %}{{ event.start.strftime('%H:%M') }}–{{ event.end.strftime('%H:%M') }}{% endif %}</span>
+                    <span class="day-title">{{ event.summary }}</span>
+                    <span class="meta">{{ event.calendar }}</span>
+                    {% if event.overlap %}<strong class="overlap-label">{{ _("überschneidet sich") }}</strong>{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </details>
+        {% endif %}
+        {% set hint = hide_hints.get(item.id) %}
+        {% if hint %}
+          <div class="notice hide-hint">
+            <p>{{ _("Von {domain} hast du bisher {count} Vorschläge entfernt und keinen übertragen. Künftig ausblenden?", domain=hint.domain, count=hint.removed) }}</p>
+            <div class="hint-actions">
+              <button type="button" class="secondary ignore-button" data-scope="domain" data-suggestion-id="{{ item.id }}">{{ _("Alles von {domain} ausblenden", domain=hint.domain) }}</button>
+              <button type="button" class="secondary trust-button" data-pattern="{{ hint.domain }}">{{ _("Nicht mehr fragen") }}</button>
+            </div>
+          </div>
+        {% endif %}
+        {% if item.possible_duplicate_of %}
+          <p class="notice">{{ _("Mögliche Dublette zu") }} <a href="{% if item.duplicate_dismissed %}/archiv{% endif %}#suggestion-{{ item.possible_duplicate_of }}">{{ item.duplicate_title or _("einem früheren Vorschlag") }}</a>. {{ _("Bitte vergleichen; es wird nichts automatisch zusammengeführt.") }}</p>
+        {% endif %}
+        {% if item.icloud_exported_at %}
+          <p class="export-status" role="status">{{ _("In iCloud-Kalender „{calendar}“ übertragen.", calendar=item.icloud_calendar) }}</p>
+          <p class="export-feedback" role="status" aria-live="polite"></p>
+          <button type="button" class="export-button" data-action="resend" data-suggestion-id="{{ item.id }}" {% if not caldav_configured %}disabled{% endif %}>{{ _("Erneut an iCloud senden") }}</button>
+        {% else %}
+          <div class="calendar-choices" role="group" aria-label="{{ _("„{title}“ in iCloud-Kalender übernehmen", title=item.title) }}">
+            <span class="choices-label">{{ _("In iCloud übernehmen:") }} {{ info(_("Ein Tipp auf einen Namen setzt diesen Kalender und überträgt den Termin sofort nach iCloud. Hervorgehoben ist der aktuell zugeordnete Kalender."), _("Kalender-Buttons")) }}</span>
+            {% for person in people %}
+              <button type="button" class="export-button calendar-choice{% if item.person == person %} suggested{% endif %}{% if calendar_colors.get(person) %} has-color{% endif %}" style="--cal-color: {{ calendar_colors.get(person, 'transparent') }}" data-action="export" data-calendar="{{ person }}" data-suggestion-id="{{ item.id }}" {% if not caldav_configured %}disabled{% endif %}{% if item.person == person %} title="{{ _("Aktueller Zielkalender") }}"{% endif %}>{{ person }}{% if item.person == person %}<span class="visually-hidden"> ({{ _("aktueller Zielkalender") }})</span>{% endif %}</button>
+            {% endfor %}
+          </div>
+          <p class="reminder-row">
+            <label>{{ _("Erinnerung") }}
+              <select class="reminder-select" data-suggestion-id="{{ item.id }}">
+                {% for value, label, chosen in reminder_options.get(item.id, []) %}<option value="{{ value }}"{% if chosen %} selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </label>
+            <span class="reminder-feedback meta" role="status" aria-live="polite"></span>
+          </p>
+          <p class="export-feedback" role="status" aria-live="polite"></p>
+          {% if not caldav_configured %}<span class="meta">{{ _("iCloud-Zugangsdaten fehlen in der Serverkonfiguration.") }}</span>{% endif %}
+        {% endif %}
+        <div class="card-footer">
+          <details class="card-more">
+            <summary>{{ _("Details") }}</summary>
+            <dl class="details">
+              <dt>{{ _("Kalender") }}</dt>
+              {% set person_label = item.person if item.person in people else _("Kalender wählen") %}
+              <dd><button type="button" class="editable-value" data-field="person" aria-label="{{ _("Zielkalender bearbeiten: {value}", value=person_label) }}">{{ person_label }}</button></dd>
+              <dt>{{ _("Zuordnung") }} {{ info(_("Woher der Zielkalender stammt: von der KI vorgeschlagen, aus einer früheren Korrektur desselben Absenders gelernt oder von Hand festgelegt. Korrekturen merkt sich die App für ähnliche künftige Termine."), _("Zuordnung")) }}</dt>
+              <dd>
+                {% if item.assignment_source == 'learned' %}{{ _("Aus deiner früheren Korrektur gelernt") }}
+                {% elif item.assignment_source == 'manual' %}{{ _("Manuell festgelegt") }}
+                {% elif item.assignment_source == 'ai' %}{{ _("Von der KI vorgeschlagen") }}
+                {% else %}{{ _("Noch nicht zugeordnet") }}{% endif %}
+              </dd>
+              <dt>{{ _("Sicherheit") }} {{ info(_("Wie sicher sich die KI bei diesem Vorschlag ist. Unterhalb der eingestellten Schwelle wird die Karte gelb markiert – dann besonders Datum und Uhrzeit prüfen."), _("Sicherheit")) }}</dt><dd>{{ (item.confidence * 100)|round|int }} %</dd>
+              <dt>{{ _("Quelle") }}</dt><dd>{{ item.source_subject }} · {{ item.source_sender }} · <time datetime="{{ item.source_received_at }}" title="{{ item.source_received_at|timestamp }}">{{ item.source_received_at|relative_time }}</time></dd>
+              {% if item.source_part %}<dt>{{ _("Erkannt aus") }}</dt><dd>{{ _(item.source_part) }}</dd>{% endif %}
+            </dl>
+            <p class="reanalyze-row">
+              <button type="button" class="secondary reanalyze-button" data-source-key="{{ item.source_key }}">{{ _("Mail erneut auswerten") }}</button>
+              {{ info(_("Holt die ursprüngliche Mail (nur lesend) noch einmal aus dem Postfach und lässt sie neu auswerten, z. B. nach einer verbesserten KI-Anweisung oder einem anderen Modell. Neue Funde erscheinen als zusätzliche Vorschläge; dieser Vorschlag bleibt unverändert."), _("Erneut auswerten")) }}
+            </p>
+            {% if history.get(item.id) %}
+              <h4 class="history-heading">{{ _("Änderungsverlauf") }}</h4>
+              <ol class="history">
+                {% for entry in history.get(item.id) %}
+                  <li>{{ entry.created_at|timestamp }} · {{ entry.action|history_label }} · {{ _(entry.actor) }}</li>
+                {% endfor %}
+              </ol>
+            {% endif %}
+          </details>
+          <div class="card-actions">
+            {% set address = item.source_sender|sender_address %}
+            {% if address %}
+              {% set domain = item.source_sender|sender_domain %}
+              <details class="ignore-sender">
+                <summary>{{ _("Absender ausblenden") }}<span class="visually-hidden">: {{ address }}</span></summary>
+                <div class="ignore-panel">
+                  <p class="meta">{{ _("Dieser Vorschlag wird entfernt. Künftige Vorschläge aus solchen Mails landen zugeklappt unter „Ausgeblendet“ und lassen sich dort zurückholen.") }}</p>
+                  <button type="button" class="secondary ignore-button" data-scope="address" data-suggestion-id="{{ item.id }}">{{ _("Nur {address}", address=address) }}</button>
+                  {% if domain and domain != address %}
+                    <button type="button" class="secondary ignore-button" data-scope="domain" data-suggestion-id="{{ item.id }}">{{ _("Alles von {domain}", domain=domain) }}</button>
+                  {% endif %}
+                </div>
+              </details>
+            {% endif %}
+            <form method="post" action="/suggestions/{{ item.id }}/dismiss" class="dismiss-form">
+              <button type="submit" class="secondary">{{ _("Entfernen") }}<span class="visually-hidden">: {{ item.title }}</span></button>
+            </form>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    {% endfor %}
+  {% else %}
+    <p class="empty">{{ _("Keine offenen Vorschläge. Der Postfachabruf läuft im Hintergrund; vergangene Termine landen automatisch im Archiv.") }}</p>
+  {% endif %}
+  {% if hidden_suggestions %}
+    <details class="hidden-suggestions" id="hidden-suggestions">
+      <summary>{{ _("{count} ausgeblendet", count=hidden_suggestions|length) }} <span class="meta">– {{ _("Newsletter und ausgeblendete Absender") }}</span></summary>
+      <p class="meta">{{ _("Diese Vorschläge stammen von ausgeblendeten Absendern oder aus Newslettern mit unsicherer Erkennung. „Einblenden“ holt einen Vorschlag in die Liste oben.") }} <a href="/korrekturen#absender">{{ _("Regeln verwalten") }}</a></p>
+      <ul class="hidden-list">
+        {% for item in hidden_suggestions %}
+          <li class="hidden-item" data-suggestion-id="{{ item.id }}" data-title="{{ item.title }}">
+            <div class="hidden-text">
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.starts_at|event_range(item.ends_at) }}</span>
+              <span class="meta">{{ item.source_subject }} · {{ item.source_sender }}</span>
+              <span class="meta hidden-reason">{% if item.hidden_reason == newsletter_reason %}{{ _("Grund: Newsletter, KI-Sicherheit {percent} %", percent=(item.confidence * 100)|round|int) }}{% else %}{{ _("Grund: Absender {pattern} ausgeblendet", pattern=item.hidden_reason) }}{% endif %}</span>
+            </div>
+            <div class="hidden-actions">
+              <button type="button" class="secondary unhide-button">{{ _("Einblenden") }}<span class="visually-hidden">: {{ item.title }}</span></button>
+              {% if item.hidden_reason == newsletter_reason and item.source_sender|sender_domain %}
+                <button type="button" class="secondary trust-button" data-pattern="{{ item.source_sender|sender_domain }}">{{ _("{domain} immer zeigen", domain=item.source_sender|sender_domain) }}</button>
+              {% endif %}
+              <button type="button" class="secondary hidden-dismiss-button">{{ _("Entfernen") }}<span class="visually-hidden">: {{ item.title }}</span></button>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
+</div>

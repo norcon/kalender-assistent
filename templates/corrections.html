@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% with page_title=_("Regeln") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="korrekturen" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main">
+  <h1>{{ _("Regeln") }}</h1>
+
+  <section aria-labelledby="absender">
+    <h2 id="absender">{{ _("Ausgeblendete Absender") }}</h2>
+    <p>{{ _("Mails dieser Absender werden weiter ausgewertet, ihre Vorschläge landen aber zugeklappt unter „Ausgeblendet“ auf der Startseite statt in der Liste. Eine Domain wie amazon.de gilt auch für Unteradressen wie versand.amazon.de. Am Postfach selbst ändert sich nichts.") }}</p>
+    {% if ignored_senders %}
+      <ul class="rule-list">
+        {% for rule in ignored_senders %}
+          <li>
+            <div>
+              <strong>{{ rule.pattern }}</strong>{% if hidden_counts.get(rule.pattern) %} <span class="meta">· {{ _("{count} ausgeblendet", count=hidden_counts[rule.pattern]) }}</span>{% endif %}
+              {% if rule.example_subject %}<div class="meta">{{ _("Angelegt {date} wegen „{subject}“", date=rule.created_at|timestamp, subject=rule.example_subject) }}</div>{% else %}<div class="meta">{{ _("Angelegt {date}", date=rule.created_at|timestamp) }}</div>{% endif %}
+            </div>
+            <form method="post" action="/regeln/absender/loeschen">
+              <input type="hidden" name="pattern" value="{{ rule.pattern }}">
+              <button type="submit" class="secondary">{{ _("Wieder zulassen") }}<span class="visually-hidden">: {{ rule.pattern }}</span></button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">{{ _("Noch keine ausgeblendeten Absender. Auf jeder Vorschlagskarte gibt es dafür „Absender ausblenden“.") }}</p>
+    {% endif %}
+    <form method="post" action="/regeln/absender" class="filters">
+      <label>{{ _("Adresse oder Domain hinzufügen") }}
+        <input type="text" name="pattern" value="{{ sender_value }}" maxlength="254" placeholder="{{ _("z. B. amazon.de oder info@shop.de") }}" required autocomplete="off"{% if sender_error %} aria-invalid="true" aria-describedby="sender-error"{% endif %}>
+      </label>
+      <div><button type="submit">{{ _("Ausblenden") }}</button></div>
+    </form>
+    {% if sender_error %}<p id="sender-error" class="message problem" role="alert">{{ sender_error }}</p>{% endif %}
+  </section>
+
+  <section aria-labelledby="quote">
+    <h2 id="quote">{{ _("Trefferquote je Absender") }}</h2>
+    <p>{{ _("Wie viele Vorschläge je Absender-Domain erkannt, nach iCloud übertragen oder von Hand entfernt wurden. Vorschläge, die automatisch archiviert wurden (Termin vorbei), zählen nur in „Gesamt“.") }}</p>
+    {% if sender_rows %}
+      <div class="table-scroll">
+        <table class="sender-stats">
+          <thead><tr><th scope="col">{{ _("Absender") }}</th><th scope="col" class="num">{{ _("Gesamt") }}</th><th scope="col" class="num">{{ _("Übertragen") }}</th><th scope="col" class="num">{{ _("Entfernt") }}</th><th scope="col"><span class="visually-hidden">{{ _("Aktion") }}</span></th></tr></thead>
+          <tbody>
+            {% for row in sender_rows %}
+              <tr>
+                <td class="domain">{{ row.domain }}</td>
+                <td class="num" data-label="{{ _("gesamt") }}">{{ row.total }}</td>
+                <td class="num" data-label="{{ _("übertragen") }}">{{ row.exported }}{% if row.exported %} <span class="meta">({{ row.rate }} %)</span>{% endif %}</td>
+                <td class="num" data-label="{{ _("entfernt") }}">{{ row.removed }}</td>
+                <td class="rule-cell">
+                  {% if row.rule == "hide" %}<span class="meta">{{ _("ausgeblendet") }}</span>
+                  {% elif row.rule == "show" %}<span class="meta">{{ _("immer anzeigen") }}</span>
+                  {% elif row.removed and not row.exported %}
+                    <form method="post" action="/regeln/absender">
+                      <input type="hidden" name="pattern" value="{{ row.domain }}">
+                      <button type="submit" class="secondary">{{ _("Ausblenden") }}<span class="visually-hidden">: {{ row.domain }}</span></button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">{{ _("Noch keine Vorschläge.") }}</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="immer">
+    <h2 id="immer">{{ _("Immer anzeigen") }}</h2>
+    <p>{{ _("Für diese Absender fragt die App nicht nach dem Ausblenden, und ihre Newsletter werden nicht ausgeblendet. Einträge entstehen über „Nicht mehr fragen“ oder „… immer zeigen“.") }}</p>
+    {% if trusted_senders %}
+      <ul class="rule-list">
+        {% for rule in trusted_senders %}
+          <li>
+            <div>
+              <strong>{{ rule.pattern }}</strong>
+              <div class="meta">{{ _("Angelegt {date}", date=rule.created_at|timestamp) }}</div>
+            </div>
+            <form method="post" action="/regeln/absender/loeschen">
+              <input type="hidden" name="pattern" value="{{ rule.pattern }}">
+              <button type="submit" class="secondary">{{ _("Entfernen") }}<span class="visually-hidden">: {{ rule.pattern }}</span></button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">{{ _("Keine Einträge.") }}</p>
+    {% endif %}
+  </section>
+
+  <h2>{{ _("Gelernte Kalenderkorrekturen") }}</h2>
+  <p>{{ _("Diese Regeln werden nur für ausreichend ähnliche Termintitel vom selben Absender verwendet. Das Löschen einer Regel ändert keine bereits erkannten Vorschläge.") }}</p>
+  {% for item in corrections %}
+    <article>
+      <h3>{{ item.event_title }}</h3>
+      <p>{{ _("Kalender:") }} <strong>{{ item.corrected_person }}</strong>{% if item.previous_person %} ({{ _("vorher: {name}", name=item.previous_person) }}){% endif %}</p>
+      <p class="meta">{{ _("Absender: {sender} · Betreff: {subject}", sender=item.source_sender, subject=item.source_subject) }}</p>
+      <p class="meta">{{ _("Gespeichert: {date}", date=item.created_at|timestamp) }}</p>
+      <form method="post" action="/person-corrections/{{ item.suggestion_id }}/delete">
+        <button type="submit">{{ _("Korrekturregel löschen") }}</button>
+      </form>
+    </article>
+  {% else %}
+    <p class="empty">{{ _("Noch keine gelernten Korrekturen.") }}</p>
+  {% endfor %}
+  </main>
+  {% include "_footer.html" %}
+</body>
+</html>

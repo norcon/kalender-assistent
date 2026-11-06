@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% from "_macros.html" import info %}
+  {% with page_title=_("Vorschläge") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="vorschlaege" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main">
+  <h1>{{ _("Erkannte Terminvorschläge") }}</h1>
+  <div class="toolbar">
+    <button id="check-button" type="button">{{ _("Jetzt prüfen") }}</button>
+    <span id="check-status" role="status" aria-live="polite">{{ _("Lade Prüfstatus …") }}</span>
+  </div>
+  {% set problems = status_items|selectattr("state", "in", ["warn", "error"])|list %}
+  <details class="status-panel" id="status-panel"{% if status_items|selectattr("state", "equalto", "error")|list %} open{% endif %}>
+    <summary>
+      <strong>{{ _("Systemstatus:") }}</strong>
+      <span class="status-dots" aria-hidden="true">{% for item in status_items %}<span class="dot {{ item.state }}"></span>{% endfor %}</span>
+      <span id="status-summary">{% if problems %}{{ _n("{count} Hinweis", "{count} Hinweise", problems|length) }}: {{ problems|map(attribute="label")|join(", ") }}{% else %}{{ _("Alles in Ordnung") }}{% endif %}</span>
+      {{ info(_("Grün = in Ordnung, gelb = Hinweis (z. B. länger kein Abruf), rot = Fehler, grau = nicht eingerichtet. Bei einem Fehler klappt die Liste von selbst auf; Details stehen im Protokoll."), _("Systemstatus")) }}
+    </summary>
+    <ul id="service-status" class="service-status" aria-label="{{ _("Systemstatus im Einzelnen") }}">
+      {% for item in status_items %}
+        <li class="status-{{ item.state }}" data-key="{{ item.key }}"><span class="dot" aria-hidden="true"></span><strong>{{ item.label }}:</strong> <span class="status-text">{{ item.text }}</span></li>
+      {% endfor %}
+    </ul>
+  </details>
+  <p class="notice compact">{{ _("Termine landen erst in iCloud, wenn du auf einen Kalender tippst.") }} <a href="/hilfe">{{ _("So funktioniert’s") }}</a></p>
+  {% if skipped_messages %}
+    <details class="notice">
+      <summary>{{ _("{count} E-Mail(s) konnten nicht ausgewertet werden und wurden übersprungen", count=skipped_messages|length) }}</summary>
+      <p class="meta">{{ _("Nach mehreren fehlgeschlagenen KI-Auswertungen wird eine E-Mail übersprungen, damit neuere E-Mails weiter verarbeitet werden. „Erneut auswerten“ versucht es noch einmal, z. B. wenn der KI-Server wieder läuft.") }}</p>
+      <ul>
+        {% for item in skipped_messages %}
+          <li>{{ item.source_subject }} · {{ item.source_sender }} · {{ item.source_received_at|timestamp }} <span class="meta">({{ _("{count} Versuche, zuletzt: {error}", count=item.attempts, error=item.last_error) }})</span>
+            <button type="button" class="secondary reanalyze-button" data-source-key="{{ item.source_key }}" data-reload="1">{{ _("Erneut auswerten") }}<span class="visually-hidden">: {{ item.source_subject }}</span></button></li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
+  {% include "change-requests.html" %}
+  <div class="filter-bar" role="search" aria-label="{{ _("Vorschläge filtern") }}">
+    <div class="chips" role="group" aria-label="{{ _("Nach Kalender filtern") }}">
+      <button type="button" class="chip" data-person="all" aria-pressed="true">{{ _("Alle") }} <span class="chip-count"></span></button>
+      {% for person in people %}
+        <button type="button" class="chip{% if calendar_colors.get(person) %} has-color{% endif %}" data-person="{{ person }}" aria-pressed="false" style="--cal-color: {{ calendar_colors.get(person, 'transparent') }}">{{ person }} <span class="chip-count"></span></button>
+      {% endfor %}
+      <button type="button" class="chip" data-person="none" aria-pressed="false">{{ _("Ohne Zuordnung") }} <span class="chip-count"></span></button>
+    </div>
+    <div class="filter-row">
+      <label class="search-field">
+        <span class="visually-hidden">{{ _("Vorschläge durchsuchen") }}</span>
+        <input type="search" id="suggestion-search" placeholder="{{ _("Suchen nach Titel, Ort, Betreff …") }}" maxlength="100" autocomplete="off">
+      </label>
+      <button type="button" id="select-visible" class="secondary">{{ _("Alle sichtbaren auswählen") }}</button>
+      <label class="details-toggle"><input type="checkbox" id="show-details"> {{ _("Alle Details zeigen") }}</label>
+    </div>
+  </div>
+  <p id="filter-empty" class="empty" hidden>{{ _("Keine Vorschläge passen zum Filter.") }}</p>
+  {% include "suggestions.html" %}
+  <div id="selection-bar" class="selection-bar" role="region" aria-label="{{ _("Auswahl") }}" hidden>
+    <span id="selection-count"></span>
+    <div class="selection-actions">
+      <span class="choices-label">{{ _("Übertragen nach:") }}</span>
+      {% for person in people %}
+        <button type="button" class="batch-export calendar-choice{% if calendar_colors.get(person) %} has-color{% endif %}" style="--cal-color: {{ calendar_colors.get(person, 'transparent') }}" data-calendar="{{ person }}" {% if not caldav_configured %}disabled{% endif %}>{{ person }}</button>
+      {% endfor %}
+      <button type="button" id="batch-dismiss" class="secondary">{{ _("Entfernen") }}</button>
+      <button type="button" id="selection-clear" class="secondary">{{ _("Auswahl aufheben") }}</button>
+    </div>
+  </div>
+  <div id="toast-region" class="toast-region"></div>
+  <script id="page-config" type="application/json">{{ {"suggestionVersion": suggestion_version, "people": people, "pollMinutes": (poll_seconds / 60)|round|int, "demo": demo_mode}|tojson }}</script>
+  <script src="/static/index.js?v={{ app_version }}" defer></script>
+  </main>
+  {% include "_footer.html" %}
+</body>
+</html>

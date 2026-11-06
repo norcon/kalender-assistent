@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% from "_macros.html" import info %}
+  {% with page_title=_("Einstellungen") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="einstellungen" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main">
+  <h1>{{ _("Einstellungen") }}</h1>
+
+  {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
+  {% if errors %}<p class="message problem" role="alert">{{ _("Bitte die markierten Felder korrigieren. Es wurde nichts gespeichert.") }}</p>{% endif %}
+
+  <form method="post" action="/einstellungen">
+    {% include "_settings_fields.html" %}
+    <div class="actions">
+      <button type="submit">{{ _("Speichern") }}</button>
+      <span class="meta">{{ _("Änderungen gelten sofort, ein Neustart ist nicht nötig.") }}</span>
+    </div>
+  </form>
+  <form method="post" action="/einstellungen/zuruecksetzen" data-confirm="{{ _("Alle Einstellungen auf die Werte aus .env zurücksetzen?") }}">
+    <button type="submit" class="secondary">{{ _("Alles auf .env-Werte zurücksetzen") }}</button>
+  </form>
+
+  <section aria-labelledby="zielkalender">
+    <h2 id="zielkalender">{{ _("Zielkalender") }} {{ info(_("Nur in diese Kalender kann die App Termine eintragen; sie erscheinen als Knöpfe auf den Karten. Die Beschreibung hilft der KI bei der Zuordnung, z. B. „Sohn, 4. Klasse, Fußball“. Ein gemeinsamer Kalender wird nur für ausdrücklich gemeinsame Termine gewählt."), _("Zielkalender")) }}</h2>
+    {% if target_rows %}
+      <form method="post" action="/einstellungen/zielkalender" class="target-form">
+        <ul class="target-list">
+          {% for row in target_rows %}
+            <li class="target-row">
+              <input type="hidden" name="cal-{{ loop.index0 }}-name" value="{{ row.name }}">
+              <label class="target-check">
+                <input type="checkbox" name="cal-{{ loop.index0 }}-target" value="1"{% if row.target %} checked{% endif %}>
+                <span class="cal-dot" style="--cal-color: {{ calendar_colors.get(row.name, 'var(--dot-off)') }}" aria-hidden="true"></span>
+                <strong>{{ row.name }}</strong>
+              </label>
+              <label class="target-field">{{ _("Beschreibung für die KI") }}
+                <input type="text" name="cal-{{ loop.index0 }}-description" value="{{ row.description }}" maxlength="500" placeholder="{{ _("z. B. Tochter, 2. Klasse, Schwimmverein") }}">
+              </label>
+              <div class="target-options">
+                <label><input type="checkbox" name="cal-{{ loop.index0 }}-shared" value="1"{% if row.shared %} checked{% endif %}> {{ _("Gemeinsamer Kalender") }}</label>
+                <label>{{ _("Reihenfolge") }} <input type="number" name="cal-{{ loop.index0 }}-position" value="{{ loop.index }}" min="1" max="99" class="position-input"></label>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+        <div class="actions"><button type="submit">{{ _("Zielkalender speichern") }}</button></div>
+      </form>
+    {% else %}
+      <p class="empty">{{ _("Noch keine Kalender bekannt. Bitte unten „iCloud-Verbindung testen“ wählen; danach erscheinen hier alle gefundenen Kalender zur Auswahl.") }}</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="caldav-heading">
+    <h2 id="caldav-heading">{{ _("iCloud-Verbindung testen") }}</h2>
+    <p class="meta">{{ _("Der Verbindungstest liest nur die Kalenderliste. Geprüfte Vorschläge werden erst nach Klick auf einen Kalender-Button geschrieben. Die App schreibt nur in die oben gewählten Zielkalender. Nach dem Test erscheinen neu gefundene Kalender oben in der Auswahl (Seite neu laden).") }}</p>
+    <button id="caldav-button" type="button">{{ _("iCloud-Verbindung testen") }}</button>
+    <span id="caldav-status" role="status" aria-live="polite"></span>
+    <ul id="caldav-calendars" hidden></ul>
+  </section>
+  <section aria-labelledby="fixed-heading">
+    <h2 id="fixed-heading">{{ _("Zugangsdaten (nur in .env änderbar)") }}</h2>
+    <p class="meta">{{ _("Server-Adressen und Zugangsdaten sind hier bewusst nicht änderbar: Die Oberfläche hat keinen Login, und jemand im Netz könnte sonst z. B. E-Mails an einen fremden KI-Server umleiten. Nach Änderungen an .env:") }} <code>docker compose up -d</code></p>
+    <dl class="fixed">
+      {% for label, value in fixed %}<dt>{{ _(label) }}</dt><dd>{{ _(value) }}</dd>{% endfor %}
+    </dl>
+  </section>
+
+  <script>
+    for (const form of document.querySelectorAll("form[data-confirm]")) {
+      form.addEventListener("submit", (event) => {
+        if (!confirm(form.dataset.confirm)) event.preventDefault();
+      });
+    }
+    const caldavButton = document.getElementById("caldav-button");
+    const caldavStatus = document.getElementById("caldav-status");
+    const caldavCalendars = document.getElementById("caldav-calendars");
+    caldavButton.addEventListener("click", async () => {
+      caldavButton.disabled = true;
+      caldavStatus.textContent = t("Verbinde mit iCloud …");
+      caldavCalendars.replaceChildren();
+      caldavCalendars.hidden = true;
+      try {
+        const response = await fetch("/api/caldav/discover", { method: "POST" });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || t("Verbindungstest fehlgeschlagen."));
+        if (!result.calendars.length) {
+          caldavStatus.textContent = t("Verbindung erfolgreich, aber keine Kalender gefunden.");
+          return;
+        }
+        for (const calendar of result.calendars) {
+          const item = document.createElement("li");
+          const name = document.createElement("strong");
+          name.textContent = calendar.name;
+          const access = document.createElement("span");
+          if (calendar.write_access === true) {
+            access.className = "access-yes";
+            access.textContent = " — " + t("Schreibrecht gemeldet");
+          } else if (calendar.write_access === false) {
+            access.className = "access-no";
+            access.textContent = " — " + t("kein Schreibrecht gemeldet");
+          } else {
+            access.textContent = " — " + t("Schreibrecht von iCloud nicht ausgewiesen");
+          }
+          item.append(name, access);
+          caldavCalendars.append(item);
+        }
+        caldavCalendars.hidden = false;
+        caldavStatus.textContent = t("{count} Kalender gefunden.", { count: result.calendars.length });
+      } catch (error) {
+        caldavStatus.textContent = error.message;
+      } finally {
+        caldavButton.disabled = false;
+      }
+    });
+  </script>
+  </main>
+  {% include "_footer.html" %}
+</body>
+</html>

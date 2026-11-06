@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag passt zur Version im Code
+        run: |
+          code=$(python3 -c "import re;print(re.search(r'VERSION = \"([^\"]+)\"', open('src/version.py').read()).group(1))")
+          test "v$code" = "${GITHUB_REF_NAME}" || { echo "Tag ${GITHUB_REF_NAME} passt nicht zu VERSION $code"; exit 1; }
+
+      - name: Tests
+        run: |
+          docker build -t kalender-assistent:test .
+          docker run --rm --network none -u 0 -v "$PWD/tests:/app/tests:ro" \
+            -e IMAP_HOST=x -e IMAP_USERNAME=x -e IMAP_PASSWORD=x \
+            -e APP_DATABASE_PATH=/tmp/test.sqlite3 \
+            kalender-assistent:test python -m unittest discover -s tests
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image-Namen bestimmen
+        id: names
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Image bauen und veröffentlichen (amd64 + arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.names.outputs.image }}:${{ steps.names.outputs.version }}
+            ${{ steps.names.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.names.outputs.version }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Release-Notiz aus dem Changelog
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '$0 ~ "^## "v" " {f=1; next} /^## / && f {exit} f' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

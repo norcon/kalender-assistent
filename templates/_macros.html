@@ -1,0 +1,4 @@
+{#- Info-Symbol mit aufklappbarer Erklärung (Bedienung per Tippen, Klick oder Tastatur). -#}
+{% macro info(text, topic="") -%}
+<span class="info"><button type="button" class="info-toggle" aria-expanded="false" aria-label="{% if topic %}{{ _("Erklärung: {topic}", topic=topic) }}{% else %}{{ _("Erklärung") }}{% endif %}">i</button></span><span class="info-text" role="note" hidden>{{ text }}</span>
+{%- endmacro %}

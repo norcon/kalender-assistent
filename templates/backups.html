@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% from "_macros.html" import info %}
+  {% with page_title=_("Sicherungen") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="sicherungen" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main">
+  <h1>{{ _("Sicherungen") }}</h1>
+
+  {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
+  {% if problem %}<p class="message problem" role="alert">{{ problem }}</p>{% endif %}
+  {% if errors %}<p class="message problem" role="alert">{{ _("Bitte die markierten Felder korrigieren. Es wurde nichts gespeichert.") }}</p>{% endif %}
+
+  <section aria-labelledby="list-heading">
+    <h2 id="list-heading">{{ _("Datenbank-Sicherungen") }} {{ info(_("Sicherung der App-Daten: Vorschläge, gelernte Korrekturen, Verlauf und Einstellungen. Wiederherstellen setzt die App auf diesen Stand zurück; iCloud-Termine bleiben unberührt."), _("Datenbank-Sicherungen")) }}</h2>
+    <p class="meta">{{ _("Jede Sicherung enthält Vorschläge, gelernte Korrekturen, Verlauf und Einstellungen. Auf dem Server liegen sie in ./backups im Projektordner – auf derselben Festplatte wie die Datenbank.") }}</p>
+    {% if backups %}
+      <table>
+        <thead><tr><th>{{ _("Erstellt") }}</th><th>{{ _("Größe") }}</th><th><span class="visually-hidden">{{ _("Aktionen") }}</span></th></tr></thead>
+        <tbody>
+          {% for item in backups %}
+            <tr>
+              <td>
+                <time datetime="{{ item.created_at.isoformat() }}" class="local-time">{{ item.created_at.strftime('%d.%m.%Y %H:%M') }} UTC</time>
+                {% if loop.first %}<span class="newest">{{ _("neueste") }}</span>{% endif %}
+              </td>
+              <td>{{ item.size_bytes|filesize }}</td>
+              <td class="actions-cell">
+                <div class="backup-actions">
+                  <a class="button" href="/sicherungen/{{ item.name }}/download">{{ _("Herunterladen") }}</a>
+                  <form method="post" action="/sicherungen/{{ item.name }}/wiederherstellen" data-confirm="{{ _("Datenbank auf diesen Stand zurücksetzen? Alle seitdem erkannten Vorschläge und Änderungen gehen verloren. Der aktuelle Stand wird vorher automatisch gesichert.") }}">
+                    <button type="submit">{{ _("Wiederherstellen") }}</button>
+                  </form>
+                  <form method="post" action="/sicherungen/{{ item.name }}/loeschen" data-confirm="{{ _("Diese Sicherung endgültig löschen?") }}">
+                    <button type="submit" class="danger">{{ _("Löschen") }}</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="meta">{{ _("Noch keine Sicherung vorhanden.") }}</p>
+    {% endif %}
+    <form method="post" action="/sicherungen/erstellen" class="actions">
+      <button type="submit">{{ _("Jetzt sichern") }}</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="calendar-heading">
+    <h2 id="calendar-heading">{{ _("Kalender-Sicherung (iCloud)") }} {{ info(_("Unabhängig von der App: Die iCloud-Kalender selbst werden regelmäßig gesichert. Wurde ein Termin in der Kalender-App gelöscht oder verändert, lässt er sich hier einzeln zurückholen."), _("Kalender-Sicherung")) }}</h2>
+    {% if not caldav_configured %}
+      <p class="message problem">{{ _("iCloud-Zugangsdaten fehlen in .env; die Kalender-Sicherung ist inaktiv.") }}</p>
+    {% else %}
+      <p class="meta">{{ _("Die ausgewählten iCloud-Kalender werden regelmäßig gesichert; übertragen und gespeichert werden nur Änderungen. Einzelne Termine lassen sich aus jedem gesicherten Stand zurückholen.") }}</p>
+      {% set last = calendar_snapshots[0] if calendar_snapshots else None %}
+      <p>
+        {% if last %}{{ _("Letzte Sicherung:") }} <strong>{{ last.taken_at|timestamp }}</strong> ({{ last.taken_at|relative_time }}) · {{ _n("{count} Termin", "{count} Termine", last.total) }}
+        {% if last.status == 'partial' %}<span class="error">– {{ _("unvollständig: {error}", error=last.error) }}</span>{% endif %}
+        {% else %}{{ _("Noch keine Kalendersicherung vorhanden.") }}{% endif %}
+        <br><span class="meta">{{ _("{count} Stände der letzten Zeit angezeigt · Speicherbedarf {size} für {versions} Termin-Versionen", count=calendar_snapshots|length, size=calendar_storage.bytes|filesize, versions=calendar_storage.versions) }}</span>
+      </p>
+      <div class="actions">
+        <a class="button" href="/sicherungen/kalender">{{ _("Termine durchsuchen und wiederherstellen") }}</a>
+        <form method="post" action="/sicherungen/kalender/abgleichen"><button type="submit" {% if calendar_backup_running %}disabled{% endif %}>{% if calendar_backup_running %}{{ _("Sicherung läuft …") }}{% else %}{{ _("Jetzt sichern") }}{% endif %}</button></form>
+      </div>
+      {% if calendar_snapshots %}
+        <details>
+          <summary>{{ _("Verlauf der Kalendersicherungen") }}</summary>
+          <table>
+            <thead><tr><th>{{ _("Zeitpunkt") }}</th><th>{{ _("Termine") }}</th><th>{{ _("Neu") }}</th><th>{{ _("Geändert") }}</th><th>{{ _("Gelöscht") }}</th></tr></thead>
+            <tbody>
+              {% for item in calendar_snapshots %}
+                <tr>
+                  <td>{{ item.taken_at|timestamp }}{% if item.status == 'partial' %} <span class="error" title="{{ item.error }}">{{ _("unvollständig") }}</span>{% endif %}</td>
+                  <td>{{ item.total }}</td><td>{{ item.added }}</td><td>{{ item.changed }}</td><td>{{ item.deleted }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </details>
+      {% endif %}
+
+      <h3>{{ _("Zu sichernde Kalender") }}</h3>
+      {% if known_calendars %}
+        <form method="post" action="/sicherungen/kalender/auswahl">
+          <div class="calendar-selection">
+            {% for name in known_calendars %}
+              <label><input type="checkbox" name="calendar" value="{{ name }}" {% if name not in excluded_calendars %}checked{% endif %}> {{ name }}</label>
+            {% endfor %}
+          </div>
+          <p class="meta">{{ _("Neu angelegte Kalender werden automatisch mitgesichert. Abgewählte Kalender behalten ihre bisherigen Sicherungen, werden aber nicht mehr aktualisiert.") }}</p>
+          <div class="actions"><button type="submit">{{ _("Auswahl speichern") }}</button></div>
+        </form>
+      {% else %}
+        <p class="meta">{{ _("Die Kalenderliste erscheint nach der ersten Sicherung (automatisch kurz nach dem Start oder über „Jetzt sichern“). Standardmäßig werden alle Kalender gesichert.") }}</p>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <form method="post" action="/sicherungen/einstellungen">
+    {% include "_settings_fields.html" %}
+    <div class="actions">
+      <button type="submit">{{ _("Speichern") }}</button>
+      <span class="meta">{{ _("Gilt sofort. Zurücksetzen auf .env-Werte über die Seite Einstellungen.") }}</span>
+    </div>
+  </form>
+
+  <script>
+    const formatter = new Intl.DateTimeFormat(document.documentElement.lang === 'en' ? 'en-GB' : 'de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+    for (const element of document.querySelectorAll('time.local-time')) {
+      element.textContent = formatter.format(new Date(element.getAttribute('datetime')));
+    }
+    for (const form of document.querySelectorAll('form[data-confirm]')) {
+      form.addEventListener('submit', (event) => {
+        if (!confirm(form.dataset.confirm)) event.preventDefault();
+      });
+    }
+  </script>
+  </main>
+  {% include "_footer.html" %}
+</body>
+</html>

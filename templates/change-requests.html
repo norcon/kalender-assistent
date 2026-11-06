@@ -1,0 +1,41 @@
+<section id="change-requests" aria-labelledby="change-requests-heading">
+  <h2 id="change-requests-heading">{{ _("Änderungen und Absagen zur Prüfung") }}</h2>
+  {% for item in change_requests %}
+    <article class="card">
+      <h3>{% if item.action == 'cancel' %}{{ _("Mögliche Absage: {title}", title=item.event_data.title) }}{% else %}{{ _("Mögliche Terminänderung: {title}", title=item.event_data.title) }}{% endif %}</h3>
+      <p>{{ item.event_data.start|event_range(item.event_data.end) }}</p>
+      <p class="meta">{{ _("Quelle: {subject} · {sender}", subject=item.source_subject, sender=item.source_sender) }}</p>
+      {% if item.related_suggestion_id %}
+        <p>{{ _("Vorgeschlagener Bezug:") }} <a href="#suggestion-{{ item.related_suggestion_id }}">{{ item.current_title }}</a> ({{ item.current_start|event_time }}){% if item.current_is_series %} – {{ _("Serie") }}{% endif %}</p>
+        {% set single_occurrence = item.current_is_series and not item.event_data.recurrence %}
+        {% if single_occurrence and item.action == 'update' %}
+          <p class="notice">{{ _("Die Mail ändert offenbar nur einen einzelnen Termin der Serie. Das wird nicht automatisch übernommen – bitte direkt in der Kalender-App anpassen und diesen Vorschlag danach ablehnen.") }}</p>
+        {% else %}
+          <button type="button" class="change-request-button" data-request-id="{{ item.id }}" data-action="apply">
+            {% if item.action == 'cancel' and single_occurrence %}{{ _("Nur Termin am {date} absagen (Serie bleibt)", date=item.event_data.start|event_time) }}
+            {% elif item.action == 'cancel' %}{{ _("Absage bestätigen") }}
+            {% else %}{{ _("Änderung übernehmen") }}{% endif %}
+          </button>
+        {% endif %}
+      {% else %}
+        <p class="notice">{{ _("Kein bestehender Vorschlag ließ sich automatisch zuordnen. Wähle den passenden Termin; danach ist eine separate Bestätigung erforderlich.") }}</p>
+        {% if linkable_suggestions %}
+          <label>
+            {{ _("Passenden vorhandenen Vorschlag auswählen:") }}
+            <select class="change-request-target" aria-label="{{ _("Vorhandenen Vorschlag auswählen") }}">
+              <option value="">{{ _("Bitte auswählen …") }}</option>
+              {% for target in linkable_suggestions %}
+                <option value="{{ target.id }}">{{ target.starts_at|event_time }} · {{ target.title }}{% if target.person %} ({{ target.person }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button type="button" class="change-request-button" data-request-id="{{ item.id }}" data-action="link">{{ _("Zuordnen") }}</button>
+        {% endif %}
+      {% endif %}
+      <button type="button" class="change-request-button secondary" data-request-id="{{ item.id }}" data-action="reject">{{ _("Ablehnen") }}</button>
+      <span class="change-request-feedback" role="status" aria-live="polite"></span>
+    </article>
+  {% else %}
+    <p class="meta">{{ _("Keine offenen Änderungs- oder Absagevorschläge.") }}</p>
+  {% endfor %}
+</section>

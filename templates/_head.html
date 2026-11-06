@@ -1,0 +1,18 @@
+{#- Gemeinsamer Kopfbereich. Erwartet `page_title` (bereits übersetzt). -#}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ page_title }} – {{ _("Kalender-Assistent") }}</title>
+<meta name="app-version" content="{{ app_version }}">
+<script src="/static/theme-init.js?v={{ app_version }}"></script>
+<link rel="stylesheet" href="/static/app.css?v={{ app_version }}">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121416" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="{{ _("Kalender") }}">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+{% if current_lang() != "de" %}<script src="/i18n/{{ current_lang() }}.js?v={{ app_version }}"></script>{% endif %}
+<script src="/static/app.js?v={{ app_version }}" defer></script>

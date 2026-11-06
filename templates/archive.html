@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% with page_title=_("Archiv") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="archiv" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main">
+  <h1>{{ _("Archiv") }}</h1>
+  <p class="meta">{{ _("Übertragene, entfernte, abgesagte und vergangene Vorschläge. Insgesamt {count}.", count=total_archived) }}</p>
+
+  <section aria-labelledby="archive-filter-heading">
+    <h2 id="archive-filter-heading" class="visually-hidden">{{ _("Filter") }}</h2>
+    <form method="get" action="/archiv" class="filters" role="search">
+      <label>{{ _("Suche") }}
+        <input type="search" name="q" value="{{ filters.q }}" maxlength="200" placeholder="{{ _("Titel, Ort, Hinweise, Betreff …") }}">
+      </label>
+      <label>{{ _("Kalender") }}
+        <select name="kalender">
+          <option value="">{{ _("Alle") }}</option>
+          {% for person in people %}<option value="{{ person }}" {% if filters.kalender == person %}selected{% endif %}>{{ person }}</option>{% endfor %}
+        </select>
+      </label>
+      {% if filters.status %}<input type="hidden" name="status" value="{{ filters.status }}">{% endif %}
+      <div><button type="submit">{{ _("Anzeigen") }}</button></div>
+    </form>
+    <nav class="chips archive-status" aria-label="{{ _("Nach Status filtern") }}">
+      <a class="chip" href="{{ status_url('') }}"{% if not filters.status %} aria-current="true"{% endif %}>{{ _("Alle") }} <span class="chip-count">{{ counts.values()|sum }}</span></a>
+      {% for key, label in status_labels.items() %}
+        <a class="chip" href="{{ status_url(key) }}"{% if filters.status == key %} aria-current="true"{% endif %}>{{ _(label) }} <span class="chip-count">{{ counts[key] }}</span></a>
+      {% endfor %}
+    </nav>
+  </section>
+
+  <h2 class="archive-count">{{ _n("{count} Treffer", "{count} Treffer", total_matching) }}{% if pages > 1 %} · {{ _("Seite {page} von {pages}", page=page, pages=pages) }}{% endif %}</h2>
+  {% for item in suggestions %}
+    <article id="suggestion-{{ item.id }}" class="archive-item">
+      <div class="card-head">
+        <h3 class="card-title">{{ item.title }}</h3>
+        <span class="status-badge status-{{ item.archive_status }}">{{ _(status_labels[item.archive_status]) }}</span>
+      </div>
+      <p>{{ item.starts_at|event_range(item.ends_at) }}{% if item.recurrence %} · {{ item.recurrence|recurrence_text }}{% endif %}</p>
+      <p class="meta">
+        {% if item.archive_calendar %}<span class="cal-dot" style="--cal-color: {{ calendar_colors.get(item.archive_calendar, 'var(--dot-off)') }}" aria-hidden="true"></span> {{ item.archive_calendar }} · {% endif %}
+        {{ _("Archiviert {date}", date=item.archived_at|timestamp) }}
+      </p>
+      {% if item.icloud_exported_at %}<p class="meta">{{ _("Nach iCloud-Kalender „{calendar}“ übertragen.", calendar=item.icloud_calendar) }}</p>{% endif %}
+      {% if item.cancelled_at %}<p class="meta">{% if item.icloud_deleted_at %}{{ _("Absage bestätigt; der iCloud-Eintrag wurde entfernt.") }}{% else %}{{ _("Absage bestätigt.") }}{% endif %}</p>{% endif %}
+      <details>
+        <summary>{{ _("Details und Verlauf") }}</summary>
+        <p class="meta">{{ _("Quelle: {subject} · {sender}", subject=item.source_subject, sender=item.source_sender) }} · {{ item.source_received_at|timestamp }}</p>
+        {% if item.source_quote %}<blockquote class="source-quote">„{{ item.source_quote }}“</blockquote>{% endif %}
+        {% if history.get(item.id) %}
+          <ol class="history">
+            {% for entry in history.get(item.id) %}
+              <li>{{ entry.created_at|timestamp }} · {{ entry.action|history_label }} · {{ _(entry.actor) }}</li>
+            {% endfor %}
+          </ol>
+        {% endif %}
+      </details>
+      {% if not item.cancelled_at %}
+        <form method="post" action="/suggestions/{{ item.id }}/restore">
+          <button type="submit" class="secondary">{{ _("Wiederherstellen") }}<span class="visually-hidden">: {{ item.title }}</span></button>
+        </form>
+      {% endif %}
+    </article>
+  {% else %}
+    <p class="empty">{% if total_archived %}{{ _("Keine archivierten Vorschläge passen zum Filter.") }}{% else %}{{ _("Noch keine archivierten Vorschläge.") }}{% endif %}</p>
+  {% endfor %}
+
+  {% if pages > 1 %}
+    <nav class="pagination" aria-label="{{ _("Seiten") }}">
+      {% if page > 1 %}<a class="button secondary" href="{{ page_url(page - 1) }}" rel="prev">← {{ _("Neuere") }}</a>{% endif %}
+      <span>{{ _("Seite {page} von {pages}", page=page, pages=pages) }}</span>
+      {% if page < pages %}<a class="button secondary" href="{{ page_url(page + 1) }}" rel="next">{{ _("Ältere") }} →</a>{% endif %}
+    </nav>
+  {% endif %}
+  </main>
+  {% include "_footer.html" %}
+</body>
+</html>

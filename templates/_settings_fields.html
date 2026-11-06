@@ -1,0 +1,28 @@
+    {% for group, fields in groups.items() %}
+      <section aria-labelledby="group-{{ loop.index }}">
+        <h2 id="group-{{ loop.index }}">{{ _(group) }}</h2>
+        {% for field in fields %}
+          {% set p = field.parameter %}
+          <div class="field{% if field.error %} invalid{% endif %}">
+            <label for="{{ p.key }}">{{ _(p.label) }}</label>
+            <div>
+              <div class="input-row">
+                {% if p.kind == "choice" %}
+                  <select id="{{ p.key }}" name="{{ p.key }}">
+                    {% for value, label in p.choices %}<option value="{{ value }}"{% if field.value == value %} selected{% endif %}>{{ _(label) }}</option>{% endfor %}
+                  </select>
+                {% elif p.kind == "int" %}
+                  <input type="number" id="{{ p.key }}" name="{{ p.key }}" value="{{ field.value }}" min="{{ p.minimum }}" max="{{ p.maximum }}" step="1" required>
+                {% else %}
+                  <input type="text" id="{{ p.key }}" name="{{ p.key }}" value="{{ field.value }}" maxlength="{{ p.max_length }}" required>
+                {% endif %}
+                {% if p.unit %}<span>{{ _(p.unit) }}</span>{% endif %}
+                {% if field.overridden %}<span class="badge" title="{{ _("Weicht vom Wert in .env ab oder wurde hier festgelegt") }}">{{ _("angepasst") }}</span>{% endif %}
+              </div>
+              {% if field.error %}<p class="error">{{ field.error }}</p>{% endif %}
+              <p class="help">{{ _(p.help) }} <span class="meta">{{ _("Standard aus .env:") }} {% if p.kind == "choice" %}{{ _(dict(p.choices).get(field.env_value, field.env_value)) }}{% else %}{{ field.env_value }}{% if p.unit %} {{ _(p.unit) }}{% endif %}{% endif %}</span></p>
+            </div>
+          </div>
+        {% endfor %}
+      </section>
+    {% endfor %}

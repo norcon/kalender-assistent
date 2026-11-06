@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% from "_macros.html" import info %}
+  {% with page_title=_("Wartung") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="protokoll" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main">
+  <h1>{{ _("Wartungs-Übersicht") }}</h1>
+  <p class="meta"><a href="/protokoll">← {{ _("Zum Protokoll") }}</a> · {{ _("Kennzahlen aus der Datenbank; nichts davon verlässt den Server.") }}</p>
+
+  <section aria-labelledby="ai-heading">
+    <h2 id="ai-heading">{{ _("KI-Auswertung (letzte 30 Tage)") }} {{ info(_("Gezählt wird jede Anfrage an den KI-Server, auch fehlgeschlagene. Die Dauer zählt nur erfolgreiche Auswertungen. Aufgezeichnet wird erst seit Version 0.14.0."), _("KI-Auswertung")) }}</h2>
+    {% if ai.runs %}
+      <dl class="stat-list">
+        <div><dt>{{ _("Auswertungen") }}</dt><dd>{{ ai.runs }}</dd></div>
+        <div><dt>{{ _("Fehlgeschlagen") }}</dt><dd>{{ ai.failed }} <span class="meta">({{ ai.failure_rate }} %)</span></dd></div>
+        <div><dt>{{ _("Dauer im Schnitt") }}</dt><dd>{{ ai.avg|duration }}</dd></div>
+        <div><dt>{{ _("Dauer typisch (Median)") }}</dt><dd>{{ ai.median|duration }}</dd></div>
+        <div><dt>{{ _("Längste") }}</dt><dd>{{ ai.max|duration }}</dd></div>
+        <div><dt>{{ _("Modell") }}</dt><dd>{{ ai.models|join(", ") or "–" }}</dd></div>
+      </dl>
+    {% else %}
+      <p class="empty">{{ _("Noch keine KI-Auswertungen aufgezeichnet. Die Dauer wird ab Version 0.14.0 mitgeschrieben.") }}</p>
+    {% endif %}
+    {% if month_failures %}<p class="notice">{{ _("{count} Mail(s) mit fehlgeschlagener Auswertung in den letzten 30 Tagen.", count=month_failures) }} <a href="/protokoll">{{ _("Details im Protokoll") }}</a></p>{% endif %}
+  </section>
+
+  <section aria-labelledby="days-heading">
+    <h2 id="days-heading">{{ _("Die letzten {count} Tage", count=days|length) }}</h2>
+    <div class="table-scroll">
+      <table class="stats-table">
+        <thead><tr><th scope="col">{{ _("Tag") }}</th><th scope="col" class="num">{{ _("Mails") }}</th><th scope="col" class="num">{{ _("Vorschläge") }}</th><th scope="col" class="num">{{ _("Übertragen") }}</th><th scope="col" class="num">{{ _("KI-Läufe") }}</th><th scope="col" class="num">{{ _("KI-Dauer") }}</th></tr></thead>
+        <tbody>
+          {% for row in days %}
+            <tr>
+              <th scope="row">{{ row.day.isoformat()|event_time }}</th>
+              <td class="num" data-label="{{ _("Mails") }}">{{ row.mails }}</td>
+              <td class="num" data-label="{{ _("Vorschläge") }}">{{ row.suggestions }}</td>
+              <td class="num" data-label="{{ _("Übertragen") }}">{{ row.exports }}</td>
+              <td class="num" data-label="{{ _("KI-Läufe") }}">{{ row.ai_runs }}{% if row.ai_failed %} <span class="problem-text">({{ _n("{count} Fehler", "{count} Fehler", row.ai_failed) }})</span>{% endif %}</td>
+              <td class="num" data-label="{{ _("KI-Dauer") }}">{{ row.ai_avg|duration }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="storage-heading">
+    <h2 id="storage-heading">{{ _("Speicher") }}</h2>
+    <dl class="stat-list">
+      {% for label, size, extra in storage %}
+        <div><dt>{{ _(label) }}</dt><dd>{{ size|filesize }}{% if extra %} <span class="meta">· {{ extra }}</span>{% endif %}</dd></div>
+      {% endfor %}
+      {% if disk %}<div><dt>{{ _("Freier Platz (Sicherungs-Laufwerk)") }}</dt><dd>{{ disk.free|filesize }} <span class="meta">{{ _("von {total} ({percent} %)", total=disk.total|filesize, percent=disk.percent_free) }}</span></dd></div>{% endif %}
+    </dl>
+    {% if disk and disk.percent_free < 10 %}<p class="message problem" role="alert">{{ _("Auf dem Laufwerk der Sicherungen ist weniger als 10 % frei.") }}</p>{% endif %}
+  </section>
+
+  <section aria-labelledby="inventory-heading">
+    <h2 id="inventory-heading">{{ _("Bestand") }}</h2>
+    <dl class="stat-list">
+      <div><dt>{{ _("Verarbeitete Mails") }}</dt><dd>{{ inventory.mails }}</dd></div>
+      <div><dt>{{ _("Übersprungene Mails") }}</dt><dd>{{ inventory.skipped }}</dd></div>
+      <div><dt>{{ _("Vorschläge gesamt") }}</dt><dd>{{ inventory.total }}</dd></div>
+      <div><dt>{{ _("Offen") }}</dt><dd>{{ inventory.open }}</dd></div>
+      <div><dt>{{ _("Ausgeblendet") }}</dt><dd>{{ inventory.hidden }}</dd></div>
+      <div><dt>{{ _("Archiviert") }}</dt><dd>{{ inventory.archived }} <span class="meta">· {{ _("davon übertragen {count}", count=inventory.exported) }}</span></dd></div>
+      <div><dt>{{ _("Absender-Regeln") }}</dt><dd>{{ inventory.sender_rules }}</dd></div>
+      <div><dt>{{ _("Gelernte Korrekturen") }}</dt><dd>{{ inventory.corrections }}</dd></div>
+    </dl>
+  </section>
+  </main>
+  {% include "_footer.html" %}
+</body>
+</html>
