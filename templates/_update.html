@@ -1,0 +1,61 @@
+{#- Abschnitt „Version und Updates“ (wird per JavaScript nachgeladen). -#}
+<div id="update-panel" data-current="{{ current }}">
+  <p>{{ _("Installierte Version:") }} <strong>{{ current }}</strong>{% if latest %} · <span class="update-available">{{ _("Neue Version {version} verfügbar", version=latest.version) }}</span>{% endif %}</p>
+
+  {% set state = updater.state if updater else None %}
+  {% if updater and updater.message and state in ("done", "failed", "rolled_back") %}
+    <p class="message{% if state != 'done' %} problem{% endif %}" role="status">{{ _("Letztes Update:") }} {{ updater.message }}</p>
+  {% endif %}
+  {% if state == "running" %}
+    <div class="update-progress" role="status" aria-live="polite">
+      <p><strong>{{ _("Update auf {version} läuft …", version=updater.to) }}</strong> {{ _("Die App startet dabei neu; die Seite lädt danach von selbst.") }}</p>
+      <ol class="update-log">{% for line in updater.log[-8:] %}<li>{{ line }}</li>{% endfor %}</ol>
+    </div>
+  {% endif %}
+
+  {% if demo_mode %}
+    <p class="meta">{{ _("Im Demo-Modus gibt es keine Updates.") }}</p>
+  {% elif not update_check %}
+    <p class="meta">{{ _("Die Suche nach neuen Versionen ist ausgeschaltet (UPDATE_CHECK=0).") }}</p>
+  {% elif available is none %}
+    <p class="meta">{{ _("Die verfügbaren Versionen konnten nicht abgefragt werden – GitHub nicht erreichbar oder das Repository {repository} ist nicht öffentlich.", repository=update_repository) }}</p>
+  {% else %}
+    {% if latest %}
+      <details class="release-notes" open>
+        <summary>{{ _("Neu in {version}", version=latest.version) }}</summary>
+        <pre class="notes">{{ latest.notes or _("Keine Beschreibung.") }}</pre>
+      </details>
+      <button type="button" class="update-button" data-version="{{ latest.version }}" {% if not updater or state == "running" %}disabled{% endif %}
+              data-confirm="{{ _("Auf Version {version} aktualisieren? Vorher wird automatisch eine Vollsicherung angelegt. Die App ist dabei etwa eine Minute nicht erreichbar.", version=latest.version) }}">{{ _("Auf {version} aktualisieren", version=latest.version) }}</button>
+    {% else %}
+      <p>{{ _("Du verwendest die neueste Version.") }}</p>
+    {% endif %}
+
+    {% if older %}
+      <details class="rollback">
+        <summary>{{ _("Zu einer früheren Version zurück") }}</summary>
+        <div class="rollback-form">
+          <label>{{ _("Version") }}
+            <select id="rollback-version">
+              {% for item in older %}<option value="{{ item.version }}">{{ item.version }}{% if item.published %} · {{ item.published|timestamp }}{% endif %}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="checkbox"><input type="checkbox" id="rollback-restore" {% if not restore_candidate %}disabled{% endif %}>
+            {% if restore_candidate %}{{ _("Auch die Datenbank auf den Stand vor dem letzten Update zurücksetzen ({name})", name=restore_candidate) }}{% else %}{{ _("Datenbank zurücksetzen (keine Sicherung vom letzten Update vorhanden)") }}{% endif %}</label>
+          <p class="meta">{{ _("Ohne Haken behält die App die aktuellen Daten. Mit Haken gehen alle Vorschläge und Änderungen seit dem letzten Update verloren.") }}</p>
+          <button type="button" class="secondary update-button" data-rollback="1" {% if not updater or state == "running" %}disabled{% endif %}
+                  data-confirm="{{ _("Zur gewählten Version wechseln? Vorher wird automatisch eine Vollsicherung angelegt.") }}">{{ _("Zu dieser Version wechseln") }}</button>
+        </div>
+      </details>
+    {% endif %}
+  {% endif %}
+
+  {% if not updater and not demo_mode %}
+    <div class="notice">
+      <p><strong>{{ _("Update auf Knopfdruck ist nicht eingeschaltet.") }}</strong> {{ _("Dafür läuft ein kleiner Zusatzdienst mit Zugriff auf Docker. Einschalten im Projektordner auf dem Server:") }}</p>
+      <pre><code>docker compose --profile updater up -d</code></pre>
+      <p class="meta">{{ _("Ohne Updater: docker compose pull && docker compose up -d") }}</p>
+    </div>
+  {% endif %}
+  <p class="update-feedback" role="status" aria-live="polite"></p>
+</div>

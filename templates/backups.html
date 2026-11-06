@@ -13,6 +13,11 @@
   {% if problem %}<p class="message problem" role="alert">{{ problem }}</p>{% endif %}
   {% if errors %}<p class="message problem" role="alert">{{ _("Bitte die markierten Felder korrigieren. Es wurde nichts gespeichert.") }}</p>{% endif %}
 
+  <section aria-labelledby="update-heading">
+    <h2 id="update-heading">{{ _("Version und Updates") }} {{ info(_("Vor jedem Update legt die App automatisch eine Vollsicherung an (Datenbank, Kalender-Sicherung und Konfiguration). Startet die neue Version nicht sauber, kehrt der Updater von selbst zur bisherigen Version zurück."), _("Updates")) }}</h2>
+    <div id="update-container" data-src="/sicherungen/update-fragment"><p class="meta">{{ _("Lade Versionsinformationen …") }}</p></div>
+  </section>
+
   <section aria-labelledby="list-heading">
     <h2 id="list-heading">{{ _("Datenbank-Sicherungen") }} {{ info(_("Sicherung der App-Daten: Vorschläge, gelernte Korrekturen, Verlauf und Einstellungen. Wiederherstellen setzt die App auf diesen Stand zurück; iCloud-Termine bleiben unberührt."), _("Datenbank-Sicherungen")) }}</h2>
     <p class="meta">{{ _("Jede Sicherung enthält Vorschläge, gelernte Korrekturen, Verlauf und Einstellungen. Auf dem Server liegen sie in ./backups im Projektordner – auf derselben Festplatte wie die Datenbank.") }}</p>
@@ -109,6 +114,7 @@
     </div>
   </form>
 
+  <script src="/static/update.js?v={{ app_version }}" defer></script>
   <script>
     const formatter = new Intl.DateTimeFormat(document.documentElement.lang === 'en' ? 'en-GB' : 'de-DE', { dateStyle: 'medium', timeStyle: 'short' });
     for (const element of document.querySelectorAll('time.local-time')) {

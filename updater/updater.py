@@ -1,0 +1,313 @@
+"""Updater für den Kalender-Assistenten (eigener Container, optional).
+
+Nur dieser Dienst hat Zugriff auf Docker. Er ist ausschließlich im internen
+Compose-Netz erreichbar und kann genau eines: die App auf eine bestimmte
+Versionsnummer (x.y.z) des festgelegten Images umstellen – mit Sicherung der
+Konfiguration vorher und automatischer Rückkehr, wenn die neue Version nicht
+sauber startet.
+
+HTTP (intern):
+  GET  /status   → aktueller bzw. letzter Vorgang (JSON)
+  POST /update   {"version", "previous", "backup", "restore_backup"}
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+import shutil
+import subprocess
+import threading
+import time
+import urllib.request
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any, Callable
+
+logger = logging.getLogger("updater")
+
+VERSION_PATTERN = re.compile(r"^\d{1,4}\.\d{1,4}\.\d{1,4}$")
+BACKUP_NAME_PATTERN = re.compile(r"^calendar-assistant-[0-9_-]+\.sqlite3$")
+ENV_KEY = "KALENDER_VERSION"
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+# ---------- .env bearbeiten ----------
+
+def read_env_value(path: Path, key: str) -> str | None:
+    if not path.exists():
+        return None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith(f"{key}="):
+            return stripped.split("=", 1)[1].strip().strip('"').strip("'") or None
+    return None
+
+
+def set_env_value(path: Path, key: str, value: str | None) -> None:
+    """Setzt oder entfernt KEY=value; alle anderen Zeilen bleiben unverändert."""
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    kept = [line for line in lines if not line.strip().startswith(f"{key}=")]
+    if value is not None:
+        kept.append(f"{key}={value}")
+    temporary = path.with_name(path.name + ".updater-tmp")
+    temporary.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    if path.exists():
+        stat = path.stat()
+        os.chmod(temporary, stat.st_mode & 0o7777)
+        try:
+            os.chown(temporary, stat.st_uid, stat.st_gid)
+        except PermissionError:
+            pass
+    temporary.replace(path)
+
+
+# ---------- Ablauf ----------
+
+class Updater:
+    def __init__(
+        self,
+        project_dir: Path,
+        *,
+        service: str = "kalender-assistent",
+        app_url: str = "http://kalender-assistent:8000",
+        data_file: str = "data/calendar-assistant.sqlite3",
+        backup_dir: str = "backups",
+        health_timeout: float = 240,
+        run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+        sleep: Callable[[float], None] = time.sleep,
+        fetch: Callable[[str], str] | None = None,
+    ) -> None:
+        self.project_dir = project_dir
+        self.service = service
+        self.app_url = app_url.rstrip("/")
+        self.env_file = project_dir / ".env"
+        self.data_file = project_dir / data_file
+        self.backup_dir = project_dir / backup_dir
+        self.health_timeout = health_timeout
+        self._run = run
+        self._sleep = sleep
+        self._fetch = fetch or self._http_get
+        self._lock = threading.Lock()
+        self.state: dict[str, Any] = self._load_state()
+
+    # Zustand liegt in backups/, damit die App ihn auch nach ihrem Neustart lesen kann
+    @property
+    def _state_file(self) -> Path:
+        return self.backup_dir / "update-status.json"
+
+    def _load_state(self) -> dict[str, Any]:
+        try:
+            state = json.loads(self._state_file.read_text(encoding="utf-8"))
+            if state.get("state") == "running":  # Updater wurde mittendrin beendet
+                state["state"] = "failed"
+                state["message"] = "Der Updater wurde während des Vorgangs neu gestartet."
+            return state
+        except (OSError, ValueError):
+            return {"state": "idle", "log": []}
+
+    def _save(self) -> None:
+        try:
+            self.backup_dir.mkdir(parents=True, exist_ok=True)
+            temporary = self._state_file.with_name("update-status.json.tmp")
+            temporary.write_text(json.dumps(self.state, ensure_ascii=False, indent=1), encoding="utf-8")
+            temporary.replace(self._state_file)
+        except OSError as error:
+            logger.warning("Status konnte nicht gespeichert werden: %s", error)
+
+    def _step(self, text: str) -> None:
+        logger.info(text)
+        self.state["step"] = text
+        self.state.setdefault("log", []).append(f"{_now()} {text}")
+        self._save()
+
+    @staticmethod
+    def _http_get(url: str) -> str:
+        with urllib.request.urlopen(url, timeout=5) as response:  # noqa: S310 – nur internes Netz
+            return response.read().decode("utf-8")
+
+    def _compose(self, *arguments: str) -> None:
+        result = self._run(
+            ["docker", "compose", *arguments],
+            cwd=self.project_dir, capture_output=True, text=True, timeout=900,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip().splitlines()[-3:]
+            raise RuntimeError(f"docker compose {' '.join(arguments)} fehlgeschlagen: {' '.join(detail)}")
+
+    def _wait_for_version(self, version: str) -> bool:
+        deadline = time.monotonic() + self.health_timeout
+        while time.monotonic() < deadline:
+            try:
+                running = json.loads(self._fetch(f"{self.app_url}/api/version")).get("version")
+                if running == version:
+                    self._fetch(f"{self.app_url}/health")
+                    return True
+            except Exception:  # noqa: BLE001 – App startet noch
+                pass
+            self._sleep(5)
+        return False
+
+    def _restore_database(self, backup_name: str) -> None:
+        source = self.backup_dir / backup_name
+        if not BACKUP_NAME_PATTERN.match(backup_name) or not source.is_file():
+            raise RuntimeError(f"Sicherung {backup_name} nicht gefunden")
+        owner = self.data_file.parent.stat()
+        temporary = self.data_file.with_name(self.data_file.name + ".restore-tmp")
+        shutil.copy2(source, temporary)
+        for suffix in ("-wal", "-shm"):
+            Path(str(self.data_file) + suffix).unlink(missing_ok=True)
+        temporary.replace(self.data_file)
+        try:
+            os.chown(self.data_file, owner.st_uid, owner.st_gid)
+        except PermissionError:
+            pass
+
+    def _save_config(self, stamp: str) -> Path:
+        target = self.backup_dir / f"vor-update-{stamp}"
+        target.mkdir(parents=True, exist_ok=True)
+        for name in (".env", "compose.yaml"):
+            source = self.project_dir / name
+            if source.exists():
+                shutil.copy2(source, target / name)
+                os.chmod(target / name, 0o600)
+        return target
+
+    def start(self, request: dict[str, Any]) -> tuple[bool, str]:
+        version = str(request.get("version") or "")
+        previous = str(request.get("previous") or "")
+        backup = request.get("backup")
+        restore = request.get("restore_backup")
+        if not VERSION_PATTERN.match(version):
+            return False, "Ungültige Versionsnummer."
+        if previous and not VERSION_PATTERN.match(previous):
+            return False, "Ungültige bisherige Versionsnummer."
+        for name in (backup, restore):
+            if name is not None and not BACKUP_NAME_PATTERN.match(str(name)):
+                return False, "Ungültiger Sicherungsname."
+        if not self._lock.acquire(blocking=False):
+            return False, "Es läuft bereits ein Update."
+        self.state = {
+            "state": "running", "from": previous or None, "to": version,
+            "backup": backup, "restored": restore, "started": _now(), "log": [],
+        }
+        self._save()
+        threading.Thread(target=self._run_update, args=(version, previous, backup, restore), daemon=True).start()
+        return True, "gestartet"
+
+    def _run_update(self, version: str, previous: str, backup: str | None, restore: str | None) -> None:
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+        old_value = read_env_value(self.env_file, ENV_KEY)
+        self._touched = False  # wurde die laufende App schon angefasst?
+        try:
+            saved = self._save_config(stamp)
+            self._step(f"Konfiguration gesichert in {saved.name}.")
+            set_env_value(self.env_file, ENV_KEY, version)
+            self._step(f"Hole Version {version} …")
+            self._compose("pull", self.service)
+            self._touched = True
+            if restore:
+                self._step(f"Setze Datenbank auf {restore} zurück …")
+                self._compose("stop", self.service)
+                self._restore_database(restore)
+            self._step(f"Starte Version {version} …")
+            self._compose("up", "-d", self.service)
+            self._step("Warte, bis die App bereit ist …")
+            if not self._wait_for_version(version):
+                raise RuntimeError(f"Version {version} ist nicht rechtzeitig sauber gestartet.")
+            self.state.update(state="done", finished=_now(), message=f"Version {version} läuft.")
+            self._step(f"Fertig: Version {version} läuft.")
+        except Exception as error:  # noqa: BLE001
+            logger.error("Update fehlgeschlagen: %s", error)
+            self._step(f"Fehler: {error}")
+            self._roll_back(old_value, previous, backup, str(error))
+        finally:
+            self._save()
+            self._lock.release()
+
+    def _roll_back(self, old_value: str | None, previous: str, backup: str | None, reason: str) -> None:
+        try:
+            # Ausdrücklich die bisherige Version eintragen – „latest“ könnte die
+            # gerade fehlgeschlagene neue Version sein.
+            set_env_value(self.env_file, ENV_KEY, previous or old_value)
+            if not getattr(self, "_touched", False):
+                self.state.update(state="failed", finished=_now(),
+                                  message=f"Update nicht möglich ({reason}). An der laufenden App wurde nichts geändert.")
+                self._step("Abgebrochen, bevor die App angefasst wurde.")
+                return
+            self._step("Kehre zur bisherigen Version zurück …")
+            self._compose("stop", self.service)
+            if backup:
+                self._step(f"Stelle die Datenbank aus {backup} wieder her …")
+                self._restore_database(backup)
+            self._compose("up", "-d", self.service)
+            if previous and not self._wait_for_version(previous):
+                raise RuntimeError("Die bisherige Version meldet sich nicht zurück.")
+            self.state.update(state="rolled_back", finished=_now(),
+                              message=f"Update nicht möglich ({reason}). Die bisherige Version läuft wieder.")
+            self._step("Bisherige Version läuft wieder.")
+        except Exception as error:  # noqa: BLE001
+            self.state.update(state="failed", finished=_now(),
+                              message=f"Update und Rückkehr fehlgeschlagen: {error}. Bitte von Hand prüfen.")
+            self._step(f"Rückkehr fehlgeschlagen: {error}")
+
+
+# ---------- HTTP ----------
+
+def make_handler(updater: Updater) -> type[BaseHTTPRequestHandler]:
+    class Handler(BaseHTTPRequestHandler):
+        def _send(self, status: int, payload: dict[str, Any]) -> None:
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:  # noqa: N802
+            if self.path == "/status":
+                self._send(200, updater.state)
+            else:
+                self._send(404, {"error": "not found"})
+
+        def do_POST(self) -> None:  # noqa: N802
+            if self.path != "/update":
+                self._send(404, {"error": "not found"})
+                return
+            try:
+                length = min(int(self.headers.get("Content-Length") or 0), 4096)
+                request = json.loads(self.rfile.read(length) or b"{}")
+            except ValueError:
+                self._send(400, {"error": "Ungültige Anfrage."})
+                return
+            ok, message = updater.start(request if isinstance(request, dict) else {})
+            self._send(202 if ok else 409, {"ok": ok, "message": message})
+
+        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+            logger.debug(format, *args)
+
+    return Handler
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    project = Path(os.environ.get("PROJECT_DIR") or os.getcwd())
+    updater = Updater(
+        project,
+        service=os.environ.get("APP_SERVICE", "kalender-assistent"),
+        app_url=os.environ.get("APP_URL", "http://kalender-assistent:8000"),
+        health_timeout=float(os.environ.get("HEALTH_TIMEOUT", "240")),
+    )
+    port = int(os.environ.get("UPDATER_PORT", "8000"))
+    logger.info("Updater bereit für %s (Projekt %s).", updater.service, project)
+    ThreadingHTTPServer(("0.0.0.0", port), make_handler(updater)).serve_forever()
+
+
+if __name__ == "__main__":
+    main()

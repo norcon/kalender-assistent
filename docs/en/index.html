@@ -173,7 +173,12 @@ docker compose up -d</code></pre>
   <section id="update" class="install">
     <div class="wrap">
       <h2>Update and roll back</h2>
-      <h3>To the latest version</h3>
+      <h3>With one click (recommended)</h3>
+      <p>Enable the updater once:</p>
+      <pre><code>docker compose --profile updater up -d</code></pre>
+      <p>The app then shows new versions with their changes under <em>Backups → Version and updates</em>. One tap is enough: the app creates a full backup, switches versions and checks that everything starts cleanly – otherwise it returns to the previous version by itself. Switching to an earlier version works there too, optionally with the data from before the last update.</p>
+      <div class="warn">The updater has access to Docker and can be used on your home network without a login – but it only accepts official versions. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
+      <h3>By hand</h3>
       <pre><code>cd kalender-assistent
 docker compose pull
 docker compose up -d</code></pre>

@@ -25,10 +25,21 @@ Was die App selbst absichert:
 `AI_BASE_URL`. Mit einer lokalen KI (z. B. LM Studio, Ollama) bleibt alles im
 eigenen Netz; mit einem Cloud-Dienst verlassen die Mails dein Netz.
 
-**Update-Funktion:** Falls künftig Updates per Knopfdruck aktiviert sind, kann
-jeder im Netz ein Update oder die Rückkehr zu einer früheren Version auslösen.
-Erlaubt sind dabei nur offizielle Versionen aus diesem Repository; vorher wird
-immer eine Sicherung angelegt.
+**Update auf Knopfdruck (optional):** Der Zusatzdienst `updater` wird nur mit
+`docker compose --profile updater up -d` gestartet. Er bekommt Zugriff auf
+den Docker-Socket des Servers – das entspricht Administratorrechten auf dem
+Server. Deshalb:
+
+- Er veröffentlicht keinen Port und ist nur im internen Compose-Netz für die
+  App erreichbar.
+- Er nimmt nur Versionsnummern im Format `x.y.z` an und ändert ausschließlich
+  `KALENDER_VERSION` in `.env`; das Image ist in `compose.yaml` fest
+  vorgegeben. Fremde Images oder Befehle kann man darüber nicht starten.
+- Weil die Oberfläche keine Anmeldung hat, kann jeder im Heimnetz ein Update
+  oder die Rückkehr zu einer früheren **offiziellen** Version auslösen.
+  Vorher wird immer eine Vollsicherung angelegt.
+- Wer das nicht möchte, lässt den Dienst einfach weg und aktualisiert mit
+  `docker compose pull && docker compose up -d`.
 
 ### Sicherheitslücke melden
 
@@ -49,6 +60,12 @@ requests are rejected, and the container runs as a non-root user.
 
 **Privacy:** email text and attachments are sent to the AI server configured
 in `AI_BASE_URL`. With a local AI everything stays on your network.
+
+The optional `updater` service (enabled with `docker compose --profile updater
+up -d`) has access to the Docker socket, i.e. administrator rights on the
+server. It publishes no port, accepts only `x.y.z` version numbers of the image
+fixed in `compose.yaml`, and always creates a full backup first – but anyone on
+your network can trigger an update or a rollback to an official version.
 
 To report a vulnerability, please use GitHub → *Security* → *Report a
 vulnerability* instead of a public issue.

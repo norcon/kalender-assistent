@@ -68,9 +68,17 @@ docker compose up -d
 Erst einmal nur ansehen? `DEMO_MODE=1` in `.env` startet mit erfundenen
 Beispieldaten und ganz ohne Postfach, KI oder iCloud.
 
-**Update:** `docker compose pull && docker compose up -d`. Vorher legt die App
-täglich eine Sicherung an; eine bestimmte Version hältst du mit
-`KALENDER_VERSION=0.16.0` in `.env` fest.
+**Update:** `docker compose pull && docker compose up -d`. Eine bestimmte
+Version hältst du mit `KALENDER_VERSION=0.16.0` in `.env` fest.
+
+**Update auf Knopfdruck:** `docker compose --profile updater up -d` startet
+zusätzlich den Updater. Unter *Sicherungen → Version und Updates* zeigt die App
+dann neue Versionen mit Änderungen an, legt vor jedem Update eine Vollsicherung
+an (Datenbank, Kalender-Sicherung, `.env`, `compose.yaml`) und kehrt
+automatisch zur bisherigen Version zurück, wenn die neue nicht sauber startet.
+Auch der Wechsel zu einer früheren Version – auf Wunsch mit den Daten von vor
+dem letzten Update – geht dort per Knopf. Der Updater hat Zugriff auf Docker;
+siehe [SECURITY.md](SECURITY.md).
 
 **Aus dem Quellcode:** Repository klonen, `.env` anlegen und
 `docker compose up -d --build`.
@@ -387,7 +395,7 @@ Die Tests laufen im gebauten Image (dort sind alle Pakete installiert):
 
 ```sh
 docker compose build
-docker run --rm --network none -u 0 -v "$PWD/tests:/app/tests:ro" \
+docker run --rm --network none -u 0 -v "$PWD/tests:/app/tests:ro" -v "$PWD/updater:/app/updater:ro" \
   -e IMAP_HOST=x -e IMAP_USERNAME=x -e IMAP_PASSWORD=x \
   -e APP_DATABASE_PATH=/tmp/test.sqlite3 \
   ghcr.io/norcon/kalender-assistent:latest python -m unittest discover -s tests

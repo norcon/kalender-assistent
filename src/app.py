@@ -40,6 +40,7 @@ from . import (
     mail_idle,
     demo,
     i18n,
+    updates,
     person_learning,
     recurrence,
     settings_store,
@@ -2325,6 +2326,82 @@ def _render_settings_page(
             ],
         },
     )
+
+
+class UpdateRequest(BaseModel):
+    version: str = Field(max_length=20)
+    restore_data: bool = False
+
+
+def _update_context() -> dict[str, object]:
+    current = updates.parse_version(version.VERSION)
+    available = None if settings.demo_mode or not settings.update_check else updates.releases(settings.update_repository)
+    state = None if settings.demo_mode else updates.updater_status(settings.updater_url)
+    newer = [r for r in (available or []) if current and r["key"] > current]
+    older = [r for r in (available or []) if current and r["key"] < current]
+    last_backup = (state or {}).get("backup") if (state or {}).get("state") in ("done",) else None
+    return {
+        "current": version.VERSION,
+        "available": available,
+        "newer": newer,
+        "older": older,
+        "latest": newer[0] if newer else None,
+        "updater": state,
+        "update_repository": settings.update_repository,
+        "update_check": settings.update_check and not settings.demo_mode,
+        "restore_candidate": last_backup,
+    }
+
+
+@app.get("/sicherungen/update-fragment", response_class=HTMLResponse)
+async def update_fragment(request: Request):
+    context = await asyncio.to_thread(_update_context)
+    return templates.TemplateResponse(request=request, name="_update.html", context=context)
+
+
+@app.get("/api/update/status")
+async def update_status():
+    state = None if settings.demo_mode else await asyncio.to_thread(updates.updater_status, settings.updater_url)
+    return {"current": version.VERSION, "updater": state}
+
+
+@app.post("/api/update", status_code=202)
+async def start_update(request: UpdateRequest):
+    if settings.demo_mode:
+        raise HTTPException(status_code=409, detail=_("Im Demo-Modus gibt es keine Updates."))
+    target = updates.parse_version(request.version)
+    available = await asyncio.to_thread(updates.releases, settings.update_repository)
+    if not target or not available or request.version not in {r["version"] for r in available}:
+        raise HTTPException(status_code=422, detail=_("Diese Version ist nicht verfügbar."))
+    if request.version == version.VERSION:
+        raise HTTPException(status_code=409, detail=_("Diese Version läuft bereits."))
+    state = await asyncio.to_thread(updates.updater_status, settings.updater_url)
+    if state is None:
+        raise HTTPException(status_code=503, detail=_("Der Updater ist nicht eingerichtet. Anleitung siehe unten."))
+    if state.get("state") == "running":
+        raise HTTPException(status_code=409, detail=_("Es läuft bereits ein Update."))
+    restore = None
+    if request.restore_data:
+        restore = state.get("backup") if state.get("state") == "done" else None
+        if not restore:
+            raise HTTPException(status_code=409, detail=_("Es gibt keine Sicherung von vor dem letzten Update."))
+    async with _mail_check_lock:  # nicht mitten in einem Postfachabruf
+        database_backup = await _run_backup(prune=False)
+        await asyncio.to_thread(updates.backup_calendar_store, settings.calendar_store_path, settings.backup_dir)
+    ok, message = await asyncio.to_thread(updates.start_update, settings.updater_url, {
+        "version": request.version,
+        "previous": version.VERSION,
+        "backup": database_backup.name,
+        "restore_backup": restore,
+    })
+    if not ok:
+        raise HTTPException(status_code=502, detail=_("Der Updater hat abgelehnt: {reason}", reason=message))
+    logger.info(
+        "Update von %s auf %s gestartet (Sicherung %s%s).",
+        version.VERSION, request.version, database_backup.name,
+        f", Datenbank wird auf {restore} zurückgesetzt" if restore else "",
+    )
+    return {"status": "started", "backup": database_backup.name}
 
 
 def _render_backup_page(

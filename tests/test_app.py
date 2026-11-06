@@ -1056,6 +1056,45 @@ class LanguageTests(unittest.TestCase):
                 client.post(f"/api/suggestions/{item['id']}/dismiss")
 
 
+class UpdatePageTests(unittest.TestCase):
+    RELEASES = [
+        {"version": "9.0.0", "key": (9, 0, 0), "published": "2099-01-01T00:00:00Z", "notes": "Neu: alles"},
+        {"version": "0.1.0", "key": (0, 1, 0), "published": "2020-01-01T00:00:00Z", "notes": ""},
+    ]
+
+    def test_fragment_without_updater_and_start_validation(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                with patch.object(app_module.updates, "releases", return_value=self.RELEASES), \
+                     patch.object(app_module.updates, "updater_status", return_value=None):
+                    page = client.get("/sicherungen/update-fragment").text
+                    self.assertIn("Neue Version 9.0.0 verfügbar", page)
+                    self.assertIn("Neu: alles", page)
+                    self.assertIn("docker compose --profile updater up -d", page)
+                    self.assertIn('data-version="9.0.0" disabled', page)
+                    self.assertEqual(client.post("/api/update", json={"version": "8.8.8"}).status_code, 422)
+                    self.assertEqual(client.post("/api/update", json={"version": "9.0.0"}).status_code, 503)
+                self.assertIn('id="update-container"', client.get("/sicherungen").text)
+
+    def test_start_update_backs_up_first(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                with patch.object(app_module.updates, "releases", return_value=self.RELEASES), \
+                     patch.object(app_module.updates, "updater_status", return_value={"state": "done", "backup": "calendar-assistant-2026-01-01_000000.sqlite3"}), \
+                     patch.object(app_module.updates, "start_update", return_value=(True, "gestartet")) as start, \
+                     patch.object(app_module.updates, "backup_calendar_store") as store_backup:
+                    page = client.get("/sicherungen/update-fragment").text
+                    self.assertIn("calendar-assistant-2026-01-01_000000.sqlite3", page)
+                    response = client.post("/api/update", json={"version": "0.1.0", "restore_data": True})
+                    self.assertEqual(response.status_code, 202, response.text)
+                payload = start.call_args.args[1]
+                self.assertEqual(payload["version"], "0.1.0")
+                self.assertEqual(payload["previous"], app_module.version.VERSION)
+                self.assertEqual(payload["restore_backup"], "calendar-assistant-2026-01-01_000000.sqlite3")
+                self.assertTrue((Path(app_module.settings.backup_dir) / payload["backup"]).exists())
+                store_backup.assert_called_once()
+
+
 class CalendarBackupPageTests(unittest.TestCase):
     def tearDown(self):
         db.reset_app_settings(app_module.settings.database_path)

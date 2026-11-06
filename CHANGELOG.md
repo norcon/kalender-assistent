@@ -4,6 +4,22 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.17.0 – 2026-11-06
+
+Update auf Knopfdruck:
+
+- Neuer Abschnitt *Sicherungen → Version und Updates*: zeigt neue Versionen
+  mit ihren Änderungen und bietet die Rückkehr zu früheren Versionen an.
+- Neuer optionaler Dienst `updater` (`docker compose --profile updater up -d`):
+  legt vor jedem Update eine Vollsicherung an (Datenbank, Kalender-Sicherung,
+  `.env`, `compose.yaml`), stellt die Version um und prüft, ob die App sauber
+  startet. Wenn nicht, kehrt er automatisch zur bisherigen Version samt
+  Datenbank zurück.
+- Rückkehr zu einer früheren Version wahlweise mit den Daten von vor dem
+  letzten Update.
+- Die Abfrage neuer Versionen bei GitHub lässt sich mit `UPDATE_CHECK=0`
+  abschalten.
+
 ## 0.16.2 – 2026-11-06
 
 - PDF-Bibliothek PyMuPDF auf 2.1 aktualisiert (liest gescannte PDF-Seiten

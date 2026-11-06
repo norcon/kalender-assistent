@@ -22,7 +22,7 @@ jobs:
       - name: Tests
         run: |
           docker build -t kalender-assistent:test .
-          docker run --rm --network none -u 0 -v "$PWD/tests:/app/tests:ro" \
+          docker run --rm --network none -u 0 -v "$PWD/tests:/app/tests:ro" -v "$PWD/updater:/app/updater:ro" \
             -e IMAP_HOST=x -e IMAP_USERNAME=x -e IMAP_PASSWORD=x \
             -e APP_DATABASE_PATH=/tmp/test.sqlite3 \
             kalender-assistent:test python -m unittest discover -s tests
@@ -51,6 +51,20 @@ jobs:
           tags: |
             ${{ steps.names.outputs.image }}:${{ steps.names.outputs.version }}
             ${{ steps.names.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.names.outputs.version }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Updater-Image bauen und veröffentlichen (amd64 + arm64)
+        uses: docker/build-push-action@v7
+        with:
+          context: ./updater
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.names.outputs.image }}-updater:${{ steps.names.outputs.version }}
+            ${{ steps.names.outputs.image }}-updater:latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ steps.names.outputs.version }}

@@ -29,3 +29,21 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # Optional: Update auf Knopfdruck (Einstellungen → Sicherungen → Version).
+  # Einschalten mit:  docker compose --profile updater up -d
+  # Hat Zugriff auf Docker – siehe SECURITY.md.
+  updater:
+    profiles: ["updater"]
+    image: ghcr.io/norcon/kalender-assistent-updater:${KALENDER_UPDATER_VERSION:-latest}
+    build: ./updater
+    restart: unless-stopped
+    working_dir: ${PWD}
+    environment:
+      PWD: ${PWD}
+      PROJECT_DIR: ${PWD}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:${PWD}
+    security_opt:
+      - no-new-privileges:true

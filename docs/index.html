@@ -170,7 +170,12 @@ docker compose up -d</code></pre>
   <section id="update" class="install">
     <div class="wrap">
       <h2>Update und Rückkehr</h2>
-      <h3>Auf die neueste Version</h3>
+      <h3>Per Knopfdruck (empfohlen)</h3>
+      <p>Einmalig den Updater einschalten:</p>
+      <pre><code>docker compose --profile updater up -d</code></pre>
+      <p>Danach zeigt die App unter <em>Sicherungen → Version und Updates</em> neue Versionen mit ihren Änderungen. Ein Tipp genügt: Die App legt eine Vollsicherung an, stellt um und prüft, ob alles sauber startet – sonst kehrt sie von selbst zur bisherigen Version zurück. Auch der Wechsel zu einer früheren Version geht dort, wahlweise mit den Daten von vor dem letzten Update.</p>
+      <div class="warn">Der Updater hat Zugriff auf Docker und ist im Heimnetz ohne Anmeldung bedienbar – er nimmt aber nur offizielle Versionen an. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
+      <h3>Von Hand</h3>
       <pre><code>cd kalender-assistent
 docker compose pull
 docker compose up -d</code></pre>

@@ -36,6 +36,9 @@ class Settings:
     newsletter_min_confidence_percent: int = 95
     demo_mode: bool = False
     language: str = "auto"
+    update_repository: str = "norcon/kalender-assistent"
+    updater_url: str = "http://updater:8000"
+    update_check: bool = True
     target_calendars: str = ""  # Erstbelegung der Zielkalender, z. B. "Alex,Sam,Familie"
 
     @property
@@ -53,6 +56,9 @@ class Settings:
         return cls(
             demo_mode=demo,
             language=os.getenv("APP_LANGUAGE", "auto").strip().lower() or "auto",
+            update_repository=os.getenv("UPDATE_REPOSITORY", "norcon/kalender-assistent").strip(),
+            updater_url=os.getenv("UPDATER_URL", "http://updater:8000").strip(),
+            update_check=os.getenv("UPDATE_CHECK", "1").strip().lower() not in {"0", "false", "no", "nein"},
             target_calendars=os.getenv("TARGET_CALENDARS", "").strip(),
             imap_host=required("IMAP_HOST"),
             imap_port=int(os.getenv("IMAP_PORT", "993")),

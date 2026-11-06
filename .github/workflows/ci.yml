@@ -17,7 +17,7 @@ jobs:
         run: docker build -t kalender-assistent:test .
       - name: Tests im Image
         run: |
-          docker run --rm --network none -u 0 -v "$PWD/tests:/app/tests:ro" \
+          docker run --rm --network none -u 0 -v "$PWD/tests:/app/tests:ro" -v "$PWD/updater:/app/updater:ro" \
             -e IMAP_HOST=x -e IMAP_USERNAME=x -e IMAP_PASSWORD=x \
             -e APP_DATABASE_PATH=/tmp/test.sqlite3 \
             kalender-assistent:test python -m unittest discover -s tests

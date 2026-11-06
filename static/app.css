@@ -564,3 +564,8 @@ a.chip { display: inline-flex; align-items: center; gap: .3rem; text-decoration:
   .card .details dt:first-child { margin-top: 0; }
   section, article, .card { padding: .9rem 1rem; }
 }
+.update-available { color: var(--primary); font-weight: 700; }
+.release-notes pre.notes { white-space: pre-wrap; font-family: inherit; font-size: .9rem; background: var(--neutral-soft, transparent); padding: .6rem .8rem; border-radius: 6px; max-height: 18rem; overflow: auto; }
+.update-log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; padding-left: 1.2rem; }
+.rollback-form { display: grid; gap: .5rem; margin-top: .5rem; max-width: 40rem; }
+#update-panel pre code { white-space: pre-wrap; }
