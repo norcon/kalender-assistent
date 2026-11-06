@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 VERSION_PATTERN = re.compile(r"^v?(\d{1,4})\.(\d{1,4})\.(\d{1,4})$")
 _CACHE_SECONDS = 3600
+_FAILURE_CACHE_SECONDS = 300  # Fehlschlag nicht lange merken (z. B. Repository gerade öffentlich geworden)
 _cache: dict[str, tuple[float, list[dict[str, Any]] | None]] = {}
 
 
@@ -26,8 +27,10 @@ def parse_version(value: str) -> tuple[int, int, int] | None:
 def releases(repository: str, *, refresh: bool = False) -> list[dict[str, Any]] | None:
     """Veröffentlichte Versionen, neueste zuerst; None, wenn GitHub nicht erreichbar ist."""
     cached = _cache.get(repository)
-    if cached and not refresh and time.monotonic() - cached[0] < _CACHE_SECONDS:
-        return cached[1]
+    if cached and not refresh:
+        limit = _CACHE_SECONDS if cached[1] is not None else _FAILURE_CACHE_SECONDS
+        if time.monotonic() - cached[0] < limit:
+            return cached[1]
     try:
         response = httpx.get(
             f"https://api.github.com/repos/{repository}/releases",

@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+import unittest.mock
 from dataclasses import replace
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -1054,6 +1055,25 @@ class LanguageTests(unittest.TestCase):
                 client.cookies.clear()
                 self.assertIn('<html lang="en">', client.get("/", headers={"Accept-Language": "en-US,en;q=0.8"}).text)
                 client.post(f"/api/suggestions/{item['id']}/dismiss")
+
+
+class ReleaseCacheTests(unittest.TestCase):
+    def test_failures_are_cached_briefly(self):
+        from src import updates
+        import httpx
+        updates._cache.clear()
+        with patch.object(updates.httpx, "get", side_effect=httpx.ConnectError("weg")) as get:
+            self.assertIsNone(updates.releases("x/y"))
+            self.assertIsNone(updates.releases("x/y"))
+            self.assertEqual(get.call_count, 1)
+        stamp, value = updates._cache["x/y"]
+        updates._cache["x/y"] = (stamp - updates._FAILURE_CACHE_SECONDS - 1, value)
+        response = unittest.mock.Mock(status_code=200)
+        response.raise_for_status.return_value = None
+        response.json.return_value = [{"tag_name": "v1.2.3", "body": "neu"}, {"tag_name": "nightly"}]
+        with patch.object(updates.httpx, "get", return_value=response):
+            self.assertEqual([r["version"] for r in updates.releases("x/y")], ["1.2.3"])
+        updates._cache.clear()
 
 
 class UpdatePageTests(unittest.TestCase):

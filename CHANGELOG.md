@@ -4,6 +4,11 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.17.1 – 2026-11-06
+
+- Version und Updates: Eine fehlgeschlagene Abfrage neuer Versionen wird nur
+  noch 5 Minuten gemerkt statt einer Stunde (erfolgreiche weiter 1 Stunde).
+
 ## 0.17.0 – 2026-11-06
 
 Update auf Knopfdruck:
