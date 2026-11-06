@@ -1,5 +1,5 @@
 # Updater: Docker-CLI mit Compose-Plugin plus ein kleiner Python-Dienst.
-FROM docker:27.3.1-cli
+FROM docker:29.9.2-cli
 RUN apk add --no-cache python3
 COPY updater.py /opt/updater/updater.py
 EXPOSE 8000
