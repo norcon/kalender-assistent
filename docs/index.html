@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kalender-Assistent – Termine aus Mails, geprüft in iCloud</title>
+  <meta name="description" content="Selbst gehosteter Assistent: liest ein IMAP-Postfach, erkennt Termine mit einer lokalen KI und überträgt sie nach Prüfung per Tipp in iCloud.">
+  <link rel="icon" href="img/icon.svg" type="image/svg+xml">
+  <link rel="alternate" hreflang="en" href="en/">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="img/icon.svg" alt="" width="28" height="28">Kalender-Assistent</a>
+    <nav class="links" aria-label="Seitenbereiche">
+      <a href="#funktionen">Funktionen</a>
+      <a href="#bilder">Bilder</a>
+      <a href="#installation">Installation</a>
+      <a href="#update">Update</a>
+      <a href="#fragen">Fragen</a>
+      <a href="https://github.com/norcon/kalender-assistent">GitHub</a>
+    </nav>
+    <a class="lang" href="en/" hreflang="en" lang="en">EN</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>Termine aus Mails – erkannt von deiner KI, geprüft von dir.</h1>
+    <p class="lead">Der Kalender-Assistent liest dein Postfach mit, findet Termine in Schul-, Vereins- und Praxis-Mails, PDFs, Fotos und Einladungen und zeigt sie als Vorschläge. Ein Tipp auf einen Kalendernamen, und der Termin steht in iCloud. Alles läuft auf deinem eigenen Server.</p>
+    <div class="cta">
+      <a class="button" href="#installation">Installieren</a>
+      <a class="button secondary" href="https://github.com/norcon/kalender-assistent">Quellcode auf GitHub</a>
+    </div>
+    <picture class="shot">
+      <source srcset="img/de-desktop-dark-start.png" media="(prefers-color-scheme: dark)">
+      <img src="img/de-desktop-light-start.png" alt="Startseite mit Systemstatus, Änderungsvorschlag und Filter nach Kalendern" width="1920" height="1290">
+    </picture>
+  </div>
+
+  <section id="ablauf">
+    <div class="wrap">
+      <h2>So funktioniert’s</h2>
+      <p class="sub">Nichts landet ungeprüft im Kalender. Die App schlägt vor – du entscheidest.</p>
+      <ol class="steps">
+        <li><strong>Mitlesen.</strong> Das Postfach wird nur lesend geöffnet. Neue Mails meldet der Server sofort (IMAP IDLE).</li>
+        <li><strong>Erkennen.</strong> Kalendereinladungen werden exakt gelesen, alles andere wertet eine KI auf deinem Server aus – auch Scans und Fotos.</li>
+        <li><strong>Prüfen.</strong> Jede Karte zeigt die Fundstelle aus der Mail, die Sicherheit der KI und was an dem Tag schon in iCloud steht.</li>
+        <li><strong>Übernehmen.</strong> Ein Tipp auf einen Kalender trägt den Termin samt Erinnerung ein. Rückgängig geht jederzeit.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="funktionen">
+    <div class="wrap">
+      <h2>Funktionen</h2>
+      <p class="sub">Gebaut für den Familienalltag: viele Absender, wenig Zeit, und der Kalender muss stimmen.</p>
+      <div class="grid">
+        <div class="card"><h3>Versteht viele Formate</h3><p>Mailtext, PDF (auch gescannt), Bilder und .ics-Einladungen aus Outlook, Bahn oder Praxis-Software.</p></div>
+        <div class="card"><h3>Serien und Absagen</h3><p>„Jeden Dienstag bis Ostern, außer in den Ferien“ wird zur Serie. Folge-Mails mit Änderung oder Absage werden zur Bestätigung vorgelegt.</p></div>
+        <div class="card"><h3>Weniger Rauschen</h3><p>Versand-, Werbe- und Newsletter-Mails werden erkannt. Lästige Absender blendest du aus – ohne dass etwas verloren geht.</p></div>
+        <div class="card"><h3>Lernt mit</h3><p>Korrigierst du den Kalender für einen Absender, merkt sich die App das für ähnliche Termine. Je Kalender gibt es eine Beschreibung für die KI.</p></div>
+        <div class="card"><h3>Doppelt hält nicht besser</h3><p>Hinweise auf Dubletten, auf schon vorhandene iCloud-Termine und auf Überschneidungen im gewählten Kalender.</p></div>
+        <div class="card"><h3>Sicher aufbewahrt</h3><p>Tägliche Sicherung der App-Daten und versionierte Sicherung deiner iCloud-Kalender – gelöschte Termine lassen sich einzeln zurückholen.</p></div>
+        <div class="card"><h3>Für Handy und Tablet</h3><p>Als App auf dem Home-Bildschirm, mit Ziehen zum Aktualisieren, Hell/Dunkel und großen Tippflächen.</p></div>
+        <div class="card"><h3>Deutsch und Englisch</h3><p>Oberfläche in beiden Sprachen, pro Gerät umschaltbar.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="besonderheiten">
+    <div class="wrap">
+      <h2>Was ihn besonders macht</h2>
+      <div class="grid">
+        <div class="card"><h3>Deine Daten bleiben bei dir</h3><p>Mit einer lokalen KI (z. B. LM Studio oder Ollama) verlässt keine Mail dein Netz. Gespeichert werden nur Vorschläge mit einem kurzen Zitat – nicht die Mails selbst.</p></div>
+        <div class="card"><h3>Nur lesend, nur auf Knopfdruck</h3><p>Das Postfach wird nie verändert. In iCloud schreibt die App ausschließlich, wenn du tippst – und nur in die Kalender, die du freigegeben hast.</p></div>
+        <div class="card"><h3>Ehrlich bei Unsicherheit</h3><p>Ist sich die KI nicht sicher, wird die Karte markiert. Angenommene Endzeiten sind als „angenommen“ gekennzeichnet.</p></div>
+        <div class="card"><h3>Ohne Cloud-Konto, ohne Abo</h3><p>Ein Docker-Container, eine Datei mit Einstellungen. Ausprobieren geht sogar ganz ohne Postfach im Demo-Modus.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="bilder">
+    <div class="wrap">
+      <h2>Bilder</h2>
+      <p class="sub">Alle Bilder stammen aus dem eingebauten Demo-Modus mit erfundenen Daten.</p>
+      <div class="phones">
+        <figure><img class="shot" src="img/de-phone-light-card.png" alt="Vorschlagskarte auf dem Handy mit Zitat aus der Mail" loading="lazy" width="390" height="664"><figcaption>Vorschlag mit Fundstelle aus der Mail</figcaption></figure>
+        <figure><img class="shot" src="img/de-phone-dark-card.png" alt="Vorschlagskarte im dunklen Modus mit Hinweisen auf vorhandene Termine" loading="lazy" width="390" height="664"><figcaption>Hinweis auf vorhandene und überschneidende Termine</figcaption></figure>
+        <figure><img class="shot" src="img/de-phone-light-hint.png" alt="Vorschlag, den Absender künftig auszublenden" loading="lazy" width="390" height="664"><figcaption>„Künftig ausblenden?“ für lästige Absender</figcaption></figure>
+        <figure><img class="shot" src="img/de-phone-light-hidden.png" alt="Bereich mit ausgeblendeten Vorschlägen" loading="lazy" width="390" height="664"><figcaption>Ausgeblendetes bleibt erreichbar</figcaption></figure>
+      </div>
+      <div class="gallery" style="margin-top:24px">
+        <figure><img class="shot" src="img/de-desktop-settings.png" alt="Einstellungen der Zielkalender mit Beschreibung für die KI" loading="lazy" width="1920" height="1290"><figcaption>Zielkalender mit Beschreibung für die KI</figcaption></figure>
+        <figure><img class="shot" src="img/de-desktop-rules.png" alt="Regeln und Trefferquote je Absender" loading="lazy" width="1920" height="1290"><figcaption>Regeln und Trefferquote je Absender</figcaption></figure>
+        <figure><img class="shot" src="img/de-desktop-restore.png" alt="Termine aus der Kalender-Sicherung wiederherstellen" loading="lazy" width="1920" height="1290"><figcaption>Gelöschte Termine aus der Sicherung zurückholen</figcaption></figure>
+        <figure><img class="shot" src="img/de-desktop-maintenance.png" alt="Wartungs-Übersicht mit Kennzahlen" loading="lazy" width="1920" height="1290"><figcaption>Wartungs-Übersicht</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="installation" class="install">
+    <div class="wrap">
+      <h2>Installation</h2>
+      <p class="sub">Etwa 15 Minuten. Du brauchst einen Rechner im Heimnetz, der dauerhaft läuft (Mini-PC, NAS mit Docker, Raspberry Pi 4/5).</p>
+
+      <h3>1. Voraussetzungen</h3>
+      <ul>
+        <li><strong>Docker</strong> mit Docker Compose – Anleitung: <a href="https://docs.docker.com/engine/install/">docs.docker.com/engine/install</a></li>
+        <li>Ein <strong>Postfach mit IMAP-Zugang</strong>. Am besten eine eigene Adresse, an die du Termin-Mails weiterleitest, z. B. <code>termine@deine-domain.de</code>.</li>
+        <li>Eine <strong>KI mit OpenAI-kompatibler Schnittstelle</strong>, z. B. <a href="https://lmstudio.ai">LM Studio</a> oder <a href="https://ollama.com">Ollama</a>. Für Fotos und Scans ein Modell mit Bilderkennung (Vision).</li>
+        <li>Für iCloud: ein <strong>app-spezifisches Passwort</strong> (Schritt 3).</li>
+      </ul>
+
+      <h3>2. Dateien holen</h3>
+      <pre><code>mkdir kalender-assistent && cd kalender-assistent
+curl -fsSLO https://raw.githubusercontent.com/norcon/kalender-assistent/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/norcon/kalender-assistent/main/.env.example -o .env
+mkdir -p data backups
+sudo chown 100:101 data backups
+sudo chmod 700 data backups</code></pre>
+
+      <h3>3. iCloud vorbereiten</h3>
+      <ol>
+        <li>Auf <a href="https://account.apple.com">account.apple.com</a> anmelden → <em>Anmelden und Sicherheit</em> → <em>App-spezifische Passwörter</em> → neues Passwort, z. B. „Kalender-Assistent“.</li>
+        <li>In der Kalender-App die Kalender anlegen, in die Termine sollen – z. B. einen pro Person und einen gemeinsamen.</li>
+      </ol>
+
+      <h3>4. Einstellungen eintragen</h3>
+      <p>Öffne <code>.env</code> mit einem Editor (z. B. <code>nano .env</code>) und trage mindestens Folgendes ein:</p>
+      <pre><code># Postfach
+IMAP_HOST=imap.example.org
+IMAP_USERNAME=termine@example.org
+IMAP_PASSWORD=dein-mail-passwort
+
+# KI – LM Studio auf demselben Rechner:
+AI_BASE_URL=http://host.docker.internal:1234/v1
+# … oder Ollama:  AI_BASE_URL=http://host.docker.internal:11434/v1
+AI_MODEL=name-des-modells
+
+# iCloud
+CALDAV_USERNAME=deine-apple-id@example.org
+CALDAV_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+TARGET_CALENDARS=Alex,Sam,Familie</code></pre>
+      <div class="note"><strong>Tipp:</strong> <code>TARGET_CALENDARS</code> sind die exakten Namen deiner iCloud-Kalender. Später änderst du sie bequem unter <em>Einstellungen → Zielkalender</em>.</div>
+
+      <h3>5. Starten</h3>
+      <pre><code>docker compose pull
+docker compose up -d</code></pre>
+      <p>Die Oberfläche ist dann unter <code>http://&lt;ip-des-servers&gt;:8080</code> erreichbar. Auf dem Handy: im Browser öffnen → <em>Teilen</em> → <em>Zum Home-Bildschirm</em>.</p>
+
+      <h3>6. Erste Schritte in der App</h3>
+      <ol>
+        <li><em>Einstellungen</em> → <em>iCloud-Verbindung testen</em>: Die App listet deine Kalender.</li>
+        <li><em>Einstellungen → Zielkalender</em>: Kalender auswählen, Reihenfolge festlegen und je Kalender eine kurze Beschreibung für die KI eintragen („Tochter, 4. Klasse, Schwimmverein“).</li>
+        <li>Eine Mail mit einem Termin an das Postfach schicken und auf der Startseite <em>Jetzt prüfen</em> tippen.</li>
+      </ol>
+
+      <details>
+        <summary>Erst einmal nur ausprobieren (Demo-Modus)</summary>
+        <p>Ohne Postfach, KI und iCloud, mit erfundenen Beispieldaten:</p>
+        <pre><code>docker run --rm -p 8080:8000 -e DEMO_MODE=1 ghcr.io/norcon/kalender-assistent:latest</code></pre>
+        <p>Dann <code>http://localhost:8080</code> öffnen. Mit <code>-e APP_LANGUAGE=en</code> gibt es englische Beispieldaten.</p>
+      </details>
+      <div class="warn"><strong>Wichtig:</strong> Die Oberfläche hat keine Anmeldung. Gib Port 8080 nicht ins Internet frei; für unterwegs ein VPN nutzen. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
+    </div>
+  </section>
+
+  <section id="update" class="install">
+    <div class="wrap">
+      <h2>Update und Rückkehr</h2>
+      <h3>Auf die neueste Version</h3>
+      <pre><code>cd kalender-assistent
+docker compose pull
+docker compose up -d</code></pre>
+      <p>Die Datenbank wird beim Start automatisch angepasst. Eine Sicherung legt die App jede Nacht an; vor einem Update kannst du unter <em>Sicherungen → Jetzt sichern</em> zusätzlich eine erstellen.</p>
+      <h3>Zu einer früheren Version zurück</h3>
+      <p>Trage in <code>.env</code> die gewünschte Version ein (alle Versionen stehen im <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">Änderungsprotokoll</a>):</p>
+      <pre><code>KALENDER_VERSION=0.16.1</code></pre>
+      <pre><code>docker compose pull
+docker compose up -d</code></pre>
+      <p>Falls die neuere Version die Daten schon umgebaut hat: unter <em>Sicherungen</em> die Sicherung von vor dem Update wiederherstellen. Zurück zur neuesten Version: die Zeile <code>KALENDER_VERSION</code> wieder entfernen.</p>
+    </div>
+  </section>
+
+  <section id="sicherung" class="install">
+    <div class="wrap">
+      <h2>Sicherung</h2>
+      <p>Alles Wichtige liegt in zwei Ordnern neben <code>compose.yaml</code>:</p>
+      <table>
+        <tr><th>Ordner</th><th>Inhalt</th></tr>
+        <tr><td><code>data/</code></td><td>Datenbank mit Vorschlägen, Regeln, Verlauf und Einstellungen</td></tr>
+        <tr><td><code>backups/</code></td><td>tägliche Datenbank-Sicherungen und die versionierte Sicherung der iCloud-Kalender</td></tr>
+      </table>
+      <p>Kopiere beide Ordner und deine <code>.env</code> regelmäßig auf ein zweites Gerät, z. B. ein NAS – die eingebauten Sicherungen liegen auf derselben Festplatte.</p>
+    </div>
+  </section>
+
+  <section id="fragen">
+    <div class="wrap">
+      <h2>Häufige Fragen</h2>
+      <details><summary>Funktioniert es auch ohne iCloud?</summary><p>Getestet ist iCloud. Andere CalDAV-Server (z. B. Nextcloud) funktionieren wahrscheinlich, wenn du <code>CALDAV_URL</code> anpasst – Rückmeldungen sind willkommen. Ohne Kalender-Zugang zeigt die App die Vorschläge trotzdem an.</p></details>
+      <details><summary>Welche KI brauche ich?</summary><p>Jede Schnittstelle, die das OpenAI-Format „Chat Completions“ spricht. Lokal empfehlenswert ist ein aktuelles Modell mit Bilderkennung, damit auch Fotos von Elternbriefen und gescannte PDFs funktionieren. Wie lange eine Auswertung dauert, zeigt die Wartungs-Übersicht.</p></details>
+      <details><summary>Kann ich einen Cloud-Dienst als KI nutzen?</summary><p>Technisch ja (<code>AI_BASE_URL</code> und <code>AI_API_KEY</code>). Dann gehen Mailinhalte allerdings an diesen Dienst – bewusst entscheiden.</p></details>
+      <details><summary>Was passiert mit Werbung und Paket-Mails?</summary><p>Die KI ist angewiesen, sie zu ignorieren. Was trotzdem durchrutscht, blendest du per Tipp für den ganzen Absender aus; Newsletter mit unsicherer Erkennung landen automatisch unter „Ausgeblendet“.</p></details>
+      <details><summary>Wo sehe ich, ob alles läuft?</summary><p>Auf der Startseite im Systemstatus, unter <em>Protokoll</em> und in der <em>Wartungs-Übersicht</em>. Der Container meldet seinen Zustand außerdem an Docker (<code>docker compose ps</code> zeigt „healthy“).</p></details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">Kalender-Assistent · <a href="https://github.com/norcon/kalender-assistent">GitHub</a> · <a href="https://github.com/norcon/kalender-assistent/blob/main/LICENSE">MIT-Lizenz</a> · <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">Änderungsprotokoll</a> · <a href="en/" hreflang="en">English</a></div>
+</footer>
+<script src="copy.js" defer></script>
+</body>
+</html>

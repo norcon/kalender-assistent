@@ -13,7 +13,11 @@ Termine aus Schul-, Vereins- und Praxis-Mails nicht mehr abtippen wollen.
 > OpenAI-compatible AI extract events from emails, PDFs, images and calendar
 > invitations, and shows them as suggestions. Nothing reaches your iCloud
 > calendar until you tap a calendar name. The interface is available in German
-> and English. See [Quick start](#schnellstart) below.
+> and English. See the [project page](https://norcon.github.io/kalender-assistent/en/)
+> or the [Quick start](#schnellstart) below.
+
+**Projektseite mit Bildern und ausführlicher Anleitung:**
+[norcon.github.io/kalender-assistent](https://norcon.github.io/kalender-assistent/)
 
 ## Funktionen
 
@@ -395,6 +399,9 @@ ausführen und erst dann mit `docker compose up -d` übernehmen.
 
 Das Projekt ist ein lokales Git-Repository; `.env`, `data/` und `backups/`
 sind ausgeschlossen.
+
+Die Bilder der Projektseite (`docs/`) entstehen aus dem Demo-Modus:
+`sh tools/screenshots/make.sh`.
 
 ## Mitmachen
 

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calendar Assistant – events from emails, reviewed into iCloud</title>
+  <meta name="description" content="Self-hosted assistant: watches an IMAP mailbox, detects events with a local AI and adds them to iCloud with one tap after you review them.">
+  <link rel="icon" href="../img/icon.svg" type="image/svg+xml">
+  <link rel="alternate" hreflang="de" href="../">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="../img/icon.svg" alt="" width="28" height="28">Calendar Assistant</a>
+    <nav class="links" aria-label="Page sections">
+      <a href="#features">Features</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#install">Install</a>
+      <a href="#update">Update</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/norcon/kalender-assistent">GitHub</a>
+    </nav>
+    <a class="lang" href="../" hreflang="de" lang="de">DE</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>Events from your emails – detected by your AI, reviewed by you.</h1>
+    <p class="lead">Calendar Assistant reads along in your mailbox, finds events in school, club and doctor’s emails, PDFs, photos and invitations, and shows them as suggestions. One tap on a calendar name and the event is in iCloud. Everything runs on your own server.</p>
+    <div class="cta">
+      <a class="button" href="#install">Install</a>
+      <a class="button secondary" href="https://github.com/norcon/kalender-assistent">Source on GitHub</a>
+    </div>
+    <picture class="shot">
+      <source srcset="../img/en-desktop-dark-start.png" media="(prefers-color-scheme: dark)">
+      <img src="../img/en-desktop-light-start.png" alt="Start page with system status, a change suggestion and calendar filters" width="1920" height="1290">
+    </picture>
+  </div>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="sub">Nothing reaches your calendar unreviewed. The app suggests – you decide.</p>
+      <ol class="steps">
+        <li><strong>Read along.</strong> The mailbox is opened read-only. The server reports new emails instantly (IMAP IDLE).</li>
+        <li><strong>Detect.</strong> Calendar invitations are read exactly; everything else is analysed by an AI on your server – scans and photos included.</li>
+        <li><strong>Review.</strong> Each card shows the passage from the email, the AI’s confidence and what is already in iCloud that day.</li>
+        <li><strong>Add.</strong> Tapping a calendar adds the event with a reminder. You can always undo.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>Features</h2>
+      <p class="sub">Built for family life: many senders, little time, and the calendar has to be right.</p>
+      <div class="grid">
+        <div class="card"><h3>Understands many formats</h3><p>Email text, PDFs (scanned too), images and .ics invitations from Outlook, rail operators or practice software.</p></div>
+        <div class="card"><h3>Series and cancellations</h3><p>“Every Tuesday until Easter, except during the holidays” becomes a series. Follow-up emails with changes or cancellations are presented for confirmation.</p></div>
+        <div class="card"><h3>Less noise</h3><p>Shipping, advertising and newsletter emails are recognised. You can hide annoying senders – without losing anything.</p></div>
+        <div class="card"><h3>Learns as you go</h3><p>Correct the calendar for a sender once, and the app remembers it for similar events. Each calendar gets a description for the AI.</p></div>
+        <div class="card"><h3>No double bookings</h3><p>Warnings about duplicates, events already in iCloud and overlaps in the chosen calendar.</p></div>
+        <div class="card"><h3>Safely backed up</h3><p>Daily backup of the app data and a versioned backup of your iCloud calendars – deleted events can be restored one by one.</p></div>
+        <div class="card"><h3>For phone and tablet</h3><p>Works as a home-screen app with pull to refresh, light/dark mode and large touch targets.</p></div>
+        <div class="card"><h3>German and English</h3><p>Interface in both languages, switchable per device.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="special">
+    <div class="wrap">
+      <h2>What makes it different</h2>
+      <div class="grid">
+        <div class="card"><h3>Your data stays with you</h3><p>With a local AI (e.g. LM Studio or Ollama) no email leaves your network. Only suggestions with a short quote are stored – not the emails themselves.</p></div>
+        <div class="card"><h3>Read-only, write on demand</h3><p>The mailbox is never changed. The app only writes to iCloud when you tap – and only to the calendars you allowed.</p></div>
+        <div class="card"><h3>Honest about uncertainty</h3><p>If the AI is unsure, the card is marked. Assumed end times are labelled “assumed”.</p></div>
+        <div class="card"><h3>No cloud account, no subscription</h3><p>One Docker container and one settings file. You can even try it without any mailbox in demo mode.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screenshots">
+    <div class="wrap">
+      <h2>Screenshots</h2>
+      <p class="sub">All screenshots come from the built-in demo mode with made-up data.</p>
+      <div class="phones">
+        <figure><img class="shot" src="../img/en-phone-light-card.png" alt="Suggestion card on a phone with a quote from the email" loading="lazy" width="390" height="664"><figcaption>Suggestion with the passage from the email</figcaption></figure>
+        <figure><img class="shot" src="../img/en-phone-dark-card.png" alt="Suggestion card in dark mode with notes on existing events" loading="lazy" width="390" height="664"><figcaption>Notes on existing and overlapping events</figcaption></figure>
+        <figure><img class="shot" src="../img/en-phone-light-hint.png" alt="Offer to hide a sender in future" loading="lazy" width="390" height="664"><figcaption>“Hide them in future?” for annoying senders</figcaption></figure>
+        <figure><img class="shot" src="../img/en-phone-light-hidden.png" alt="Section with hidden suggestions" loading="lazy" width="390" height="664"><figcaption>Hidden items stay reachable</figcaption></figure>
+      </div>
+      <div class="gallery" style="margin-top:24px">
+        <figure><img class="shot" src="../img/en-desktop-settings.png" alt="Target calendar settings with descriptions for the AI" loading="lazy" width="1920" height="1290"><figcaption>Target calendars with descriptions for the AI</figcaption></figure>
+        <figure><img class="shot" src="../img/en-desktop-rules.png" alt="Rules and hit rate per sender" loading="lazy" width="1920" height="1290"><figcaption>Rules and hit rate per sender</figcaption></figure>
+        <figure><img class="shot" src="../img/en-desktop-restore.png" alt="Restoring events from the calendar backup" loading="lazy" width="1920" height="1290"><figcaption>Restore deleted events from the backup</figcaption></figure>
+        <figure><img class="shot" src="../img/en-desktop-maintenance.png" alt="Maintenance overview with figures" loading="lazy" width="1920" height="1290"><figcaption>Maintenance overview</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="install" class="install">
+    <div class="wrap">
+      <h2>Installation</h2>
+      <p class="sub">About 15 minutes. You need a machine on your home network that runs all the time (mini PC, NAS with Docker, Raspberry Pi 4/5).</p>
+
+      <h3>1. Requirements</h3>
+      <ul>
+        <li><strong>Docker</strong> with Docker Compose – guide: <a href="https://docs.docker.com/engine/install/">docs.docker.com/engine/install</a></li>
+        <li>A <strong>mailbox with IMAP access</strong>. Ideally a separate address you forward event emails to, e.g. <code>events@your-domain.com</code>.</li>
+        <li>An <strong>AI with an OpenAI-compatible API</strong>, e.g. <a href="https://lmstudio.ai">LM Studio</a> or <a href="https://ollama.com">Ollama</a>. For photos and scans, a model with image recognition (vision).</li>
+        <li>For iCloud: an <strong>app-specific password</strong> (step 3).</li>
+      </ul>
+
+      <h3>2. Get the files</h3>
+      <pre><code>mkdir kalender-assistent && cd kalender-assistent
+curl -fsSLO https://raw.githubusercontent.com/norcon/kalender-assistent/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/norcon/kalender-assistent/main/.env.example -o .env
+mkdir -p data backups
+sudo chown 100:101 data backups
+sudo chmod 700 data backups</code></pre>
+
+      <h3>3. Prepare iCloud</h3>
+      <ol>
+        <li>Sign in at <a href="https://account.apple.com">account.apple.com</a> → <em>Sign-In and Security</em> → <em>App-Specific Passwords</em> → create a new password, e.g. “Calendar Assistant”.</li>
+        <li>In the Calendar app, create the calendars events should go to – e.g. one per person and a shared one.</li>
+      </ol>
+
+      <h3>4. Enter your settings</h3>
+      <p>Open <code>.env</code> in an editor (e.g. <code>nano .env</code>) and set at least:</p>
+      <pre><code># Mailbox
+IMAP_HOST=imap.example.org
+IMAP_USERNAME=events@example.org
+IMAP_PASSWORD=your-mail-password
+
+# AI – LM Studio on the same machine:
+AI_BASE_URL=http://host.docker.internal:1234/v1
+# … or Ollama:  AI_BASE_URL=http://host.docker.internal:11434/v1
+AI_MODEL=model-name
+
+# iCloud
+CALDAV_USERNAME=your-apple-id@example.org
+CALDAV_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+TARGET_CALENDARS=Alex,Sam,Family
+
+# English interface by default
+APP_LANGUAGE=en</code></pre>
+      <div class="note"><strong>Tip:</strong> <code>TARGET_CALENDARS</code> are the exact names of your iCloud calendars. You can change them later under <em>Settings → Target calendars</em>.</div>
+
+      <h3>5. Start</h3>
+      <pre><code>docker compose pull
+docker compose up -d</code></pre>
+      <p>The interface is then available at <code>http://&lt;server-ip&gt;:8080</code>. On a phone: open it in the browser → <em>Share</em> → <em>Add to Home Screen</em>.</p>
+
+      <h3>6. First steps in the app</h3>
+      <ol>
+        <li><em>Settings</em> → <em>Test iCloud connection</em>: the app lists your calendars.</li>
+        <li><em>Settings → Target calendars</em>: choose calendars, set the order and add a short description for the AI per calendar (“daughter, 4th grade, swimming club”).</li>
+        <li>Send an email with an event to the mailbox and tap <em>Check now</em> on the start page.</li>
+      </ol>
+
+      <details>
+        <summary>Just try it first (demo mode)</summary>
+        <p>Without mailbox, AI or iCloud, with made-up sample data:</p>
+        <pre><code>docker run --rm -p 8080:8000 -e DEMO_MODE=1 -e APP_LANGUAGE=en ghcr.io/norcon/kalender-assistent:latest</code></pre>
+        <p>Then open <code>http://localhost:8080</code>.</p>
+      </details>
+      <div class="warn"><strong>Important:</strong> the interface has no login. Do not expose port 8080 to the internet; use a VPN for remote access. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
+    </div>
+  </section>
+
+  <section id="update" class="install">
+    <div class="wrap">
+      <h2>Update and roll back</h2>
+      <h3>To the latest version</h3>
+      <pre><code>cd kalender-assistent
+docker compose pull
+docker compose up -d</code></pre>
+      <p>The database is upgraded automatically on start. The app makes a backup every night; before an update you can create an extra one under <em>Backups → Back up now</em>.</p>
+      <h3>Back to an earlier version</h3>
+      <p>Put the version you want into <code>.env</code> (all versions are listed in the <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">changelog</a>):</p>
+      <pre><code>KALENDER_VERSION=0.16.1</code></pre>
+      <pre><code>docker compose pull
+docker compose up -d</code></pre>
+      <p>If the newer version has already changed the data: restore the backup from before the update under <em>Backups</em>. To return to the latest version, remove the <code>KALENDER_VERSION</code> line again.</p>
+    </div>
+  </section>
+
+  <section id="backup" class="install">
+    <div class="wrap">
+      <h2>Backup</h2>
+      <p>Everything important lives in two folders next to <code>compose.yaml</code>:</p>
+      <table>
+        <tr><th>Folder</th><th>Contents</th></tr>
+        <tr><td><code>data/</code></td><td>database with suggestions, rules, history and settings</td></tr>
+        <tr><td><code>backups/</code></td><td>daily database backups and the versioned backup of your iCloud calendars</td></tr>
+      </table>
+      <p>Copy both folders and your <code>.env</code> to a second device regularly, e.g. a NAS – the built-in backups live on the same disk.</p>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <h2>FAQ</h2>
+      <details><summary>Does it work without iCloud?</summary><p>iCloud is what has been tested. Other CalDAV servers (e.g. Nextcloud) probably work if you change <code>CALDAV_URL</code> – feedback welcome. Without calendar access the app still shows the suggestions.</p></details>
+      <details><summary>Which AI do I need?</summary><p>Any API that speaks the OpenAI “Chat Completions” format. Locally, a current model with image recognition is recommended so that photos of school letters and scanned PDFs work too. The maintenance overview shows how long an analysis takes.</p></details>
+      <details><summary>Can I use a cloud AI service?</summary><p>Technically yes (<code>AI_BASE_URL</code> and <code>AI_API_KEY</code>). Email contents are then sent to that service – decide consciously.</p></details>
+      <details><summary>What about advertising and parcel emails?</summary><p>The AI is instructed to ignore them. Whatever slips through you can hide for the whole sender with one tap; newsletters with uncertain detection end up under “Hidden” automatically.</p></details>
+      <details><summary>Is the AI prompt in English?</summary><p>The prompt is in German, but current models handle English emails with it just fine. Technical log messages are in German as well.</p></details>
+      <details><summary>How do I know everything is running?</summary><p>See the system status on the start page, the <em>Log</em> and the <em>Maintenance overview</em>. The container also reports its health to Docker (<code>docker compose ps</code> shows “healthy”).</p></details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">Calendar Assistant · <a href="https://github.com/norcon/kalender-assistent">GitHub</a> · <a href="https://github.com/norcon/kalender-assistent/blob/main/LICENSE">MIT licence</a> · <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">Changelog</a> · <a href="../" hreflang="de">Deutsch</a></div>
+</footer>
+<script src="../copy.js" defer></script>
+</body>
+</html>
