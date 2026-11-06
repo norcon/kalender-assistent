@@ -51,19 +51,23 @@ Termine aus Schul-, Vereins- und Praxis-Mails nicht mehr abtippen wollen.
 mkdir kalender-assistent && cd kalender-assistent
 curl -fsSLO https://raw.githubusercontent.com/norcon/kalender-assistent/main/compose.yaml
 curl -fsSL https://raw.githubusercontent.com/norcon/kalender-assistent/main/.env.example -o .env
-```
-
-`.env` bearbeiten und mindestens `IMAP_HOST`, `IMAP_USERNAME`,
-`IMAP_PASSWORD`, `AI_BASE_URL` und `AI_MODEL` setzen, für iCloud zusätzlich
-`CALDAV_USERNAME`, `CALDAV_APP_PASSWORD` und `TARGET_CALENDARS`. Danach:
-
-```sh
 mkdir -p data backups
 sudo chown 100:101 data backups
 sudo chmod 700 data backups
-docker compose pull
-docker compose up -d
+docker compose --profile updater up -d
 ```
+
+Dann `http://<server-ip>:8080` im Browser öffnen: Der **Einrichtungsassistent**
+fragt Sprache und Zeitzone, Postfach, KI-Server (mit Modellliste und
+Probe-Auswertung) und iCloud samt Zielkalendern ab, prüft jede Verbindung
+sofort und schreibt die Einstellungen über den Updater in `.env`. Danach ist
+er gesperrt – Zugangsdaten änderst du nur noch in `.env`.
+
+Ohne Updater (`docker compose up -d`) zeigt der Assistent am Ende die fertigen
+Zeilen für `.env` zum Kopieren. Wer lieber direkt `.env` bearbeitet, trägt
+mindestens `IMAP_HOST`, `IMAP_USERNAME`, `IMAP_PASSWORD`, `AI_BASE_URL` und
+`AI_MODEL` ein, für iCloud zusätzlich `CALDAV_USERNAME`, `CALDAV_APP_PASSWORD`
+und `TARGET_CALENDARS`.
 
 Erst einmal nur ansehen? `DEMO_MODE=1` in `.env` startet mit erfundenen
 Beispieldaten und ganz ohne Postfach, KI oder iCloud.

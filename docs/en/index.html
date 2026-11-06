@@ -113,53 +113,47 @@
         <li>For iCloud: an <strong>app-specific password</strong> (step 3).</li>
       </ul>
 
-      <h3>2. Get the files</h3>
+      <h3>2. Prepare iCloud</h3>
+      <ol>
+        <li>Sign in at <a href="https://account.apple.com">account.apple.com</a> → <em>Sign-In and Security</em> → <em>App-Specific Passwords</em> → create a new password, e.g. “Calendar Assistant”. You will need it in the setup wizard in a moment.</li>
+        <li>In the Calendar app, create the calendars events should go to – e.g. one per person and a shared one.</li>
+      </ol>
+
+      <h3>3. Install and start</h3>
       <pre><code>mkdir kalender-assistent && cd kalender-assistent
 curl -fsSLO https://raw.githubusercontent.com/norcon/kalender-assistent/main/compose.yaml
 curl -fsSL https://raw.githubusercontent.com/norcon/kalender-assistent/main/.env.example -o .env
 mkdir -p data backups
 sudo chown 100:101 data backups
-sudo chmod 700 data backups</code></pre>
+sudo chmod 700 data backups
+docker compose --profile updater up -d</code></pre>
 
-      <h3>3. Prepare iCloud</h3>
+      <h3>4. Setup wizard</h3>
+      <p>Open <code>http://&lt;server-ip&gt;:8080</code> in your browser. The wizard guides you through five steps and checks every connection right away:</p>
       <ol>
-        <li>Sign in at <a href="https://account.apple.com">account.apple.com</a> → <em>Sign-In and Security</em> → <em>App-Specific Passwords</em> → create a new password, e.g. “Calendar Assistant”.</li>
-        <li>In the Calendar app, create the calendars events should go to – e.g. one per person and a shared one.</li>
+        <li><strong>Language and time zone</strong></li>
+        <li><strong>Mailbox</strong> – server, user, password; then choose the folder from the list.</li>
+        <li><strong>AI</strong> – address of the AI server (LM Studio: <code>http://host.docker.internal:1234/v1</code>, Ollama: <code>http://host.docker.internal:11434/v1</code>), pick a model from the list and try it with a sample email.</li>
+        <li><strong>iCloud</strong> – Apple ID and app-specific password; then choose the target calendars and add a short description for the AI to each.</li>
+        <li><strong>Save and start</strong> – the app restarts with the new settings.</li>
       </ol>
+      <div class="note"><strong>Locked afterwards:</strong> once setup is complete it cannot be run again from the browser. You then change credentials directly in <code>.env</code> and restart with <code>docker compose up -d</code>.</div>
+      <p>On a phone: open the page in the browser → <em>Share</em> → <em>Add to Home Screen</em>.</p>
 
-      <h3>4. Enter your settings</h3>
-      <p>Open <code>.env</code> in an editor (e.g. <code>nano .env</code>) and set at least:</p>
-      <pre><code># Mailbox
-IMAP_HOST=imap.example.org
+      <details>
+        <summary>Without the updater, or by hand</summary>
+        <p>Without the updater (<code>docker compose up -d</code> without <code>--profile updater</code>) the wizard shows the finished lines for <code>.env</code> at the end for you to copy. Alternatively, put at least the following into <code>.env</code> before starting:</p>
+        <pre><code>IMAP_HOST=imap.example.org
 IMAP_USERNAME=events@example.org
-IMAP_PASSWORD=your-mail-password
-
-# AI – LM Studio on the same machine:
+IMAP_PASSWORD='your-mail-password'
 AI_BASE_URL=http://host.docker.internal:1234/v1
-# … or Ollama:  AI_BASE_URL=http://host.docker.internal:11434/v1
 AI_MODEL=model-name
-
-# iCloud
 CALDAV_USERNAME=your-apple-id@example.org
 CALDAV_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
 TARGET_CALENDARS=Alex,Sam,Family
-
-# English interface by default
 APP_LANGUAGE=en</code></pre>
-      <div class="note"><strong>Tip:</strong> <code>TARGET_CALENDARS</code> are the exact names of your iCloud calendars. You can change them later under <em>Settings → Target calendars</em>.</div>
-
-      <h3>5. Start</h3>
-      <pre><code>docker compose pull
-docker compose up -d</code></pre>
-      <p>The interface is then available at <code>http://&lt;server-ip&gt;:8080</code>. On a phone: open it in the browser → <em>Share</em> → <em>Add to Home Screen</em>.</p>
-
-      <h3>6. First steps in the app</h3>
-      <ol>
-        <li><em>Settings</em> → <em>Test iCloud connection</em>: the app lists your calendars.</li>
-        <li><em>Settings → Target calendars</em>: choose calendars, set the order and add a short description for the AI per calendar (“daughter, 4th grade, swimming club”).</li>
-        <li>Send an email with an event to the mailbox and tap <em>Check now</em> on the start page.</li>
-      </ol>
-
+        <p>Put passwords with special characters in single quotes.</p>
+      </details>
       <details>
         <summary>Just try it first (demo mode)</summary>
         <p>Without mailbox, AI or iCloud, with made-up sample data:</p>

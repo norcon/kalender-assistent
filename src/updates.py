@@ -92,3 +92,13 @@ def backup_calendar_store(store_path: str, backup_dir: str, keep: int = 3) -> Pa
     for path in old:
         path.unlink(missing_ok=True)
     return target
+
+
+def configure(url: str, values: dict[str, str]) -> tuple[bool, str]:
+    """Ersteinrichtung: Updater schreibt .env (nur erlaubte Schlüssel) und startet neu."""
+    try:
+        response = httpx.post(f"{url.rstrip('/')}/configure", json={"values": values}, timeout=15)
+        data = response.json()
+        return response.status_code == 202, str(data.get("message") or "")
+    except (httpx.HTTPError, ValueError) as error:
+        return False, type(error).__name__

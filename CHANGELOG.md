@@ -4,6 +4,26 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.18.0 – 2026-11-07
+
+Einrichtungsassistent:
+
+- Fehlen die Postfach-Zugangsdaten, startet die App im Einrichtungsmodus und
+  führt in fünf Schritten durch die Einrichtung: Sprache und Zeitzone,
+  Postfach (mit Verbindungstest und Ordnerliste), KI-Server (Modellliste und
+  Probe-Auswertung einer Beispiel-Mail), iCloud (Kalender laden,
+  Zielkalender mit Beschreibung für die KI) und Zusammenfassung.
+- „Speichern und starten“ schreibt die Einstellungen über den Updater in
+  `.env` und startet die App neu. Ohne Updater zeigt der Assistent die
+  fertigen Zeilen zum Kopieren.
+- Danach ist die Einrichtung gesperrt: Der Updater schreibt Zugangsdaten nur,
+  solange in `.env` noch keine stehen, und nur festgelegte Schlüssel.
+- Passwörter mit Sonderzeichen (`$`, `#`, Anführungszeichen, Leerzeichen)
+  werden so in `.env` geschrieben, dass Docker Compose sie unverändert
+  übernimmt.
+- `.env.example` enthält keine Beispiel-Zugangsdaten mehr; eine neue
+  Installation startet direkt im Assistenten.
+
 ## 0.17.1 – 2026-11-06
 
 - Version und Updates: Eine fehlgeschlagene Abfrage neuer Versionen wird nur

@@ -113,50 +113,46 @@
         <li>Für iCloud: ein <strong>app-spezifisches Passwort</strong> (Schritt 3).</li>
       </ul>
 
-      <h3>2. Dateien holen</h3>
+      <h3>2. iCloud vorbereiten</h3>
+      <ol>
+        <li>Auf <a href="https://account.apple.com">account.apple.com</a> anmelden → <em>Anmelden und Sicherheit</em> → <em>App-spezifische Passwörter</em> → neues Passwort, z. B. „Kalender-Assistent“. Das Passwort brauchst du gleich im Assistenten.</li>
+        <li>In der Kalender-App die Kalender anlegen, in die Termine sollen – z. B. einen pro Person und einen gemeinsamen.</li>
+      </ol>
+
+      <h3>3. Installieren und starten</h3>
       <pre><code>mkdir kalender-assistent && cd kalender-assistent
 curl -fsSLO https://raw.githubusercontent.com/norcon/kalender-assistent/main/compose.yaml
 curl -fsSL https://raw.githubusercontent.com/norcon/kalender-assistent/main/.env.example -o .env
 mkdir -p data backups
 sudo chown 100:101 data backups
-sudo chmod 700 data backups</code></pre>
+sudo chmod 700 data backups
+docker compose --profile updater up -d</code></pre>
 
-      <h3>3. iCloud vorbereiten</h3>
+      <h3>4. Einrichtungsassistent</h3>
+      <p>Öffne <code>http://&lt;ip-des-servers&gt;:8080</code> im Browser. Der Assistent führt dich durch fünf Schritte und prüft jede Verbindung sofort:</p>
       <ol>
-        <li>Auf <a href="https://account.apple.com">account.apple.com</a> anmelden → <em>Anmelden und Sicherheit</em> → <em>App-spezifische Passwörter</em> → neues Passwort, z. B. „Kalender-Assistent“.</li>
-        <li>In der Kalender-App die Kalender anlegen, in die Termine sollen – z. B. einen pro Person und einen gemeinsamen.</li>
+        <li><strong>Sprache und Zeitzone</strong></li>
+        <li><strong>Postfach</strong> – Server, Benutzer, Passwort; danach wählst du den Ordner aus der Liste.</li>
+        <li><strong>KI</strong> – Adresse des KI-Servers (LM Studio: <code>http://host.docker.internal:1234/v1</code>, Ollama: <code>http://host.docker.internal:11434/v1</code>), Modell aus der Liste wählen und mit einer Beispiel-Mail ausprobieren.</li>
+        <li><strong>iCloud</strong> – Apple-ID und app-spezifisches Passwort; danach Zielkalender auswählen und je eine kurze Beschreibung für die KI eintragen.</li>
+        <li><strong>Speichern und starten</strong> – die App startet mit den neuen Einstellungen neu.</li>
       </ol>
+      <div class="note"><strong>Danach gesperrt:</strong> Ist die Einrichtung abgeschlossen, lässt sie sich nicht noch einmal über den Browser ausführen. Zugangsdaten änderst du dann direkt in <code>.env</code> und startest mit <code>docker compose up -d</code> neu.</div>
+      <p>Auf dem Handy: Seite im Browser öffnen → <em>Teilen</em> → <em>Zum Home-Bildschirm</em>.</p>
 
-      <h3>4. Einstellungen eintragen</h3>
-      <p>Öffne <code>.env</code> mit einem Editor (z. B. <code>nano .env</code>) und trage mindestens Folgendes ein:</p>
-      <pre><code># Postfach
-IMAP_HOST=imap.example.org
+      <details>
+        <summary>Ohne Updater oder lieber von Hand</summary>
+        <p>Ohne den Updater (<code>docker compose up -d</code> ohne <code>--profile updater</code>) zeigt der Assistent am Ende die fertigen Zeilen für <code>.env</code> zum Kopieren. Alternativ trägst du vor dem Start in <code>.env</code> mindestens ein:</p>
+        <pre><code>IMAP_HOST=imap.example.org
 IMAP_USERNAME=termine@example.org
-IMAP_PASSWORD=dein-mail-passwort
-
-# KI – LM Studio auf demselben Rechner:
+IMAP_PASSWORD='dein-mail-passwort'
 AI_BASE_URL=http://host.docker.internal:1234/v1
-# … oder Ollama:  AI_BASE_URL=http://host.docker.internal:11434/v1
 AI_MODEL=name-des-modells
-
-# iCloud
 CALDAV_USERNAME=deine-apple-id@example.org
 CALDAV_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
 TARGET_CALENDARS=Alex,Sam,Familie</code></pre>
-      <div class="note"><strong>Tipp:</strong> <code>TARGET_CALENDARS</code> sind die exakten Namen deiner iCloud-Kalender. Später änderst du sie bequem unter <em>Einstellungen → Zielkalender</em>.</div>
-
-      <h3>5. Starten</h3>
-      <pre><code>docker compose pull
-docker compose up -d</code></pre>
-      <p>Die Oberfläche ist dann unter <code>http://&lt;ip-des-servers&gt;:8080</code> erreichbar. Auf dem Handy: im Browser öffnen → <em>Teilen</em> → <em>Zum Home-Bildschirm</em>.</p>
-
-      <h3>6. Erste Schritte in der App</h3>
-      <ol>
-        <li><em>Einstellungen</em> → <em>iCloud-Verbindung testen</em>: Die App listet deine Kalender.</li>
-        <li><em>Einstellungen → Zielkalender</em>: Kalender auswählen, Reihenfolge festlegen und je Kalender eine kurze Beschreibung für die KI eintragen („Tochter, 4. Klasse, Schwimmverein“).</li>
-        <li>Eine Mail mit einem Termin an das Postfach schicken und auf der Startseite <em>Jetzt prüfen</em> tippen.</li>
-      </ol>
-
+        <p>Passwörter mit Sonderzeichen in einfache Anführungszeichen setzen.</p>
+      </details>
       <details>
         <summary>Erst einmal nur ausprobieren (Demo-Modus)</summary>
         <p>Ohne Postfach, KI und iCloud, mit erfundenen Beispieldaten:</p>

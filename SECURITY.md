@@ -38,6 +38,10 @@ Server. Deshalb:
 - Weil die Oberfläche keine Anmeldung hat, kann jeder im Heimnetz ein Update
   oder die Rückkehr zu einer früheren **offiziellen** Version auslösen.
   Vorher wird immer eine Vollsicherung angelegt.
+- Bei der Ersteinrichtung schreibt der Updater die Zugangsdaten in `.env` –
+  aber nur, solange dort noch keine Postfach-Zugangsdaten stehen, und nur eine
+  feste Liste von Schlüsseln. Danach lehnt er das ab; Zugangsdaten ändert man
+  nur noch auf dem Server in `.env`.
 - Wer das nicht möchte, lässt den Dienst einfach weg und aktualisiert mit
   `docker compose pull && docker compose up -d`.
 
@@ -66,6 +70,11 @@ up -d`) has access to the Docker socket, i.e. administrator rights on the
 server. It publishes no port, accepts only `x.y.z` version numbers of the image
 fixed in `compose.yaml`, and always creates a full backup first – but anyone on
 your network can trigger an update or a rollback to an official version.
+
+During first-time setup the updater writes credentials to `.env` – only while
+no mailbox credentials are present there yet, and only a fixed list of keys.
+After that it refuses; credentials are then changed only in `.env` on the
+server.
 
 To report a vulnerability, please use GitHub → *Security* → *Report a
 vulnerability* instead of a public issue.

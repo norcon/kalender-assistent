@@ -1057,6 +1057,60 @@ class LanguageTests(unittest.TestCase):
                 client.post(f"/api/suggestions/{item['id']}/dismiss")
 
 
+class SetupModeTests(unittest.TestCase):
+    def _setup_settings(self):
+        return replace(app_module.settings, setup_mode=True)
+
+    def test_redirect_page_and_endpoints_only_in_setup_mode(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                self.assertEqual(client.post("/api/setup/imap", json={"host": "h", "username": "u", "password": "p"}).status_code, 404)
+                self.assertEqual(client.get("/einrichtung", follow_redirects=False).status_code, 303)
+                with patch.object(app_module, "settings", self._setup_settings()):
+                    response = client.get("/", follow_redirects=False)
+                    self.assertEqual((response.status_code, response.headers["location"]), (303, "/einrichtung"))
+                    self.assertEqual(client.get("/health").status_code, 200)
+                    page = client.get("/einrichtung").text
+                    self.assertIn('id="setup-form"', page)
+                    self.assertIn("Europe/Berlin", page)
+                    self.assertIn('id="theme-toggle"', page)
+                    with patch.object(app_module.setup_wizard, "imap_test", return_value=["INBOX", "Schule"]):
+                        self.assertEqual(client.post("/api/setup/imap", json={"host": "h", "username": "u", "password": "p"}).json()["folders"], ["INBOX", "Schule"])
+                    with patch.object(app_module.setup_wizard, "imap_test", side_effect=app_module.setup_wizard.SetupError("Anmeldung falsch")):
+                        response = client.post("/api/setup/imap", json={"host": "h", "username": "u", "password": "p"})
+                        self.assertEqual((response.status_code, response.json()["detail"]), (422, "Anmeldung falsch"))
+                    with patch.object(app_module.setup_wizard, "ai_models", return_value=["m1"]):
+                        self.assertEqual(client.post("/api/setup/ai-models", json={"base_url": "http://ki:1/v1"}).json()["models"], ["m1"])
+                    with patch.object(app_module.setup_wizard, "ai_probe", return_value=[{"title": "Elternabend", "start": "2099-01-01T19:30", "confidence": 0.9}]):
+                        data = client.post("/api/setup/ai-probe", json={"base_url": "http://ki:1/v1", "model": "m1"}).json()
+                        self.assertEqual(data["events"][0]["title"], "Elternabend")
+                        self.assertEqual(data["events"][0]["confidence"], 90)
+                    with patch.object(app_module.setup_wizard, "caldav_test", return_value=[{"name": "Alex"}]):
+                        self.assertEqual(client.post("/api/setup/caldav", json={"username": "u", "password": "p"}).json()["calendars"], [{"name": "Alex"}])
+                    self.assertTrue(client.get("/api/setup/state").json()["setup_mode"])
+
+    def test_finish_with_and_without_updater(self):
+        before = db.list_target_calendars(app_module.settings.database_path)
+        payload = {"language": "en", "timezone": "Europe/Berlin", "imap_host": "imap.example.org", "imap_username": "a@b.de",
+                   "imap_password": "it's $x", "ai_base_url": "http://ki:1/v1", "ai_model": "m1",
+                   "targets": [{"name": "Neu", "description": "Test", "shared": False}]}
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                with patch.object(app_module, "settings", self._setup_settings()):
+                    with patch.object(app_module.updates, "updater_status", return_value=None):
+                        data = client.post("/api/setup/finish", json=payload).json()
+                        self.assertEqual(data["mode"], "manual")
+                        self.assertIn('IMAP_PASSWORD="it\'s $$x"', data["env"])
+                        self.assertIn("APP_LANGUAGE=en", data["env"])
+                    self.assertEqual(db.list_target_calendars(app_module.settings.database_path)[0]["name"], "Neu")
+                    with patch.object(app_module.updates, "updater_status", return_value={"state": "idle"}), \
+                         patch.object(app_module.updates, "configure", return_value=(True, "gespeichert")) as configure:
+                        self.assertEqual(client.post("/api/setup/finish", json=payload).json(), {"mode": "updater"})
+                        self.assertEqual(configure.call_args.args[1]["IMAP_PASSWORD"], "it's $x")
+                    self.assertEqual(client.post("/api/setup/finish", json={**payload, "timezone": "Mond/Krater"}).status_code, 422)
+        db.save_target_calendars(app_module.settings.database_path, before)
+
+
 class ReleaseCacheTests(unittest.TestCase):
     def test_failures_are_cached_briefly(self):
         from src import updates

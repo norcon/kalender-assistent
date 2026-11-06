@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% with page_title=_("Einrichtung") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body class="setup-page">
+  <header class="setup-header">
+    <span class="brand"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> {{ _("Kalender-Assistent") }}</span>
+    {% set other = "en" if current_lang() == "de" else "de" %}
+    <span class="nav-tools">
+      <button type="button" id="language-toggle" class="language-toggle" data-lang="{{ other }}" lang="{{ other }}" aria-label="{{ "Switch to English" if other == "en" else "Auf Deutsch umschalten" }}">{{ other|upper }}</button>
+      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ _("Darstellung wechseln") }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
+        <span class="theme-label">{{ _("Automatisch") }}</span>
+      </button>
+    </span>
+  </header>
+  <main id="main" class="setup">
+    <h1>{{ _("Einrichtung") }}</h1>
+    <p class="meta">{{ _("In fünf Schritten zur fertigen Einrichtung. Jede Verbindung wird sofort geprüft; gespeichert wird erst ganz am Ende.") }}</p>
+    <ol class="setup-steps" aria-label="{{ _("Fortschritt") }}">
+      {% for label in [_("Sprache"), _("Postfach"), _("KI"), _("iCloud"), _("Fertig")] %}<li data-step="{{ loop.index }}">{{ label }}</li>{% endfor %}
+    </ol>
+
+    <form id="setup-form" novalidate>
+      <section class="setup-step" data-step="1">
+        <h2>{{ _("Sprache und Zeitzone") }}</h2>
+        <label>{{ _("Sprache der Oberfläche") }}
+          <select name="language">
+            <option value="auto">{{ _("Automatisch") }}</option>
+            <option value="de"{% if current_lang() == "de" %} selected{% endif %}>Deutsch</option>
+            <option value="en"{% if current_lang() == "en" %} selected{% endif %}>English</option>
+          </select>
+        </label>
+        <label>{{ _("Zeitzone") }}
+          <input name="timezone" list="timezones" value="{{ default_timezone }}" required autocomplete="off">
+          <datalist id="timezones">{% for zone in timezones %}<option value="{{ zone }}">{% endfor %}</datalist>
+        </label>
+        <p class="help">{{ _("Für Termine, bei denen die Mail keine Zeitzone nennt.") }}</p>
+      </section>
+
+      <section class="setup-step" data-step="2" hidden>
+        <h2>{{ _("Postfach") }}</h2>
+        <p class="help">{{ _("Am besten eine eigene Adresse, an die du Termin-Mails weiterleitest. Das Postfach wird nur gelesen, nie verändert.") }}</p>
+        <div class="setup-grid">
+          <label>{{ _("IMAP-Server") }}<input name="imap_host" required placeholder="imap.example.org" autocomplete="off"></label>
+          <label>{{ _("Port") }}<input name="imap_port" type="number" value="993" min="1" max="65535"></label>
+          <label>{{ _("Benutzer") }}<input name="imap_username" required autocomplete="username"></label>
+          <label>{{ _("Passwort") }}<input name="imap_password" type="password" required autocomplete="current-password"></label>
+          <label>{{ _("Ordner") }}<input name="imap_folder" value="INBOX" list="imap-folders"><datalist id="imap-folders"></datalist></label>
+        </div>
+        <button type="button" class="secondary" data-check="imap">{{ _("Verbindung prüfen") }}</button>
+        <p class="check-result" data-for="imap" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="setup-step" data-step="3" hidden>
+        <h2>{{ _("KI-Server") }}</h2>
+        <p class="help">{{ _("Ein Server mit OpenAI-kompatibler Schnittstelle, z. B. LM Studio (http://host.docker.internal:1234/v1) oder Ollama (http://host.docker.internal:11434/v1).") }}</p>
+        <div class="setup-grid">
+          <label class="wide">{{ _("Adresse") }}<input name="ai_base_url" required value="http://host.docker.internal:1234/v1" autocomplete="off"></label>
+          <label>{{ _("API-Schlüssel (meist leer)") }}<input name="ai_api_key" type="password" autocomplete="off"></label>
+        </div>
+        <button type="button" class="secondary" data-check="ai-models">{{ _("Modelle laden") }}</button>
+        <p class="check-result" data-for="ai-models" role="status" aria-live="polite"></p>
+        <label>{{ _("Modell") }}<select name="ai_model" required disabled><option value="">{{ _("Erst Modelle laden") }}</option></select></label>
+        <p class="help">{{ _("Für Fotos und gescannte PDFs ein Modell mit Bilderkennung (Vision) wählen.") }}</p>
+        <button type="button" class="secondary" data-check="ai-probe" disabled>{{ _("Probe-Auswertung") }}</button>
+        <div class="check-result" data-for="ai-probe" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="setup-step" data-step="4" hidden>
+        <h2>{{ _("iCloud-Kalender") }}</h2>
+        <p class="help">{{ _("Auf account.apple.com unter „Anmelden und Sicherheit“ → „App-spezifische Passwörter“ ein Passwort erstellen. Ohne iCloud zeigt die App die Vorschläge trotzdem an – dann diesen Schritt überspringen.") }}</p>
+        <div class="setup-grid">
+          <label>{{ _("Apple-ID (E-Mail)") }}<input name="caldav_username" autocomplete="username"></label>
+          <label>{{ _("App-spezifisches Passwort") }}<input name="caldav_password" type="password" autocomplete="off" placeholder="xxxx-xxxx-xxxx-xxxx"></label>
+        </div>
+        <input type="hidden" name="caldav_url" value="https://caldav.icloud.com">
+        <button type="button" class="secondary" data-check="caldav">{{ _("Kalender laden") }}</button>
+        <p class="check-result" data-for="caldav" role="status" aria-live="polite"></p>
+        <div id="target-list" class="setup-targets" hidden>
+          <p class="help">{{ _("In welche Kalender darf die App eintragen? Die Beschreibung hilft der KI, z. B. „Tochter, 4. Klasse, Schwimmverein“.") }}</p>
+          <ul></ul>
+        </div>
+      </section>
+
+      <section class="setup-step" data-step="5" hidden>
+        <h2>{{ _("Zusammenfassung") }}</h2>
+        <dl class="setup-summary"></dl>
+        <p class="help">{{ _("Mit „Speichern und starten“ schreibt der Updater die Einstellungen in .env und startet die App neu. Danach ist die Einrichtung gesperrt; Zugangsdaten änderst du nur noch in .env.") }}</p>
+        <div class="check-result" data-for="finish" role="status" aria-live="polite"></div>
+        <div id="manual-env" hidden>
+          <p>{{ _("Der Updater läuft nicht oder hat abgelehnt. Bitte diese Zeilen auf dem Server in die Datei .env neben compose.yaml eintragen und danach docker compose up -d ausführen:") }}</p>
+          <pre><code></code></pre>
+        </div>
+      </section>
+
+      <div class="setup-nav">
+        <button type="button" class="secondary" id="setup-back" hidden>{{ _("Zurück") }}</button>
+        <button type="button" id="setup-next">{{ _("Weiter") }}</button>
+        <button type="button" id="setup-finish" hidden>{{ _("Speichern und starten") }}</button>
+      </div>
+    </form>
+  </main>
+  <script src="/static/setup.js?v={{ app_version }}" defer></script>
+</body>
+</html>

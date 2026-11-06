@@ -569,3 +569,29 @@ a.chip { display: inline-flex; align-items: center; gap: .3rem; text-decoration:
 .update-log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; padding-left: 1.2rem; }
 .rollback-form { display: grid; gap: .5rem; margin-top: .5rem; max-width: 40rem; }
 #update-panel pre code { white-space: pre-wrap; }
+
+/* ---------- Einrichtungsassistent ---------- */
+.setup-header { display: flex; align-items: center; justify-content: space-between; max-width: 46rem; margin: 0 auto; padding: 1rem 1rem 0; }
+.setup-header .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; }
+main.setup { max-width: 46rem; }
+.setup-steps { list-style: none; display: flex; flex-wrap: wrap; gap: .4rem; padding: 0; margin: 1rem 0 1.5rem; counter-reset: setup; }
+.setup-steps li { counter-increment: setup; display: flex; align-items: center; gap: .35rem; padding: .3rem .7rem; border-radius: 999px; border: 1px solid var(--border); color: var(--text-2); font-size: .9rem; }
+.setup-steps li::before { content: counter(setup); font-weight: 700; }
+.setup-steps li[aria-current="step"] { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.setup-steps li.done { color: var(--text); border-color: var(--primary); }
+.setup-step { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; }
+.setup-step h2 { margin-top: 0; }
+.setup-step label { display: grid; gap: .25rem; margin: .6rem 0; font-weight: 600; }
+.setup-step input, .setup-step select { width: 100%; }
+.setup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 1rem; }
+.setup-grid .wide { grid-column: 1 / -1; }
+.check-result { min-height: 1.4rem; margin: .5rem 0; }
+.check-result.ok, .check-result .ok { color: var(--success); }
+.setup-targets ul { list-style: none; padding: 0; display: grid; gap: .5rem; }
+.setup-targets .target-row { grid-template-columns: 1fr; }
+.setup-summary { display: grid; grid-template-columns: minmax(7rem, auto) 1fr; gap: .3rem 1rem; }
+.setup-summary dt { color: var(--text-2); }
+.setup-summary dd { margin: 0; overflow-wrap: anywhere; }
+.setup-nav { display: flex; justify-content: space-between; gap: .6rem; margin: 1rem 0 3rem; }
+.setup-nav #setup-next, .setup-nav #setup-finish { margin-left: auto; }
+#manual-env pre { white-space: pre-wrap; overflow-wrap: anywhere; }

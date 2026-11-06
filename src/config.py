@@ -35,6 +35,7 @@ class Settings:
     imap_idle_poll_seconds: int = 1800
     newsletter_min_confidence_percent: int = 95
     demo_mode: bool = False
+    setup_mode: bool = False  # Zugangsdaten fehlen → nur der Einrichtungsassistent läuft
     language: str = "auto"
     update_repository: str = "norcon/kalender-assistent"
     updater_url: str = "http://updater:8000"
@@ -49,12 +50,16 @@ class Settings:
     def from_env(cls) -> "Settings":
         demo = os.getenv("DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "ja"}
 
+        imap = {name: os.getenv(name, "").strip() for name in ("IMAP_HOST", "IMAP_USERNAME", "IMAP_PASSWORD")}
+        # Ohne Postfach-Zugangsdaten startet die App im Einrichtungsmodus (Assistent).
+        setup = not demo and not all(imap.values())
+
         def required(name: str) -> str:
-            # Im Demo-Modus gibt es kein Postfach – Zugangsdaten sind dann optional.
-            return os.getenv(name, "") if demo else os.environ[name]
+            return os.getenv(name, "")
 
         return cls(
             demo_mode=demo,
+            setup_mode=setup,
             language=os.getenv("APP_LANGUAGE", "auto").strip().lower() or "auto",
             update_repository=os.getenv("UPDATE_REPOSITORY", "norcon/kalender-assistent").strip(),
             updater_url=os.getenv("UPDATER_URL", "http://updater:8000").strip(),

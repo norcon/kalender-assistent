@@ -10,6 +10,7 @@ from collections import Counter, deque
 from contextlib import asynccontextmanager
 from functools import partial
 import time
+import zoneinfo
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -40,6 +41,7 @@ from . import (
     mail_idle,
     demo,
     i18n,
+    setup_wizard,
     updates,
     person_learning,
     recurrence,
@@ -71,6 +73,7 @@ templates.env.filters["relative_time"] = formatting.relative_time
 templates.env.globals["app_version"] = version.VERSION
 templates.env.globals["app_released"] = version.RELEASED
 templates.env.globals["demo_mode"] = False  # wird in _reload_settings gesetzt
+templates.env.globals["setup_mode"] = False
 templates.env.globals["_"] = i18n.gettext
 templates.env.globals["_n"] = i18n.ngettext
 templates.env.globals["current_lang"] = i18n.current
@@ -247,6 +250,7 @@ def _reload_settings() -> None:
         _env_settings, db.get_app_settings(_env_settings.database_path)
     )
     templates.env.globals["demo_mode"] = settings.demo_mode
+    templates.env.globals["setup_mode"] = settings.setup_mode
 
 
 async def _run_backup(*, prune: bool = True) -> Path:
@@ -485,7 +489,7 @@ async def lifespan(_: FastAPI):
         "Datenbanksicherung": _backup_worker,
         "Archivierung": _archive_worker,
     }
-    if not settings.demo_mode:  # Demo: keine Verbindungen nach außen
+    if not (settings.demo_mode or settings.setup_mode):  # Demo/Einrichtung: keine Verbindungen nach außen
         workers.update({
             "Postfachabruf": _mail_worker,
             "Kalendersicherung": _calendar_backup_worker,
@@ -494,7 +498,7 @@ async def lifespan(_: FastAPI):
     _workers.update({name: asyncio.create_task(worker()) for name, worker in workers.items()})
     heartbeat = asyncio.create_task(_heartbeat_worker())
     _start_watchdog()
-    if not settings.demo_mode:
+    if not (settings.demo_mode or settings.setup_mode):
         _start_idle_watcher(asyncio.get_running_loop())
     try:
         yield
@@ -567,6 +571,160 @@ async def select_language(request: Request, call_next):
         filter(None, [response.headers.get("Vary"), "Cookie, Accept-Language"])
     )
     return response
+
+
+_SETUP_OPEN = ("/einrichtung", "/api/setup/", "/static/", "/i18n/", "/health", "/api/version")
+
+
+@app.middleware("http")
+async def setup_redirect(request: Request, call_next):
+    if settings.setup_mode and request.method == "GET" and not request.url.path.startswith(_SETUP_OPEN):
+        return RedirectResponse("/einrichtung", status_code=303)
+    return await call_next(request)
+
+
+def _require_setup_mode() -> None:
+    if not settings.setup_mode:
+        raise HTTPException(status_code=404, detail=_("Die Einrichtung ist bereits abgeschlossen."))
+
+
+class SetupImapRequest(BaseModel):
+    host: str = Field(min_length=1, max_length=253)
+    port: int = Field(default=993, ge=1, le=65535)
+    username: str = Field(min_length=1, max_length=320)
+    password: str = Field(min_length=1, max_length=500)
+    folder: str = Field(default="INBOX", max_length=200)
+
+
+class SetupAiRequest(BaseModel):
+    base_url: str = Field(min_length=8, max_length=500)
+    api_key: str = Field(default="", max_length=500)
+    model: str = Field(default="", max_length=200)
+    language: str = Field(default="de", max_length=5)
+    calendars: list[dict] = Field(default_factory=list, max_length=30)
+
+
+class SetupCaldavRequest(BaseModel):
+    url: str = Field(default="https://caldav.icloud.com", max_length=500)
+    username: str = Field(min_length=1, max_length=320)
+    password: str = Field(min_length=1, max_length=500)
+
+
+class SetupFinishRequest(BaseModel):
+    language: str = Field(default="auto", max_length=5)
+    timezone: str = Field(default="Europe/Berlin", max_length=64)
+    imap_host: str = Field(min_length=1, max_length=253)
+    imap_port: int = Field(default=993, ge=1, le=65535)
+    imap_username: str = Field(min_length=1, max_length=320)
+    imap_password: str = Field(min_length=1, max_length=500)
+    imap_folder: str = Field(default="INBOX", max_length=200)
+    ai_base_url: str = Field(min_length=8, max_length=500)
+    ai_api_key: str = Field(default="", max_length=500)
+    ai_model: str = Field(min_length=1, max_length=200)
+    caldav_url: str = Field(default="https://caldav.icloud.com", max_length=500)
+    caldav_username: str = Field(default="", max_length=320)
+    caldav_password: str = Field(default="", max_length=500)
+    targets: list[dict] = Field(default_factory=list, max_length=30)
+
+
+def _setup_error(error: Exception) -> HTTPException:
+    return HTTPException(status_code=422, detail=str(error))
+
+
+@app.get("/einrichtung", response_class=HTMLResponse)
+async def setup_page(request: Request):
+    if not settings.setup_mode:
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(request=request, name="setup.html", context={
+        "timezones": sorted(zone for zone in zoneinfo.available_timezones() if "/" in zone),
+        "default_timezone": settings.caldav_timezone,
+    })
+
+
+@app.get("/api/setup/state")
+async def setup_state():
+    return {"setup_mode": settings.setup_mode, "version": version.VERSION}
+
+
+@app.post("/api/setup/imap")
+async def setup_imap(request: SetupImapRequest):
+    _require_setup_mode()
+    try:
+        folders = await asyncio.to_thread(setup_wizard.imap_test, request.host.strip(), request.port,
+                                          request.username.strip(), request.password, request.folder.strip() or "INBOX")
+    except setup_wizard.SetupError as error:
+        raise _setup_error(error) from error
+    return {"ok": True, "folders": folders}
+
+
+@app.post("/api/setup/ai-models")
+async def setup_ai_models(request: SetupAiRequest):
+    _require_setup_mode()
+    try:
+        models = await asyncio.to_thread(setup_wizard.ai_models, request.base_url.strip(), request.api_key)
+    except setup_wizard.SetupError as error:
+        raise _setup_error(error) from error
+    return {"ok": True, "models": models}
+
+
+@app.post("/api/setup/ai-probe")
+async def setup_ai_probe(request: SetupAiRequest):
+    _require_setup_mode()
+    calendars = [
+        {"name": str(c.get("name"))[:100], "description": str(c.get("description") or "")[:500], "shared": bool(c.get("shared"))}
+        for c in request.calendars if c.get("name")
+    ]
+    try:
+        events = await asyncio.to_thread(setup_wizard.ai_probe, request.base_url.strip(), request.api_key,
+                                         request.model.strip(), calendars, request.language)
+    except setup_wizard.SetupError as error:
+        raise _setup_error(error) from error
+    subject, text = setup_wizard.sample_mail(request.language)
+    return {"ok": True, "sample": text, "events": [
+        {"title": e["title"], "when": formatting.event_range(e["start"], e.get("end"), settings.caldav_timezone),
+         "person": e.get("person"), "confidence": round(float(e.get("confidence", 0)) * 100)}
+        for e in events
+    ]}
+
+
+@app.post("/api/setup/caldav")
+async def setup_caldav(request: SetupCaldavRequest):
+    _require_setup_mode()
+    try:
+        calendars = await asyncio.to_thread(setup_wizard.caldav_test, request.url.strip(),
+                                            request.username.strip(), request.password)
+    except setup_wizard.SetupError as error:
+        raise _setup_error(error) from error
+    return {"ok": True, "calendars": calendars}
+
+
+@app.post("/api/setup/finish")
+async def setup_finish(request: SetupFinishRequest):
+    _require_setup_mode()
+    if not setup_wizard.valid_timezone(request.timezone):
+        raise HTTPException(status_code=422, detail=_("Unbekannte Zeitzone, z. B. Europe/Berlin verwenden."))
+    if request.language not in ("auto", "de", "en"):
+        raise HTTPException(status_code=422, detail=_("Unbekannte Sprache"))
+    targets = [
+        {"name": str(t.get("name")).strip()[:100], "description": str(t.get("description") or "")[:500], "shared": bool(t.get("shared"))}
+        for t in request.targets if str(t.get("name") or "").strip()
+    ]
+    values = setup_wizard.env_values(request.model_dump())
+    try:
+        text = setup_wizard.env_text(values)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=_("Steuerzeichen oder Zeilenumbrüche sind nicht erlaubt.")) from error
+    if targets:
+        db.save_target_calendars(settings.database_path, targets)
+    state = await asyncio.to_thread(updates.updater_status, settings.updater_url)
+    if state is not None:
+        ok, message = await asyncio.to_thread(updates.configure, settings.updater_url, values)
+        if ok:
+            logger.info("Ersteinrichtung abgeschlossen; Updater schreibt .env und startet die App neu.")
+            return {"mode": "updater"}
+        logger.warning("Updater hat die Ersteinrichtung abgelehnt: %s", message)
+        return {"mode": "manual", "env": text, "reason": message}
+    return {"mode": "manual", "env": text, "reason": ""}
 
 
 @app.get("/i18n/{language}.js")
@@ -813,7 +971,7 @@ async def index(request: Request):
 
 @app.post("/api/check")
 async def check_mailbox():
-    if settings.demo_mode:
+    if settings.demo_mode or settings.setup_mode:
         return JSONResponse(
             status_code=200,
             content={"status": "success", "message": _("Demo-Modus: es ist kein Postfach angebunden.")},

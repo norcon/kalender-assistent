@@ -9,6 +9,8 @@ sauber startet.
 HTTP (intern):
   GET  /status   → aktueller bzw. letzter Vorgang (JSON)
   POST /update   {"version", "previous", "backup", "restore_backup"}
+  POST /configure {"values": {...}}  – nur Ersteinrichtung, nur erlaubte Schlüssel,
+                  nur solange in .env noch keine Postfach-Zugangsdaten stehen
 """
 
 from __future__ import annotations
@@ -40,22 +42,53 @@ def _now() -> str:
 
 # ---------- .env bearbeiten ----------
 
+def _unquote(raw: str) -> str:
+    raw = raw.strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] == "'":
+        return raw[1:-1]
+    if len(raw) >= 2 and raw[0] == raw[-1] == '"':
+        inner, result, index = raw[1:-1], [], 0
+        while index < len(inner):
+            pair = inner[index:index + 2]
+            if pair in ("\\\\", '\\"'):
+                result.append(pair[1]); index += 2
+            elif pair == "$$":
+                result.append("$"); index += 2
+            else:
+                result.append(inner[index]); index += 1
+        return "".join(result)
+    return raw
+
+
+def quote_env_value(value: str) -> str:
+    """Schreibweise, die Docker Compose unverändert übernimmt (geprüft mit Compose v2)."""
+    if any(ord(character) < 32 for character in value):
+        raise ValueError("Steuerzeichen oder Zeilenumbrüche sind nicht erlaubt.")
+    if re.fullmatch(r"[A-Za-z0-9._:/@,+-]*", value):
+        return value  # einfache Werte lesbar ohne Anführungszeichen
+    if "'" not in value:
+        return f"'{value}'"  # wörtlich, keine $-Auswertung
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "$$")
+    return f'"{escaped}"'
+
+
 def read_env_value(path: Path, key: str) -> str | None:
     if not path.exists():
         return None
     for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if stripped.startswith(f"{key}="):
-            return stripped.split("=", 1)[1].strip().strip('"').strip("'") or None
+            return _unquote(stripped.split("=", 1)[1]) or None
     return None
 
 
-def set_env_value(path: Path, key: str, value: str | None) -> None:
+def set_env_values(path: Path, values: dict[str, str | None]) -> None:
     """Setzt oder entfernt KEY=value; alle anderen Zeilen bleiben unverändert."""
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    kept = [line for line in lines if not line.strip().startswith(f"{key}=")]
-    if value is not None:
-        kept.append(f"{key}={value}")
+    kept = [line for line in lines if not any(line.strip().startswith(f"{key}=") for key in values)]
+    for key, value in values.items():
+        if value is not None:
+            kept.append(f"{key}={quote_env_value(value)}")
     temporary = path.with_name(path.name + ".updater-tmp")
     temporary.write_text("\n".join(kept) + "\n", encoding="utf-8")
     if path.exists():
@@ -65,7 +98,23 @@ def set_env_value(path: Path, key: str, value: str | None) -> None:
             os.chown(temporary, stat.st_uid, stat.st_gid)
         except PermissionError:
             pass
+    else:
+        os.chmod(temporary, 0o600)
     temporary.replace(path)
+
+
+def set_env_value(path: Path, key: str, value: str | None) -> None:
+    set_env_values(path, {key: value})
+
+
+# Schlüssel, die die Ersteinrichtung schreiben darf – sonst nichts.
+SETUP_KEYS = {
+    "IMAP_HOST", "IMAP_PORT", "IMAP_USERNAME", "IMAP_PASSWORD", "IMAP_FOLDER",
+    "AI_BASE_URL", "AI_API_KEY", "AI_MODEL",
+    "CALDAV_URL", "CALDAV_USERNAME", "CALDAV_APP_PASSWORD", "CALDAV_TIMEZONE",
+    "APP_LANGUAGE", "TARGET_CALENDARS",
+}
+CREDENTIAL_KEYS = ("IMAP_HOST", "IMAP_USERNAME", "IMAP_PASSWORD")
 
 
 # ---------- Ablauf ----------
@@ -258,6 +307,61 @@ class Updater:
             self._step(f"Rückkehr fehlgeschlagen: {error}")
 
 
+# ---------- Ersteinrichtung ----------
+
+def configured(env_file: Path) -> bool:
+    return all(read_env_value(env_file, key) for key in CREDENTIAL_KEYS)
+
+
+def configure(updater: "Updater", values: dict[str, Any]) -> tuple[bool, str]:
+    """Schreibt die Werte der Ersteinrichtung – nur solange noch keine Zugangsdaten gesetzt sind."""
+    if configured(updater.env_file):
+        return False, "Die Einrichtung ist bereits abgeschlossen; Zugangsdaten werden nur noch in .env geändert."
+    if not isinstance(values, dict) or not values:
+        return False, "Keine Werte übergeben."
+    unknown = set(values) - SETUP_KEYS
+    if unknown:
+        return False, "Nicht erlaubte Schlüssel: " + ", ".join(sorted(unknown))
+    cleaned: dict[str, str | None] = {}
+    for key, value in values.items():
+        text = "" if value is None else str(value)
+        if len(text) > 500 or any(ord(character) < 32 for character in text):
+            return False, f"Ungültiger Wert für {key}."
+        cleaned[key] = text or None
+    if not all(cleaned.get(key) for key in CREDENTIAL_KEYS):
+        return False, "Postfach-Server, Benutzer und Passwort sind Pflicht."
+    if not updater._lock.acquire(blocking=False):
+        return False, "Es läuft bereits ein Vorgang."
+    try:
+        updater.state = {"state": "running", "kind": "configure", "started": _now(), "log": []}
+        updater._save()
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+        updater._save_config(stamp)
+        set_env_values(updater.env_file, cleaned)
+        updater._step("Einstellungen in .env geschrieben.")
+    except Exception as error:  # noqa: BLE001
+        updater.state.update(state="failed", finished=_now(), message=str(error))
+        updater._save()
+        updater._lock.release()
+        return False, str(error)
+
+    def restart() -> None:
+        try:
+            updater._step("Starte die App mit den neuen Einstellungen …")
+            updater._compose("up", "-d", updater.service)
+            updater.state.update(state="done", finished=_now(), message="Einrichtung abgeschlossen.")
+            updater._step("Fertig.")
+        except Exception as error:  # noqa: BLE001
+            updater.state.update(state="failed", finished=_now(), message=str(error))
+            updater._step(f"Fehler: {error}")
+        finally:
+            updater._save()
+            updater._lock.release()
+
+    threading.Thread(target=restart, daemon=True).start()
+    return True, "gespeichert"
+
+
 # ---------- HTTP ----------
 
 def make_handler(updater: Updater) -> type[BaseHTTPRequestHandler]:
@@ -272,12 +376,12 @@ def make_handler(updater: Updater) -> type[BaseHTTPRequestHandler]:
 
         def do_GET(self) -> None:  # noqa: N802
             if self.path == "/status":
-                self._send(200, updater.state)
+                self._send(200, {**updater.state, "configured": configured(updater.env_file)})
             else:
                 self._send(404, {"error": "not found"})
 
         def do_POST(self) -> None:  # noqa: N802
-            if self.path != "/update":
+            if self.path not in ("/update", "/configure"):
                 self._send(404, {"error": "not found"})
                 return
             try:
@@ -286,7 +390,11 @@ def make_handler(updater: Updater) -> type[BaseHTTPRequestHandler]:
             except ValueError:
                 self._send(400, {"error": "Ungültige Anfrage."})
                 return
-            ok, message = updater.start(request if isinstance(request, dict) else {})
+            request = request if isinstance(request, dict) else {}
+            if self.path == "/configure":
+                ok, message = configure(updater, request.get("values") or {})
+            else:
+                ok, message = updater.start(request)
             self._send(202 if ok else 409, {"ok": ok, "message": message})
 
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
