@@ -4,6 +4,12 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.16.2 – 2026-11-06
+
+- PDF-Bibliothek PyMuPDF auf 2.1 aktualisiert (liest gescannte PDF-Seiten
+  für die Bilderkennung).
+- GitHub-Abläufe auf aktuelle Versionen der Actions gebracht.
+
 ## 0.16.1 – 2026-11-06
 
 Vorbereitung der Veröffentlichung auf GitHub:
