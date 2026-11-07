@@ -380,7 +380,7 @@ _mail_worker_interval = [0]
 
 def _poll_seconds() -> int:
     return health.effective_poll_seconds(
-        settings, _idle_watcher.state if _idle_watcher else None
+        settings, _idle_state()
     )
 
 
@@ -397,7 +397,7 @@ async def _mail_worker() -> None:
                     "Automatischer Postfachabruf jetzt alle %d Minuten (%s).",
                     round(interval / 60),
                     "Sofort-Erkennung aktiv"
-                    if health.idle_active(_idle_watcher.state if _idle_watcher else None)
+                    if health.idle_active(_idle_state())
                     else "ohne Sofort-Erkennung",
                 )
             _mail_worker_interval[0] = interval
@@ -620,7 +620,19 @@ async def _calendar_backup_worker() -> None:
 
 
 _ai_state: dict[str, object] | None = None
-_idle_watcher: mail_idle.IdleWatcher | None = None
+_idle_watchers: list[mail_idle.IdleWatcher] = []
+
+
+def _idle_state() -> dict[str, Any] | None:
+    """Zustand der Sofort-Erkennung; bei mehreren Postfächern der ungünstigste."""
+    states = [watcher.state for watcher in _idle_watchers]
+    if len(states) <= 1:
+        return states[0] if states else None
+    for status in ("error", "connecting", "starting", "unsupported", "stopped"):
+        hit = next((state for state in states if state["status"] == status), None)
+        if hit:
+            return hit
+    return states[0]
 _workers: dict[str, asyncio.Task] = {}
 _heartbeat = time.monotonic()
 _stop_threads = threading.Event()
@@ -638,13 +650,16 @@ async def _ai_check_worker() -> None:
 
 
 def _start_idle_watcher(loop: asyncio.AbstractEventLoop) -> None:
-    global _idle_watcher
-    _idle_watcher = mail_idle.IdleWatcher(
-        lambda: settings,
-        lambda: asyncio.run_coroutine_threadsafe(_on_new_mail(), loop),
-        _stop_threads,
-    )
-    threading.Thread(target=_idle_watcher.run, name="imap-idle", daemon=True).start()
+    boxes = settings.mailboxes()
+    for index, box in enumerate(boxes):
+        watcher = mail_idle.IdleWatcher(
+            lambda index=index: settings.mailboxes()[index],
+            lambda: asyncio.run_coroutine_threadsafe(_on_new_mail(), loop),
+            _stop_threads,
+            label=box.mailbox_label if len(boxes) > 1 else "",
+        )
+        _idle_watchers.append(watcher)
+        threading.Thread(target=watcher.run, name=f"imap-idle-{index + 1}", daemon=True).start()
 
 
 def _hang_watchdog() -> None:
@@ -698,13 +713,13 @@ def _start_workers() -> None:
     for name, worker in workers.items():
         if name not in _workers:
             _workers[name] = asyncio.create_task(worker())
-    if "Postfachabruf" in workers and _idle_watcher is None:
+    if "Postfachabruf" in workers and not _idle_watchers:
         _start_idle_watcher(asyncio.get_running_loop())
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global _heartbeat, _idle_watcher
+    global _heartbeat
     db.initialize(settings.database_path)
     _reload_settings()
     if settings.demo_mode:
@@ -725,7 +740,7 @@ async def lifespan(_: FastAPI):
     _stop_threads.clear()
     _heartbeat = time.monotonic()
     _workers.clear()
-    _idle_watcher = None
+    _idle_watchers.clear()
     _start_workers()
     heartbeat = asyncio.create_task(_heartbeat_worker())
     _start_watchdog()
@@ -1388,7 +1403,7 @@ def _status_summary() -> list[dict[str, str]]:
             service_state=db.get_service_state(settings.database_path),
             check_state=dict(_check_state),
             ai_state=_ai_state,
-            idle_state=_idle_watcher.state if _idle_watcher else None,
+            idle_state=_idle_state(),
             last_calendar_snapshot=snapshot,
             caldav_configured=_caldav_configured(),
         )
@@ -2933,6 +2948,10 @@ def _render_settings_page(
             "fixed": [
                 ("IMAP-Server", f"{settings.imap_host}:{settings.imap_port}"),
                 ("IMAP-Benutzer", settings.imap_username),
+                *[
+                    ("Weiteres Postfach", f"{box.mailbox_label} – {box.imap_username}@{box.imap_host} · {box.imap_folder}")
+                    for box in settings.mailboxes()[1:]
+                ],
                 ("KI-Server", settings.ai_base_url),
                 ("iCloud-Server", settings.caldav_url),
                 ("iCloud-Benutzer", settings.caldav_username or "nicht gesetzt"),

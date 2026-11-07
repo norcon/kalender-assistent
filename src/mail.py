@@ -568,10 +568,10 @@ def fetch_for_reanalysis(settings: Settings, source_key: str) -> Message:
         uid = int(uid_text)
     except ValueError as error:
         raise ReanalysisError(_("Unbekannte Mail-Kennung.")) from error
-    prefix = f"{settings.imap_username}@{settings.imap_host}/"
-    if not mailbox_key.startswith(prefix):
+    settings = mailbox_for_key(settings, mailbox_key)
+    if settings is None:
         raise ReanalysisError(_("Die Mail stammt aus einem anderen Postfach."))
-    folder = mailbox_key[len(prefix):]
+    folder = mailbox_key[len(f"{settings.imap_username}@{settings.imap_host}/"):]
     context = ssl.create_default_context()
     with imaplib.IMAP4_SSL(
         settings.imap_host, settings.imap_port, ssl_context=context, timeout=30
@@ -596,7 +596,38 @@ def fetch_for_reanalysis(settings: Settings, source_key: str) -> Message:
     return email.message_from_bytes(raw, policy=email.policy.default)
 
 
+def _mailboxes(settings: Settings) -> list[Settings]:
+    mailboxes = getattr(settings, "mailboxes", None)
+    return mailboxes() if callable(mailboxes) else [settings]
+
+
+def mailbox_for_key(settings: Settings, mailbox_key: str) -> Settings | None:
+    """Das Postfach, aus dem eine Mail stammt (Ordner darf sich geändert haben)."""
+    for box in _mailboxes(settings):
+        if mailbox_key.startswith(f"{box.imap_username}@{box.imap_host}/"):
+            return box
+    return None
+
+
 def poll_mailbox(settings: Settings) -> None:
+    """Alle Postfächer abrufen; ein gestörtes hält die anderen nicht auf."""
+    boxes = _mailboxes(settings)
+    if len(boxes) == 1:
+        _poll_single(boxes[0])
+        return
+    errors: list[Exception] = []
+    for box in boxes:
+        logger.info("Postfach „%s“:", box.mailbox_label)
+        try:
+            _poll_single(box)
+        except Exception as error:  # noqa: BLE001 – nächstes Postfach trotzdem abrufen
+            logger.error("Abruf von Postfach „%s“ fehlgeschlagen (%s).", box.mailbox_label, type(error).__name__)
+            errors.append(error)
+    if errors:
+        raise errors[0]
+
+
+def _poll_single(settings: Settings) -> None:
     logger.info("Verbinde mit dem IMAP-Postfach.")
     mailbox_key = f"{settings.imap_username}@{settings.imap_host}/{settings.imap_folder}"
     context = ssl.create_default_context()

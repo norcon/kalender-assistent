@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import urlsplit
 
 
@@ -11,6 +11,27 @@ KNOWN_SERVICES = {
     "gmx.net": "GMX",
     "web.de": "WEB.DE",
 }
+
+
+def extra_mailboxes_from_env() -> tuple:
+    """IMAP2_* bis IMAP9_*: weitere Postfächer oder Ordner (unvollständige werden ignoriert)."""
+    boxes = []
+    for number in range(2, 10):
+        prefix = f"IMAP{number}_"
+        host = os.getenv(prefix + "HOST", "").strip()
+        username = os.getenv(prefix + "USERNAME", "").strip()
+        password = os.getenv(prefix + "PASSWORD", "")
+        if not (host and username and password):
+            continue
+        boxes.append({
+            "host": host,
+            "port": int(os.getenv(prefix + "PORT", "993") or 993),
+            "username": username,
+            "password": password.strip("\r\n"),
+            "folder": os.getenv(prefix + "FOLDER", "").strip() or "INBOX",
+            "name": os.getenv(prefix + "NAME", "").strip(),
+        })
+    return tuple(boxes)
 
 
 def service_name_for(url: str) -> str:
@@ -65,6 +86,8 @@ class Settings:
     update_check: bool = True
     app_password: str = ""  # leer = kein Zugangsschutz
     app_url: str = ""  # Adresse für Links in Benachrichtigungen
+    imap_name: str = ""  # Anzeigename des (ersten) Postfachs
+    extra_mailboxes: tuple = ()  # weitere Postfächer aus IMAP2_* … IMAP9_*
     caldav_name: str = "iCloud"  # Anzeigename des Kalenderdienstes
     caldav_auth: str = "basic"  # basic oder digest
     ntfy_url: str = ""
@@ -87,6 +110,21 @@ class Settings:
     notify_detail: str = "titel"  # titel oder anzahl
     notify_outage_minutes: int = 60
     target_calendars: str = ""  # Erstbelegung der Zielkalender, z. B. "Alex,Sam,Familie"
+
+    def mailboxes(self) -> list["Settings"]:
+        """Erstes Postfach und alle weiteren – jeweils als eigene Einstellungen."""
+        boxes = [self]
+        for box in self.extra_mailboxes:
+            boxes.append(replace(
+                self, imap_host=box["host"], imap_port=box["port"], imap_username=box["username"],
+                imap_password=box["password"], imap_folder=box["folder"], imap_name=box["name"],
+                extra_mailboxes=(),
+            ))
+        return boxes
+
+    @property
+    def mailbox_label(self) -> str:
+        return self.imap_name or f"{self.imap_username} · {self.imap_folder}"
 
     @property
     def calendar_store_path(self) -> str:
@@ -135,6 +173,8 @@ class Settings:
             imap_username=required("IMAP_USERNAME"),
             imap_password=required("IMAP_PASSWORD"),
             imap_folder=os.getenv("IMAP_FOLDER", "INBOX"),
+            imap_name=os.getenv("IMAP_NAME", "").strip(),
+            extra_mailboxes=extra_mailboxes_from_env(),
             imap_poll_seconds=max(30, int(os.getenv("IMAP_POLL_SECONDS", "300"))),
             imap_idle_poll_seconds=max(
                 30, int(os.getenv("IMAP_IDLE_POLL_SECONDS", "1800"))

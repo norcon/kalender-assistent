@@ -30,8 +30,10 @@ class IdleWatcher:
         get_settings: Callable[[], Settings],
         on_new_mail: Callable[[], None],
         stop_event: threading.Event | None = None,
+        label: str = "",
     ) -> None:
         self._get_settings = get_settings
+        self._prefix = f"Postfach „{label}“: " if label else ""
         self._on_new_mail = on_new_mail
         self.stop_event = stop_event or threading.Event()
         self.state: dict[str, str | None] = {
@@ -56,7 +58,7 @@ class IdleWatcher:
                 if not supported:
                     self._set_state("unsupported")
                     logger.info(
-                        "Der Mailserver unterstützt kein IMAP IDLE; neue E-Mails "
+                        self._prefix + "Der Mailserver unterstützt kein IMAP IDLE; neue E-Mails "
                         "werden über den regelmäßigen Abruf erkannt."
                     )
                     return
@@ -65,7 +67,7 @@ class IdleWatcher:
                     break
                 self._set_state("error", type(error).__name__)
                 logger.warning(
-                    "IMAP-IDLE-Verbindung unterbrochen (%s); neuer Versuch in %d s.",
+                    self._prefix + "IMAP-IDLE-Verbindung unterbrochen (%s); neuer Versuch in %d s.",
                     type(error).__name__,
                     RETRY_SECONDS,
                 )
@@ -86,13 +88,13 @@ class IdleWatcher:
             if status != "OK":
                 raise RuntimeError("IMAP-Ordner konnte nicht geöffnet werden")
             self._set_state("active")
-            logger.info("IMAP IDLE aktiv; neue E-Mails werden sofort erkannt.")
+            logger.info(self._prefix + "IMAP IDLE aktiv; neue E-Mails werden sofort erkannt.")
             while not self.stop_event.is_set():
                 if self._settings_changed(settings):
                     logger.info("IMAP-Einstellungen geändert; IDLE verbindet neu.")
                     return True
                 if self._idle_once(client):
-                    logger.info("Neue E-Mail vom Server gemeldet.")
+                    logger.info(self._prefix + "Neue E-Mail vom Server gemeldet.")
                     self._on_new_mail()
         return True
 

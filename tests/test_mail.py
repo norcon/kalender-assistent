@@ -497,3 +497,45 @@ class PoisonMessageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MultipleMailboxTests(unittest.TestCase):
+    ENV = {
+        "IMAP_HOST": "imap.one.example", "IMAP_USERNAME": "a@one.example", "IMAP_PASSWORD": "pw1",
+        "IMAP2_HOST": "imap.two.example", "IMAP2_USERNAME": "b@two.example", "IMAP2_PASSWORD": "pw2",
+        "IMAP2_FOLDER": "Schule", "IMAP2_NAME": "Schule",
+        "IMAP3_HOST": "imap.unvollstaendig.example",  # ohne Benutzer → ignoriert
+    }
+
+    def settings(self):
+        from src.config import Settings
+        with patch.dict(os.environ, self.ENV):
+            return Settings.from_env()
+
+    def test_extra_mailboxes_from_env(self):
+        boxes = self.settings().mailboxes()
+        self.assertEqual([(b.imap_host, b.imap_username, b.imap_folder) for b in boxes],
+                         [("imap.one.example", "a@one.example", "INBOX"), ("imap.two.example", "b@two.example", "Schule")])
+        self.assertEqual(boxes[1].mailbox_label, "Schule")
+        self.assertEqual(boxes[1].imap_password, "pw2")
+        self.assertEqual(boxes[1].mailboxes(), [boxes[1]])
+
+    def test_poll_continues_when_one_mailbox_fails(self):
+        settings = self.settings()
+        calls = []
+
+        def single(box):
+            calls.append(box.imap_host)
+            if box.imap_host == "imap.one.example":
+                raise OSError("down")
+
+        with patch.object(mail, "_poll_single", side_effect=single), self.assertLogs("src.mail", "INFO"):
+            with self.assertRaises(OSError):
+                mail.poll_mailbox(settings)
+        self.assertEqual(calls, ["imap.one.example", "imap.two.example"])
+
+    def test_reanalysis_finds_the_right_mailbox(self):
+        settings = self.settings()
+        box = mail.mailbox_for_key(settings, "b@two.example@imap.two.example/Schule")
+        self.assertEqual(box.imap_password, "pw2")
+        self.assertIsNone(mail.mailbox_for_key(settings, "x@other@imap.other/INBOX"))

@@ -1515,6 +1515,22 @@ def _run_async(coroutine):
         loop.close()
 
 
+class IdleStateTests(unittest.TestCase):
+    def test_combined_idle_state_prefers_problems(self):
+        class Fake:
+            def __init__(self, status):
+                self.state = {"status": status}
+        try:
+            app_module._idle_watchers[:] = [Fake("active"), Fake("error"), Fake("active")]
+            self.assertEqual(app_module._idle_state()["status"], "error")
+            app_module._idle_watchers[:] = [Fake("active"), Fake("active")]
+            self.assertEqual(app_module._idle_state()["status"], "active")
+            app_module._idle_watchers[:] = []
+            self.assertIsNone(app_module._idle_state())
+        finally:
+            app_module._idle_watchers.clear()
+
+
 class NotificationAppTests(unittest.TestCase):
     def _with_channel(self, **values):
         return replace(app_module.settings, ntfy_url="https://ntfy.sh/test-thema", **values)

@@ -322,6 +322,14 @@ Server-Adressen und Zugangsdaten (IMAP, KI-Server, iCloud) sind bewusst nur in
 die Oberfläche keinen Login hat, könnte sonst jemand im Netz z. B. alle E-Mails
 an einen fremden KI-Server umleiten.
 
+## Mehrere Postfächer
+
+Weitere Postfächer – oder weitere Ordner desselben Postfachs – trägst du in
+`.env` als `IMAP2_*` bis `IMAP9_*` ein (gleiche Felder wie das erste:
+`HOST`, `PORT`, `USERNAME`, `PASSWORD`, `FOLDER`, optional `NAME`). Jedes
+Postfach wird einzeln abgerufen und hat eine eigene Sofort-Erkennung; ist eines
+gestört, laufen die anderen weiter.
+
 ## Andere Kalender-Server
 
 Statt iCloud funktioniert jeder Kalender-Server mit CalDAV-Standard. Im

@@ -4,6 +4,14 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.27.0 – 2026-11-07
+
+- **Mehrere Postfächer:** Weitere Postfächer oder Ordner über `IMAP2_*` bis
+  `IMAP9_*` in `.env` (optional mit `NAME`). Jedes wird einzeln abgerufen und
+  bekommt eine eigene Sofort-Erkennung (IMAP IDLE); ein gestörtes Postfach
+  hält die anderen nicht auf. „Erneut auswerten“ findet das richtige Postfach,
+  Status und Einstellungen zeigen alle Postfächer.
+
 ## 0.26.0 – 2026-11-07
 
 - **Andere Kalender-Server:** Neben iCloud jetzt jeder CalDAV-Server,

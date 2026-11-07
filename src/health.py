@@ -88,6 +88,9 @@ def status_items(
         mail = ("warn" if stale else "ok", _("Letzter Abruf {age}", age=formatting.relative_time(success, now)))
     else:
         mail = ("warn", _("Noch kein erfolgreicher Abruf"))
+    extra = len(getattr(settings, "extra_mailboxes", ()) or ())
+    if extra and settings.mail_configured:
+        mail = (mail[0], mail[1] + " · " + _("{count} Postfächer", count=extra + 1))
     items.append({"key": "mail", "label": _("Postfach"), "state": mail[0], "text": mail[1]})
 
     # IMAP IDLE
