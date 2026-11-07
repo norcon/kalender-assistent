@@ -726,3 +726,6 @@ button.ghost:hover:not(:disabled) { background: var(--neutral-soft); color: var(
 .logout-form { margin: 0; }
 .logout-button { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 50%; width: 2.5rem; height: 2.5rem; min-height: 2.5rem; padding: 0; }
 .logout-button:hover:not(:disabled) { background: var(--neutral-soft); color: var(--text); }
+
+.auto-form { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; margin: 0; }
+.auto-form select { width: auto; }

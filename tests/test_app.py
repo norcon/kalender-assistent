@@ -1506,6 +1506,15 @@ class StatisticsAndReasonTests(unittest.TestCase):
                 client.post(f"/api/suggestions/{item['id']}/dismiss")
 
 
+def _run_async(coroutine):
+    """Eigene Loop, ohne die aktuelle Loop der Testumgebung zu verändern."""
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coroutine)
+    finally:
+        loop.close()
+
+
 class NotificationAppTests(unittest.TestCase):
     def _with_channel(self, **values):
         return replace(app_module.settings, ntfy_url="https://ntfy.sh/test-thema", **values)
@@ -1516,15 +1525,15 @@ class NotificationAppTests(unittest.TestCase):
                 before = db.max_suggestion_id(app_module.settings.database_path)
                 _add_suggestion("Laternenumzug", "2099-11-11T17:00")
                 with patch.object(app_module, "settings", self._with_channel()), patch.object(app_module.notify, "send") as send:
-                    asyncio.run(app_module._notify_new_suggestions(before))
+                    _run_async(app_module._notify_new_suggestions(before))
                 title, message = send.call_args.args[1:3]
                 self.assertEqual(title, "1 neuer Terminvorschlag")
                 self.assertIn("Laternenumzug", message)
                 with patch.object(app_module, "settings", self._with_channel(notify_detail="anzahl")), patch.object(app_module.notify, "send") as send:
-                    asyncio.run(app_module._notify_new_suggestions(before))
+                    _run_async(app_module._notify_new_suggestions(before))
                 self.assertNotIn("Laternenumzug", send.call_args.args[2])
                 with patch.object(app_module, "settings", self._with_channel(notify_suggestions="0")), patch.object(app_module.notify, "send") as send:
-                    asyncio.run(app_module._notify_new_suggestions(before))
+                    _run_async(app_module._notify_new_suggestions(before))
                 send.assert_not_called()
 
     def test_outage_reported_once_after_delay_and_recovery(self):
@@ -1572,6 +1581,53 @@ class NotificationAppTests(unittest.TestCase):
                     page = client.get("/einstellungen").text
                     self.assertIn("Eingerichtete Kanäle: ntfy", page)
                     self.assertIn('id="notify-test"', page)
+
+
+class AutoExportTests(unittest.TestCase):
+    def _configured(self):
+        return replace(app_module.settings, caldav_username="tablet@example.org", caldav_app_password="app-password",
+                       ntfy_url="https://ntfy.sh/test-thema")
+
+    def test_auto_export_only_for_clear_cases(self):
+        path = app_module.settings.database_path
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                before = db.max_suggestion_id(path)
+                sure = _add_suggestion("Schwimmkurs", "2099-03-01T15:00", person="Sam", confidence=0.97, sender="Verein <kurse@schwimmen.example>")
+                unsure = _add_suggestion("Vielleicht Fest", "2099-03-02T15:00", person="Sam", confidence=0.8, sender="kurse@schwimmen.example")
+                no_calendar = _add_suggestion("Ohne Kalender", "2099-03-03T15:00", confidence=0.99, sender="kurse@schwimmen.example")
+                other = _add_suggestion("Elternabend", "2099-03-04T15:00", person="Sam", confidence=0.99, sender="schule@example.org")
+                self.assertEqual(client.post("/regeln/automatisch", content="pattern=schwimmen.example&schwelle=50",
+                                             headers={"Content-Type": "application/x-www-form-urlencoded"}).status_code, 422)
+                client.post("/regeln/automatisch", content="pattern=schwimmen.example&schwelle=95",
+                            headers={"Content-Type": "application/x-www-form-urlencoded"})
+                candidates = db.auto_export_candidates(path, before, "2026-11-07")
+                self.assertEqual([c["id"] for c in candidates], [sure["id"]])
+                with patch.object(app_module, "settings", self._configured()), \
+                        patch.object(app_module, "_calendar_names", return_value=["Sam", "Familie"]), \
+                        patch.object(app_module.caldav, "create_icloud_event", return_value="created") as create, \
+                        patch.object(app_module.notify, "send") as send:
+                    with self.assertLogs("src.app", "INFO"):
+                        exported = _run_async(app_module._auto_export(before))
+                        _run_async(app_module._notify_new_suggestions(before, exported))
+                self.assertEqual([item["title"] for item in exported], ["Schwimmkurs"])
+                create.assert_called_once()
+                self.assertTrue(db.get_suggestion(path, sure["id"])["icloud_exported_at"])
+                self.assertFalse(db.get_suggestion(path, unsure["id"])["icloud_exported_at"])
+                history = [h["action"] for h in db.list_suggestion_history(path, sure["id"])]
+                self.assertIn("auto_exported", history)
+                title, message = send.call_args.args[1:3]
+                self.assertEqual(title, "3 neue Terminvorschläge")
+                self.assertIn("Automatisch eingetragen:", message)
+                self.assertIn("Schwimmkurs → Sam", message)
+                page = client.get("/korrekturen").text
+                self.assertIn("schwimmen.example", page)
+                self.assertIn("ab 95 % Sicherheit", page)
+                client.post("/regeln/automatisch/loeschen", content="pattern=schwimmen.example",
+                            headers={"Content-Type": "application/x-www-form-urlencoded"})
+                self.assertEqual(db.list_auto_senders(path), [])
+                for item in (sure, unsure, no_calendar, other):
+                    client.post(f"/api/suggestions/{item['id']}/dismiss")
 
 
 class HealthAndStatusTests(unittest.TestCase):

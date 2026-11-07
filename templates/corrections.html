@@ -54,12 +54,22 @@
                 <td class="num" data-label="{{ _("entfernt") }}">{{ row.removed }}</td>
                 <td class="rule-cell">
                   {% if row.rule == "hide" %}<span class="meta">{{ _("ausgeblendet") }}</span>
-                  {% elif row.rule == "show" %}<span class="meta">{{ _("immer anzeigen") }}</span>
-                  {% elif row.removed and not row.exported %}
-                    <form method="post" action="/regeln/absender">
-                      <input type="hidden" name="pattern" value="{{ row.domain }}">
-                      <button type="submit" class="secondary">{{ _("Ausblenden") }}<span class="visually-hidden">: {{ row.domain }}</span></button>
-                    </form>
+                  {% elif row.auto %}<span class="meta">{{ _("automatisch ab {percent} %", percent=row.auto.min_confidence) }}</span>
+                  {% else %}
+                    {% if row.rule == "show" %}<span class="meta">{{ _("immer anzeigen") }}</span>{% endif %}
+                    {% if row.exported and caldav_configured %}
+                      <form method="post" action="/regeln/automatisch" class="auto-form" data-confirm="{{ _("Termine von {domain} künftig ohne Rückfrage in iCloud eintragen, wenn Zielkalender und Sicherheit passen?", domain=row.domain) }}">
+                        <input type="hidden" name="pattern" value="{{ row.domain }}">
+                        <label class="visually-hidden" for="auto-{{ loop.index }}">{{ _("Ab Sicherheit") }}</label>
+                        <select id="auto-{{ loop.index }}" name="schwelle">{% for value in auto_thresholds %}<option value="{{ value }}"{% if value == 95 %} selected{% endif %}>{{ _("ab {percent} %", percent=value) }}</option>{% endfor %}</select>
+                        <button type="submit" class="secondary">{{ _("Automatisch übernehmen") }}<span class="visually-hidden">: {{ row.domain }}</span></button>
+                      </form>
+                    {% elif row.removed and not row.exported and row.rule != "show" %}
+                      <form method="post" action="/regeln/absender">
+                        <input type="hidden" name="pattern" value="{{ row.domain }}">
+                        <button type="submit" class="secondary">{{ _("Ausblenden") }}<span class="visually-hidden">: {{ row.domain }}</span></button>
+                      </form>
+                    {% endif %}
                   {% endif %}
                 </td>
               </tr>
@@ -69,6 +79,29 @@
       </div>
     {% else %}
       <p class="empty">{{ _("Noch keine Vorschläge.") }}</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="automatisch-titel" id="automatisch">
+    <h2 id="automatisch-titel">{{ _("Automatisch übernehmen") }}</h2>
+    <p>{{ _("Termine dieser Absender trägt die App nach dem Abruf direkt in iCloud ein – aber nur, wenn ein Zielkalender erkannt wurde, die Sicherheit mindestens die Schwelle erreicht, kein möglicher Doppeltermin vorliegt und der Termin nicht vorbei ist. Sonst bleibt es ein normaler Vorschlag. Automatisch Eingetragenes steht im Verlauf und lässt sich wie jede Übertragung rückgängig machen. Einrichten über „Automatisch übernehmen“ in der Tabelle oben.") }}</p>
+    {% if auto_rules %}
+      <ul class="rule-list">
+        {% for rule in auto_rules %}
+          <li>
+            <div>
+              <strong>{{ rule.pattern }}</strong>
+              <div class="meta">{{ _("ab {percent} % Sicherheit", percent=rule.min_confidence) }} · {{ _("Angelegt {date}", date=rule.created_at|timestamp) }}</div>
+            </div>
+            <form method="post" action="/regeln/automatisch/loeschen">
+              <input type="hidden" name="pattern" value="{{ rule.pattern }}">
+              <button type="submit" class="secondary">{{ _("Beenden") }}<span class="visually-hidden">: {{ rule.pattern }}</span></button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">{{ _("Keine Einträge.") }}</p>
     {% endif %}
   </section>
 
@@ -110,6 +143,11 @@
   {% else %}
     <p class="empty">{{ _("Noch keine gelernten Korrekturen.") }}</p>
   {% endfor %}
+  <script>
+    for (const form of document.querySelectorAll("form[data-confirm]")) {
+      form.addEventListener("submit", (event) => { if (!confirm(form.dataset.confirm)) event.preventDefault(); });
+    }
+  </script>
   </main>
   {% include "_footer.html" %}
 </body>

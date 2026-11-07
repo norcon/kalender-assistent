@@ -122,6 +122,11 @@ def initialize(database_path: str) -> None:
                 value TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS auto_senders (
+                pattern TEXT PRIMARY KEY,
+                min_confidence INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS ignored_senders (
                 pattern TEXT PRIMARY KEY,
                 example_sender TEXT NOT NULL DEFAULT '',
@@ -1179,6 +1184,61 @@ def sender_matches(sender: str, pattern: str) -> bool:
         return address == pattern
     host = address.rpartition("@")[2]
     return host == pattern or host.endswith("." + pattern)
+
+
+AUTO_THRESHOLDS = (90, 95, 98)
+
+
+def list_auto_senders(database_path: str) -> list[dict[str, Any]]:
+    with connect(database_path) as connection:
+        return [dict(row) for row in connection.execute(
+            "SELECT pattern, min_confidence, created_at FROM auto_senders ORDER BY pattern"
+        )]
+
+
+def set_auto_sender(database_path: str, pattern: str, min_confidence: int) -> str:
+    pattern = normalize_sender_pattern(pattern)
+    if min_confidence not in AUTO_THRESHOLDS:
+        raise ValueError(_("Bitte eine der angebotenen Schwellen wählen."))
+    with connect(database_path) as connection:
+        connection.execute(
+            "INSERT INTO auto_senders(pattern, min_confidence, created_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(pattern) DO UPDATE SET min_confidence = excluded.min_confidence",
+            (pattern, min_confidence, datetime.now(timezone.utc).isoformat()),
+        )
+    return pattern
+
+
+def remove_auto_sender(database_path: str, pattern: str) -> bool:
+    with connect(database_path) as connection:
+        cursor = connection.execute("DELETE FROM auto_senders WHERE pattern = ?", (pattern.strip().casefold(),))
+    return cursor.rowcount > 0
+
+
+def auto_export_candidates(database_path: str, after_id: int, now: str) -> list[dict[str, Any]]:
+    """Neue Vorschläge, die eine Auto-Übernahme-Regel eindeutig erfüllen.
+
+    Nur mit Zielkalender, ohne möglichen Doppeltermin, nicht ausgeblendet, nicht
+    vorbei und mit ausreichender Sicherheit – im Zweifel bleibt es ein Vorschlag.
+    """
+    rules = list_auto_senders(database_path)
+    if not rules:
+        return []
+    with connect(database_path) as connection:
+        rows = [dict(row) for row in connection.execute(
+            "SELECT id, title, person, confidence, source_sender, starts_at FROM suggestions "
+            "WHERE id > ? AND dismissed = 0 AND hidden_reason IS NULL AND icloud_exported_at IS NULL "
+            "AND cancelled_at IS NULL AND person IS NOT NULL AND person != '' "
+            "AND possible_duplicate_of IS NULL AND substr(starts_at, 1, 10) >= substr(?, 1, 10) "
+            "ORDER BY id",
+            (after_id, now),
+        )]
+    found = []
+    for row in rows:
+        rule = next((r for r in rules if sender_matches(row["source_sender"], r["pattern"])), None)
+        if rule and round(float(row["confidence"]) * 100) >= rule["min_confidence"]:
+            found.append({**row, "rule": rule["pattern"], "min_confidence": rule["min_confidence"]})
+    return found
 
 
 def list_ignored_senders(database_path: str, mode: str = "hide") -> list[dict[str, Any]]:

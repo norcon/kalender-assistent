@@ -4,6 +4,16 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.25.0 – 2026-11-07
+
+- **Auto-Übernahme pro Absender** (Regeln → Trefferquote je Absender →
+  „Automatisch übernehmen“, Schwelle 90/95/98 %): Neue Termine dieser
+  Absender landen nach dem Abruf direkt in iCloud – nur mit erkanntem
+  Zielkalender, ausreichender Sicherheit, ohne möglichen Doppeltermin und
+  nicht in der Vergangenheit. Sonst bleibt es ein Vorschlag. Verlauf-Eintrag
+  „Automatisch übernommen“, Rückgängig wie bei jeder Übertragung, Erwähnung
+  in der Benachrichtigung. Regeln unter Regeln → Automatisch übernehmen.
+
 ## 0.24.0 – 2026-11-07
 
 - **Benachrichtigungen** über ntfy, Pushover, Home Assistant und E-Mail

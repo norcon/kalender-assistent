@@ -191,8 +191,41 @@ async def _perform_mail_check(trigger: str) -> bool:
     _remember_mail_result(mail_last_success=completed_at)
     logger.info("Postfachprüfung abgeschlossen.")
     if before_id is not None:
-        await _notify_new_suggestions(before_id)
+        automatic = await _auto_export(before_id)
+        await _notify_new_suggestions(before_id, automatic)
     return True
+
+
+async def _auto_export(before_id: int) -> list[dict[str, Any]]:
+    """Neue Vorschläge mit Auto-Übernahme-Regel direkt nach iCloud übertragen."""
+    if not _caldav_configured() or settings.demo_mode:
+        return []
+    try:
+        candidates = await asyncio.to_thread(
+            db.auto_export_candidates, settings.database_path, before_id,
+            datetime.now(ZoneInfo(settings.caldav_timezone)).date().isoformat(),
+        )
+    except Exception as error:  # noqa: BLE001
+        logger.warning("Auto-Übernahme: Prüfung fehlgeschlagen (%s).", type(error).__name__)
+        return []
+    exported = []
+    for item in candidates:
+        try:
+            async with _suggestion_lock:
+                await _send_suggestion_to_icloud(item["id"], resend=False)
+        except HTTPException as error:
+            logger.warning("Auto-Übernahme von „%s“ nicht möglich: %s – bleibt als Vorschlag.", item["title"], error.detail)
+            continue
+        db.add_suggestion_history(
+            settings.database_path, item["id"], "auto_exported",
+            {"rule": item["rule"], "min_confidence": item["min_confidence"]},
+        )
+        logger.info(
+            "„%s“ automatisch in „%s“ eingetragen (Regel %s, ab %d %%).",
+            item["title"], item["person"], item["rule"], item["min_confidence"],
+        )
+        exported.append(item)
+    return exported
 
 
 # ---------- Benachrichtigungen ----------
@@ -205,21 +238,35 @@ def _in_language(function, *args, **kwargs):
         i18n.reset(token)
 
 
-async def _notify_new_suggestions(before_id: int) -> None:
+async def _notify_new_suggestions(before_id: int, automatic: list[dict[str, Any]] | None = None) -> None:
     if settings.notify_suggestions != "1" or not notify.channels(settings):
         return
+    automatic = automatic or []
     try:
-        items = await asyncio.to_thread(db.new_open_suggestions, settings.database_path, before_id)
-        if not items:
+        auto_ids = {item["id"] for item in automatic}
+        items = [item for item in await asyncio.to_thread(db.new_open_suggestions, settings.database_path, before_id)
+                 if item["id"] not in auto_ids]
+        if not items and not automatic:
             return
 
         def text() -> tuple[str, str]:
-            title = i18n.ngettext("{count} neuer Terminvorschlag", "{count} neue Terminvorschläge", len(items))
+            if items:
+                title = i18n.ngettext("{count} neuer Terminvorschlag", "{count} neue Terminvorschläge", len(items))
+            else:
+                title = i18n.ngettext("{count} Termin automatisch eingetragen", "{count} Termine automatisch eingetragen", len(automatic))
             if settings.notify_detail == "anzahl":
-                return title, _("Zum Prüfen in der App öffnen.")
+                lines = [_("Zum Prüfen in der App öffnen.")]
+                if items and automatic:
+                    lines.insert(0, i18n.ngettext("{count} Termin automatisch eingetragen", "{count} Termine automatisch eingetragen", len(automatic)) + ".")
+                return title, "\n".join(lines)
             lines = [f"• {item['title']} – {formatting.event_time(item['starts_at'], settings.caldav_timezone)}" for item in items[:8]]
             if len(items) > 8:
                 lines.append(_("… und {count} weitere", count=len(items) - 8))
+            if automatic:
+                if items:
+                    lines.append("")
+                lines.append(_("Automatisch eingetragen:"))
+                lines += [f"• {item['title']} → {item['person']}" for item in automatic[:8]]
             return title, "\n".join(lines)
 
         title, message = _in_language(text)
@@ -2222,6 +2269,7 @@ def _render_rules_page(
         if item.get("hidden_reason")
     )
     trusted = db.list_ignored_senders(settings.database_path, "show")
+    auto_rules = db.list_auto_senders(settings.database_path)
     sender_rows = []
     for domain, entry in sorted(
         db.sender_stats(settings.database_path).items(),
@@ -2236,6 +2284,7 @@ def _render_rules_page(
                 **entry,
                 "rate": round(100 * entry["exported"] / entry["total"]) if entry["total"] else 0,
                 "rule": "hide" if rule else ("show" if trust else None),
+                "auto": next((r for r in auto_rules if db.sender_matches(probe, r["pattern"])), None),
             }
         )
     return templates.TemplateResponse(
@@ -2246,6 +2295,9 @@ def _render_rules_page(
             "corrections": db.list_all_person_corrections(settings.database_path),
             "ignored_senders": rules,
             "trusted_senders": trusted,
+            "auto_rules": auto_rules,
+            "auto_thresholds": db.AUTO_THRESHOLDS,
+            "caldav_configured": _caldav_configured(),
             "sender_rows": sender_rows,
             "hidden_counts": hidden_counts,
             "sender_error": error,
@@ -2279,6 +2331,26 @@ async def add_ignored_sender_form(request: Request):
             len(hidden),
         )
     return RedirectResponse("/korrekturen#absender", status_code=303)
+
+
+@app.post("/regeln/automatisch")
+async def add_auto_sender_form(request: Request):
+    form = await _read_form(request)
+    try:
+        threshold = int(form.get("schwelle", "95"))
+        pattern = db.set_auto_sender(settings.database_path, form.get("pattern", ""), threshold)
+    except ValueError as error:
+        return _render_rules_page(request, error=str(error), status_code=422)
+    logger.info("Auto-Übernahme für %s ab %d %% Sicherheit eingerichtet.", pattern, threshold)
+    return RedirectResponse("/korrekturen#automatisch", status_code=303)
+
+
+@app.post("/regeln/automatisch/loeschen")
+async def remove_auto_sender_form(request: Request):
+    form = await _read_form(request)
+    if db.remove_auto_sender(settings.database_path, form.get("pattern", "")):
+        logger.info("Auto-Übernahme für %s beendet.", form.get("pattern", ""))
+    return RedirectResponse("/korrekturen#automatisch", status_code=303)
 
 
 @app.post("/regeln/absender/loeschen")
