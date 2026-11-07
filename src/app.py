@@ -4,6 +4,9 @@ import logging
 import os
 import shutil
 import signal
+import hashlib
+import hmac
+import secrets
 import re
 import threading
 from collections import Counter, deque
@@ -645,6 +648,113 @@ async def setup_redirect(request: Request, call_next):
     return await call_next(request)
 
 
+# ---------- Zugangsschutz (optional, APP_PASSWORD in .env) ----------
+
+SESSION_COOKIE = "ka_session"
+SESSION_LONG = 30 * 24 * 3600
+SESSION_SHORT = 12 * 3600
+_AUTH_OPEN = ("/anmelden", "/static/", "/i18n/", "/health", "/api/version")
+_login_failures: dict[str, tuple[int, float]] = {}  # IP → (Fehlversuche, gesperrt bis)
+LOGIN_FAILURE_DELAY = 1.0  # Sekunden Pause nach jedem Fehlversuch
+
+
+def _session_secret() -> bytes:
+    state = db.get_service_state(settings.database_path)
+    secret = state.get("session_secret")
+    if not secret:
+        secret = secrets.token_hex(32)
+        db.set_service_state(settings.database_path, session_secret=secret)
+    # Das Passwort fließt mit ein: ein neues Passwort meldet alle Geräte ab.
+    return hashlib.sha256(f"{secret}:{settings.app_password}".encode()).digest()
+
+
+def _session_token(expires: int) -> str:
+    signature = hmac.new(_session_secret(), str(expires).encode(), hashlib.sha256).hexdigest()
+    return f"{expires}.{signature}"
+
+
+def _valid_session(token: str | None) -> bool:
+    if not token or "." not in token:
+        return False
+    expires_text, _signature = token.split(".", 1)
+    if not expires_text.isdigit() or int(expires_text) < time.time():
+        return False
+    return hmac.compare_digest(token, _session_token(int(expires_text)))
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "?"
+
+
+def _safe_next(target: str) -> str:
+    return target if target.startswith("/") and not target.startswith("//") else "/"
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    if not settings.app_password or request.url.path.startswith(_AUTH_OPEN):
+        return await call_next(request)
+    if _valid_session(request.cookies.get(SESSION_COOKIE)):
+        return await call_next(request)
+    if request.method != "GET" or request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=401, content={"detail": _("Bitte zuerst anmelden.")})
+    target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+    return RedirectResponse("/anmelden?" + urlencode({"weiter": target}), status_code=303)
+
+
+@app.get("/anmelden", response_class=HTMLResponse)
+async def login_page(request: Request, weiter: str = Query(default="/", max_length=2000), fehler: str = ""):
+    if not settings.app_password:
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(request=request, name="login.html", context={
+        "weiter": _safe_next(weiter), "fehler": fehler,
+    })
+
+
+@app.post("/anmelden")
+async def login_submit(request: Request):
+    if not settings.app_password:
+        return RedirectResponse("/", status_code=303)
+    form = parse_qs((await request.body()).decode("utf-8", errors="replace"))
+    password = (form.get("passwort") or [""])[-1]
+    target = _safe_next((form.get("weiter") or ["/"])[-1])
+    remember = bool((form.get("bleiben") or [""])[-1])
+    ip = _client_ip(request)
+    failures, locked_until = _login_failures.get(ip, (0, 0.0))
+    now = time.monotonic()
+    if locked_until > now:
+        wait = int(locked_until - now) + 1
+        return RedirectResponse("/anmelden?" + urlencode({"weiter": target, "fehler": _("Zu viele Fehlversuche. Bitte {seconds} Sekunden warten.", seconds=wait)}), status_code=303)
+    if not hmac.compare_digest(password.encode(), settings.app_password.encode()):
+        failures += 1
+        # Ab dem 5. Fehlversuch zunehmend länger sperren (30 s, 60 s, … bis 15 Min.)
+        lock = min(900, 30 * 2 ** (failures - 5)) if failures >= 5 else 0
+        _login_failures[ip] = (failures, now + lock)
+        await asyncio.sleep(LOGIN_FAILURE_DELAY)
+        logger.warning("Fehlgeschlagene Anmeldung von %s (%d. Versuch).", ip, failures)
+        return RedirectResponse("/anmelden?" + urlencode({"weiter": target, "fehler": _("Das Passwort stimmt nicht.")}), status_code=303)
+    _login_failures.pop(ip, None)
+    lifetime = SESSION_LONG if remember else SESSION_SHORT
+    response = RedirectResponse(target, status_code=303)
+    secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    response.set_cookie(
+        SESSION_COOKIE, _session_token(int(time.time()) + lifetime),
+        max_age=lifetime if remember else None, httponly=True, samesite="lax", secure=secure,
+    )
+    logger.info("Anmeldung von %s.", ip)
+    return response
+
+
+@app.post("/abmelden")
+async def logout():
+    response = RedirectResponse("/anmelden", status_code=303)
+    response.delete_cookie(SESSION_COOKIE)
+    return response
+
+
+templates.env.globals["login_required"] = lambda: bool(settings.app_password)
+
+
 def _require_setup_mode() -> None:
     if not settings.setup_mode:
         raise HTTPException(status_code=404, detail=_("Die Einrichtung ist bereits abgeschlossen."))
@@ -686,6 +796,7 @@ class SetupFinishRequest(BaseModel):
     caldav_url: str = Field(default="https://caldav.icloud.com", max_length=500)
     caldav_username: str = Field(default="", max_length=320)
     caldav_password: str = Field(default="", max_length=500)
+    app_password: str = Field(default="", max_length=200)
     targets: list[dict] = Field(default_factory=list, max_length=30)
 
 
@@ -785,6 +896,8 @@ async def setup_caldav(request: SetupCaldavRequest):
 @app.post("/api/setup/finish")
 async def setup_finish(request: SetupFinishRequest):
     _require_setup_mode()
+    if request.app_password and len(request.app_password) < 8:
+        raise HTTPException(status_code=422, detail=_("Das Passwort muss mindestens 8 Zeichen haben."))
     if not setup_wizard.valid_timezone(request.timezone):
         raise HTTPException(status_code=422, detail=_("Unbekannte Zeitzone, z. B. Europe/Berlin verwenden."))
     if request.language not in ("auto", "de", "en"):
@@ -1560,6 +1673,20 @@ async def dismiss_api(suggestion_id: int):
     }
 
 
+class DismissReasonRequest(BaseModel):
+    reason: str = Field(max_length=20)
+
+
+@app.post("/api/suggestions/{suggestion_id}/reason")
+async def dismiss_reason_api(suggestion_id: int, request: DismissReasonRequest):
+    if request.reason not in db.DISMISS_REASONS:
+        raise HTTPException(status_code=422, detail=_("Unbekannte Auswahl."))
+    async with _suggestion_lock:
+        if not db.set_dismiss_reason(settings.database_path, suggestion_id, request.reason):
+            raise HTTPException(status_code=409, detail=_("Der Vorschlag ist nicht mehr entfernt."))
+    return {"status": "ok"}
+
+
 class IgnoreSenderRequest(BaseModel):
     scope: str = Field(default="address", max_length=20)
 
@@ -1903,6 +2030,57 @@ async def maintenance_page(request: Request):
     return templates.TemplateResponse(
         request=request, name="maintenance.html", context=_maintenance_context()
     )
+
+
+STAT_SEGMENTS = (  # feste Reihenfolge = feste Farbe
+    ("exported", "Übernommen"),
+    ("rejected", "Abgelehnt"),
+    ("hidden", "Ausgeblendet"),
+    ("open", "Offen"),
+    ("other", "Verfallen oder abgesagt"),
+)
+REASON_LABELS = {
+    "kein_termin": "Kein Termin",
+    "nicht_relevant": "Nicht für uns",
+    "doppelt": "Doppelt",
+    "falsch": "Angaben falsch",
+}
+
+
+@app.get("/protokoll/statistik", response_class=HTMLResponse)
+async def statistics_page(request: Request):
+    today = datetime.now(ZoneInfo(settings.caldav_timezone)).date()
+    first = date(today.year - 1, today.month, 1)  # 12 Monate inkl. laufendem
+    data = await asyncio.to_thread(db.statistics, settings.database_path, first.isoformat())
+    by_month = {row["month"]: row for row in data["months"]}
+    months = []
+    cursor = date(today.year, today.month, 1)
+    while cursor > first:
+        key = f"{cursor:%Y-%m}"
+        row = by_month.get(key, {"total": 0, "exported": 0, "rejected": 0, "hidden": 0, "open": 0, "other": 0})
+        months.append({**row, "label": formatting.month_label(cursor)})
+        cursor = date(cursor.year - (cursor.month == 1), (cursor.month - 2) % 12 + 1, 1)
+    # Monate vor dem ersten Vorschlag weglassen
+    while months and not months[-1]["total"]:
+        months.pop()
+    peak = max((row["total"] for row in months), default=0)
+    totals = data["totals"]
+    decided = totals["exported"] + totals["rejected"] + totals["hidden"]
+    reasons_total = sum(data["reasons"].values())
+    return templates.TemplateResponse(request=request, name="statistics.html", context={
+        "months": months,
+        "peak": peak,
+        "totals": totals,
+        "rate": round(100 * totals["exported"] / decided) if decided else None,
+        "segments": STAT_SEGMENTS,
+        "reasons": [
+            {"label": label, "count": data["reasons"].get(key, 0),
+             "share": round(100 * data["reasons"].get(key, 0) / reasons_total) if reasons_total else 0}
+            for key, label in REASON_LABELS.items()
+        ],
+        "reasons_total": reasons_total,
+        "without_reason": max(0, totals["rejected"] - reasons_total),
+    })
 
 
 @app.get("/protokoll", response_class=HTMLResponse)
@@ -2569,6 +2747,10 @@ def _render_settings_page(
                 (
                     "iCloud-Passwort",
                     "gesetzt" if settings.caldav_app_password else "nicht gesetzt",
+                ),
+                (
+                    "Zugangsschutz",
+                    "aktiv (APP_PASSWORD)" if settings.app_password else "aus – APP_PASSWORD in .env setzen",
                 ),
             ],
         },

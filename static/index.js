@@ -32,7 +32,7 @@ function titleOf(id) {
 
 const toastRegion = document.getElementById("toast-region");
 
-function toast(message, { action = null, onAction = null, error = false, timeout = 6000 } = {}) {
+function toast(message, { action = null, onAction = null, error = false, timeout = 6000, choices = null, choicesLabel = "" } = {}) {
   const item = document.createElement("div");
   item.className = error ? "toast toast-error" : "toast";
   item.setAttribute("role", error ? "alert" : "status");
@@ -50,6 +50,30 @@ function toast(message, { action = null, onAction = null, error = false, timeout
       try { await onAction(); } catch (actionError) { toast(actionError.message, { error: true }); }
     });
     item.append(button);
+  }
+  if (choices && choices.length) {
+    const group = document.createElement("div");
+    group.className = "toast-choices";
+    group.setAttribute("role", "group");
+    if (choicesLabel) {
+      const label = document.createElement("span");
+      label.className = "toast-choices-label";
+      label.textContent = choicesLabel;
+      group.append(label);
+    }
+    for (const choice of choices) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "toast-choice";
+      button.textContent = choice.label;
+      button.addEventListener("click", async () => {
+        group.querySelectorAll("button").forEach((other) => { other.disabled = true; });
+        button.setAttribute("aria-pressed", "true");
+        try { await choice.onClick(); } catch (choiceError) { toast(choiceError.message, { error: true }); }
+      });
+      group.append(button);
+    }
+    item.append(group);
   }
   const close = document.createElement("button");
   close.type = "button";
@@ -707,9 +731,24 @@ async function dismissSuggestions(ids) {
   }
   await refreshSuggestions();
   if (done.length) {
+    const reasons = [
+      ["kein_termin", t("Kein Termin")],
+      ["nicht_relevant", t("Nicht für uns")],
+      ["doppelt", t("Doppelt")],
+      ["falsch", t("Angaben falsch")],
+    ];
     toast(done.length === 1 ? t("„{title}“ entfernt.", { title: titles[done[0]] }) : t("{count} Vorschläge entfernt.", { count: done.length }), {
       action: t("Rückgängig"),
-      timeout: 8000,
+      timeout: 15000,
+      choicesLabel: t("Warum? (hilft der KI)"),
+      choices: reasons.map(([reason, label]) => ({
+        label,
+        onClick: async () => {
+          for (const id of done) {
+            await api(`/api/suggestions/${id}/reason`, postJson({ reason }));
+          }
+        },
+      })),
       onAction: async () => {
         for (const id of done) await api(`/api/suggestions/${id}/undo-dismiss`, { method: "POST" });
         await refreshSuggestions();

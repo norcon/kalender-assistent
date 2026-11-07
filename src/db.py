@@ -193,6 +193,7 @@ def initialize(database_path: str) -> None:
             ("quote_source", "TEXT"),
             ("hidden_reason", "TEXT"),
             ("reminder", "TEXT"),
+            ("dismiss_reason", "TEXT"),
         ):
             if column not in columns:
                 connection.execute(
@@ -978,6 +979,80 @@ def dismiss_suggestion(database_path: str, suggestion_id: int) -> bool:
     return cursor.rowcount > 0
 
 
+# Gründe beim Entfernen; die ersten beiden lernt die KI als Gegenbeispiele.
+DISMISS_REASONS = ("kein_termin", "nicht_relevant", "doppelt", "falsch")
+LEARNING_REASONS = ("kein_termin", "nicht_relevant")
+
+
+def set_dismiss_reason(database_path: str, suggestion_id: int, reason: str) -> bool:
+    if reason not in DISMISS_REASONS:
+        raise ValueError(reason)
+    with connect(database_path) as connection:
+        cursor = connection.execute(
+            "UPDATE suggestions SET dismiss_reason = ? WHERE id = ? AND dismissed = 1",
+            (reason, suggestion_id),
+        )
+    if cursor.rowcount:
+        add_suggestion_history(database_path, suggestion_id, "dismiss_reason", {"reason": reason})
+    return cursor.rowcount > 0
+
+
+def recent_rejections(database_path: str, limit: int = 20, days: int = 180) -> list[dict[str, Any]]:
+    """Zuletzt als „kein Termin“/„nicht für uns“ abgelehnte Vorschläge (für den KI-Prompt)."""
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    try:
+        return _recent_rejections(database_path, since, limit)
+    except sqlite3.OperationalError:  # Datenbank noch nicht angelegt
+        return []
+
+
+def _recent_rejections(database_path: str, since: str, limit: int) -> list[dict[str, Any]]:
+    with connect(database_path) as connection:
+        rows = connection.execute(
+            f"""
+            SELECT title, source_subject, source_sender, dismiss_reason
+            FROM suggestions
+            WHERE dismissed = 1 AND dismiss_reason IN ({",".join("?" * len(LEARNING_REASONS))})
+              AND created_at >= ?
+            ORDER BY created_at DESC LIMIT ?
+            """,
+            (*LEARNING_REASONS, since, limit),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def statistics(database_path: str, since: str) -> dict[str, Any]:
+    """Ergebnisse der Vorschläge je Monat (Erkennungsmonat), Gründe, Summen."""
+    with connect(database_path) as connection:
+        months = [dict(row) for row in connection.execute(
+            """
+            SELECT substr(s.created_at, 1, 7) AS month,
+                   COUNT(*) AS total,
+                   SUM(s.icloud_exported_at IS NOT NULL) AS exported,
+                   SUM(s.icloud_exported_at IS NULL AND s.hidden_reason IS NOT NULL) AS hidden,
+                   SUM(s.icloud_exported_at IS NULL AND s.hidden_reason IS NULL AND s.dismissed = 1
+                       AND s.cancelled_at IS NULL AND EXISTS (
+                           SELECT 1 FROM suggestion_history h
+                           WHERE h.suggestion_id = s.id AND h.action = 'archived')) AS rejected,
+                   SUM(s.icloud_exported_at IS NULL AND s.hidden_reason IS NULL AND s.dismissed = 0) AS open
+            FROM suggestions s
+            WHERE s.created_at >= ?
+            GROUP BY month ORDER BY month DESC
+            """,
+            (since,),
+        )]
+        reasons = {row["dismiss_reason"]: row["n"] for row in connection.execute(
+            "SELECT dismiss_reason, COUNT(*) AS n FROM suggestions "
+            "WHERE dismiss_reason IS NOT NULL AND created_at >= ? GROUP BY dismiss_reason",
+            (since,),
+        )}
+    for row in months:
+        row["other"] = row["total"] - row["exported"] - row["hidden"] - row["rejected"] - row["open"]
+    keys = ("total", "exported", "hidden", "rejected", "open", "other")
+    totals = {key: sum(row[key] for row in months) for key in keys}
+    return {"months": months, "reasons": reasons, "totals": totals}
+
+
 def auto_archive_suggestions(database_path: str, suggestion_ids: list[int]) -> int:
     archived = 0
     for suggestion_id in suggestion_ids:
@@ -1004,11 +1079,12 @@ def restore_suggestion(
     if keep_active:
         query = (
             "UPDATE suggestions SET dismissed = 0, keep_active = 1, "
-            "hidden_reason = NULL WHERE id = ?"
+            "hidden_reason = NULL, dismiss_reason = NULL WHERE id = ?"
         )
     else:
         query = (
-            "UPDATE suggestions SET dismissed = 0 WHERE id = ? AND dismissed = 1 "
+            "UPDATE suggestions SET dismissed = 0, dismiss_reason = NULL "
+            "WHERE id = ? AND dismissed = 1 "
             "AND cancelled_at IS NULL AND icloud_exported_at IS NULL"
         )
     with connect(database_path) as connection:

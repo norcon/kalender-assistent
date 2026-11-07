@@ -138,8 +138,10 @@ def env_values(form: dict[str, Any]) -> dict[str, str]:
         "CALDAV_APP_PASSWORD": form.get("caldav_password", ""),
         "CALDAV_TIMEZONE": form.get("timezone") or "Europe/Berlin",
         "APP_LANGUAGE": form.get("language") or "auto",
+        "APP_PASSWORD": form.get("app_password", ""),
     }
-    return {key: str(value).strip() if key not in ("IMAP_PASSWORD", "CALDAV_APP_PASSWORD", "AI_API_KEY") else str(value) for key, value in values.items()}
+    secret = ("IMAP_PASSWORD", "CALDAV_APP_PASSWORD", "AI_API_KEY", "APP_PASSWORD")
+    return {key: str(value).strip() if key not in secret else str(value) for key, value in values.items()}
 
 
 def env_text(values: dict[str, str]) -> str:

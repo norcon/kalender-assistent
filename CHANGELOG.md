@@ -4,6 +4,21 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.23.0 – 2026-11-07
+
+- **Zugangsschutz (optional):** Mit `APP_PASSWORD` in `.env` fragt die App
+  nach einem Passwort. Signiertes Sitzungs-Cookie (wahlweise 30 Tage
+  angemeldet bleiben), Abmelden-Knopf im Menü, zunehmende Sperre nach
+  Fehlversuchen; ein neues Passwort meldet alle Geräte ab. Der
+  Einrichtungsassistent kann das Passwort gleich mit setzen (dafür den
+  Updater aktualisieren).
+- **Grund beim Ablehnen:** Nach dem Entfernen eines Vorschlags bietet die
+  Meldung „Kein Termin“, „Nicht für uns“, „Doppelt“, „Angaben falsch“ an
+  (freiwillig). Die ersten beiden bekommt die KI als Gegenbeispiele mit.
+- **Statistik** (Protokoll → Statistik): Vorschläge je Monat mit Ergebnis
+  (übernommen, abgelehnt, ausgeblendet, offen, verfallen), Übernahmequote und
+  Gründe beim Ablehnen.
+
 ## 0.22.0 – 2026-11-07
 
 - Kalender-Sicherung: „Wiederherstellen“ steht wieder bei allen gesicherten

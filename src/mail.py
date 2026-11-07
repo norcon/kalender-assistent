@@ -502,6 +502,7 @@ def analyze_message(
                 content,
                 images=images,
                 calendars=_target_calendars(settings),
+                rejections=db.recent_rejections(settings.database_path),
             )
         except Exception:
             _record_ai_run(settings, time.monotonic() - started, ok=False)

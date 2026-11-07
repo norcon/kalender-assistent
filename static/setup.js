@@ -145,6 +145,7 @@
       [t("KI"), `${value("ai_model")} · ${value("ai_base_url")}`],
       [t("iCloud"), value("caldav_username") || t("nicht eingerichtet")],
       [t("Zielkalender"), targets().map((target) => target.name).join(", ") || "–"],
+      [t("Zugangsschutz"), form.elements.app_password.value ? t("mit Passwort") : t("ohne Passwort")],
     ];
     const list = form.querySelector(".setup-summary");
     list.replaceChildren(...rows.flatMap(([label, text]) => [
@@ -180,6 +181,8 @@
   }
 
   finish.addEventListener("click", async () => {
+    const appPassword = form.elements.app_password.value;
+    if (appPassword && appPassword.length < 8) { report("finish", t("Das Passwort muss mindestens 8 Zeichen haben."), false); return; }
     finish.disabled = true;
     report("finish", t("Speichere …"));
     try {
@@ -189,6 +192,7 @@
         imap_password: form.elements.imap_password.value, imap_folder: value("imap_folder") || "INBOX",
         ai_base_url: value("ai_base_url"), ai_api_key: form.elements.ai_api_key.value, ai_model: value("ai_model"),
         caldav_url: value("caldav_url"), caldav_username: value("caldav_username"), caldav_password: form.elements.caldav_password.value,
+        app_password: form.elements.app_password.value,
         targets: targets(),
       });
       if (data.mode === "updater") {
@@ -216,6 +220,8 @@
       window.alert(error.message);
     }
   });
+
+  form.elements.app_password.addEventListener("input", summary);
 
   show(1);
 })();

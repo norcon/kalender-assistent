@@ -41,6 +41,7 @@ class Settings:
     update_repository: str = "norcon/kalender-assistent"
     updater_url: str = "http://updater:8000"
     update_check: bool = True
+    app_password: str = ""  # leer = kein Zugangsschutz
     target_calendars: str = ""  # Erstbelegung der Zielkalender, z. B. "Alex,Sam,Familie"
 
     @property
@@ -65,6 +66,7 @@ class Settings:
             language=os.getenv("APP_LANGUAGE", "auto").strip().lower() or "auto",
             update_repository=os.getenv("UPDATE_REPOSITORY", "norcon/kalender-assistent").strip(),
             updater_url=os.getenv("UPDATER_URL", "http://updater:8000").strip(),
+            app_password=os.getenv("APP_PASSWORD", "").strip("\r\n"),
             update_check=os.getenv("UPDATE_CHECK", "1").strip().lower() not in {"0", "false", "no", "nein"},
             target_calendars=os.getenv("TARGET_CALENDARS", "").strip(),
             imap_host=required("IMAP_HOST"),

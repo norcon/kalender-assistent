@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 import unittest.mock
+from urllib.parse import unquote
 from dataclasses import replace
 from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -1424,6 +1425,85 @@ class CalendarBackupPageTests(unittest.TestCase):
                     page = client.get("/sicherungen").text
                     self.assertRegex(page, r'value="Familie" checked')
                     self.assertNotRegex(page, r'value="Privat" checked')
+
+
+class LoginTests(unittest.TestCase):
+    def setUp(self):
+        app_module._login_failures.clear()
+
+    def test_without_password_everything_is_open(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                self.assertEqual(client.get("/", follow_redirects=False).status_code, 200)
+                self.assertEqual(client.get("/anmelden", follow_redirects=False).headers["location"], "/")
+                self.assertNotIn('action="/abmelden"', client.get("/").text)
+
+    def test_password_protects_pages_and_api(self):
+        protected = replace(app_module.settings, app_password="geheim-123")
+        with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "LOGIN_FAILURE_DELAY", 0):
+            with TestClient(app_module.app) as client, patch.object(app_module, "settings", protected):
+                response = client.get("/archiv?q=x", follow_redirects=False)
+                self.assertEqual(response.status_code, 303)
+                self.assertEqual(response.headers["location"], "/anmelden?weiter=%2Farchiv%3Fq%3Dx")
+                self.assertEqual(client.get("/api/suggestions").status_code, 401)
+                self.assertEqual(client.post("/api/check").status_code, 401)
+                for url in ("/health", "/static/app.css", "/api/version", "/i18n/en.js"):
+                    self.assertEqual(client.get(url).status_code, 200, url)
+                self.assertIn('name="passwort"', client.get("/anmelden").text)
+                form = {"Content-Type": "application/x-www-form-urlencoded"}
+                with self.assertLogs("src.app", "WARNING"):
+                    wrong = client.post("/anmelden", content="passwort=falsch&weiter=/archiv", headers=form, follow_redirects=False)
+                self.assertIn("fehler=", wrong.headers["location"])
+                self.assertNotIn(app_module.SESSION_COOKIE, wrong.cookies)
+                ok = client.post("/anmelden", content="passwort=geheim-123&weiter=/archiv&bleiben=1", headers=form, follow_redirects=False)
+                self.assertEqual(ok.headers["location"], "/archiv")
+                self.assertEqual(client.get("/archiv", follow_redirects=False).status_code, 200)
+                self.assertIn('action="/abmelden"', client.get("/").text)
+                # Fremdes Ziel wird ignoriert
+                evil = client.post("/anmelden", content="passwort=geheim-123&weiter=//evil.example", headers=form, follow_redirects=False)
+                self.assertEqual(evil.headers["location"], "/")
+                # Neues Passwort meldet ab
+                with patch.object(app_module, "settings", replace(protected, app_password="anderes-456")):
+                    self.assertEqual(client.get("/", follow_redirects=False).status_code, 303)
+                client.post("/abmelden")
+                self.assertEqual(client.get("/", follow_redirects=False).status_code, 303)
+                client.cookies.clear()
+
+    def test_repeated_failures_lock_out(self):
+        protected = replace(app_module.settings, app_password="geheim-123")
+        form = {"Content-Type": "application/x-www-form-urlencoded"}
+        with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "LOGIN_FAILURE_DELAY", 0):
+            with TestClient(app_module.app) as client, patch.object(app_module, "settings", protected):
+                with self.assertLogs("src.app", "WARNING"):
+                    for _ in range(5):
+                        client.post("/anmelden", content="passwort=nein", headers=form, follow_redirects=False)
+                locked = client.post("/anmelden", content="passwort=geheim-123", headers=form, follow_redirects=False)
+                self.assertIn("Fehlversuche", unquote(locked.headers["location"]))
+                self.assertNotIn(app_module.SESSION_COOKIE, locked.cookies)
+
+
+class StatisticsAndReasonTests(unittest.TestCase):
+    def test_reason_after_dismiss_feeds_statistics_and_prompt(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                path = app_module.settings.database_path
+                item = _add_suggestion("Sommerschlussverkauf", "2099-07-01T10:00", sender="news@shop.example")
+                self.assertEqual(client.post(f"/api/suggestions/{item['id']}/reason", json={"reason": "kein_termin"}).status_code, 409)
+                client.post(f"/api/suggestions/{item['id']}/dismiss")
+                self.assertEqual(client.post(f"/api/suggestions/{item['id']}/reason", json={"reason": "quatsch"}).status_code, 422)
+                self.assertEqual(client.post(f"/api/suggestions/{item['id']}/reason", json={"reason": "kein_termin"}).status_code, 200)
+                rejected = db.recent_rejections(path)
+                self.assertIn("Sommerschlussverkauf", [r["title"] for r in rejected])
+                from src import ai as ai_module
+                prompt = ai_module.build_system_prompt([], rejected)
+                self.assertIn('"Sommerschlussverkauf" aus der E-Mail "Betreff Sommerschlussverkauf" (shop.example)', prompt)
+                page = client.get("/protokoll/statistik").text
+                self.assertIn("Gründe beim Ablehnen", page)
+                self.assertIn("Kein Termin", page)
+                self.assertIn('href="/protokoll/statistik"', client.get("/protokoll").text)
+                client.post(f"/api/suggestions/{item['id']}/undo-dismiss")
+                self.assertNotIn("Sommerschlussverkauf", [r["title"] for r in db.recent_rejections(path)])
+                client.post(f"/api/suggestions/{item['id']}/dismiss")
 
 
 class HealthAndStatusTests(unittest.TestCase):

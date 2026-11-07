@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% with page_title=_("Anmelden") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body class="setup-page">
+  <header class="setup-header">
+    <span class="brand"><img class="brand-icon" src="/static/icon.svg" width="22" height="22" alt=""> {{ _("Kalender-Assistent") }}</span>
+    {% set other = "en" if current_lang() == "de" else "de" %}
+    <span class="nav-tools">
+      <button type="button" id="language-toggle" class="language-toggle" data-lang="{{ other }}" lang="{{ other }}" aria-label="{{ "Switch to English" if other == "en" else "Auf Deutsch umschalten" }}">{{ other|upper }}</button>
+    </span>
+  </header>
+  <main id="main" class="login">
+    <h1>{{ _("Anmelden") }}</h1>
+    {% if fehler %}<p class="message problem" role="alert">{{ fehler }}</p>{% endif %}
+    <form method="post" action="/anmelden" class="login-form">
+      <input type="hidden" name="weiter" value="{{ weiter }}">
+      <label>{{ _("Passwort") }}<input type="password" name="passwort" required autofocus autocomplete="current-password"></label>
+      <label class="checkbox"><input type="checkbox" name="bleiben" value="1" checked> {{ _("Auf diesem Gerät angemeldet bleiben (30 Tage)") }}</label>
+      <button type="submit">{{ _("Anmelden") }}</button>
+    </form>
+    <p class="meta">{{ _("Das Passwort steht in der Datei .env auf dem Server (APP_PASSWORD).") }}</p>
+  </main>
+</body>
+</html>

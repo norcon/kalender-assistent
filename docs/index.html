@@ -160,7 +160,7 @@ TARGET_CALENDARS=Alex,Sam,Familie</code></pre>
         <pre><code>docker run --rm -p 8080:8000 -e DEMO_MODE=1 ghcr.io/norcon/kalender-assistent:latest</code></pre>
         <p>Dann <code>http://localhost:8080</code> öffnen. Mit <code>-e APP_LANGUAGE=en</code> gibt es englische Beispieldaten.</p>
       </details>
-      <div class="warn"><strong>Wichtig:</strong> Die Oberfläche hat keine Anmeldung. Gib Port 8080 nicht ins Internet frei; für unterwegs ein VPN nutzen. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
+      <div class="warn"><strong>Wichtig:</strong> Ohne <code>APP_PASSWORD</code> in <code>.env</code> hat die Oberfläche keine Anmeldung. Gib Port 8080 nicht ins Internet frei; für unterwegs ein VPN nutzen. Mit <code>APP_PASSWORD</code> fragt die App nach einem Passwort. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
     </div>
   </section>
 

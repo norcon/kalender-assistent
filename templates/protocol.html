@@ -7,7 +7,7 @@
   {% with active="protokoll" %}{% include "_nav.html" %}{% endwith %}
   <main id="main">
   <h1>{{ _("Protokoll") }}</h1>
-  <p class="meta">{{ _("Technische Meldungen der letzten Abrufe, Übertragungen und Sicherungen. Sie liegen nur im Arbeitsspeicher und sind nach einem Neustart leer. E-Mail-Adressen werden unkenntlich gemacht.") }}{% if current_lang() != "de" %} {{ _("Die Meldungen selbst sind auf Deutsch.") }}{% endif %} <a href="/protokoll/wartung">{{ _("Zur Wartungs-Übersicht mit dauerhaften Kennzahlen") }}</a></p>
+  <p class="meta">{{ _("Technische Meldungen der letzten Abrufe, Übertragungen und Sicherungen. Sie liegen nur im Arbeitsspeicher und sind nach einem Neustart leer. E-Mail-Adressen werden unkenntlich gemacht.") }}{% if current_lang() != "de" %} {{ _("Die Meldungen selbst sind auf Deutsch.") }}{% endif %} <a href="/protokoll/wartung">{{ _("Zur Wartungs-Übersicht mit dauerhaften Kennzahlen") }}</a> · <a href="/protokoll/statistik">{{ _("Zur Statistik") }}</a></p>
   <section class="activity-section" aria-labelledby="activity-heading">
     <h2 id="activity-heading" class="visually-hidden">{{ _("Meldungen") }}</h2>
     <div class="activity">

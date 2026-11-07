@@ -161,7 +161,7 @@ APP_LANGUAGE=en</code></pre>
         <pre><code>docker run --rm -p 8080:8000 -e DEMO_MODE=1 -e APP_LANGUAGE=en ghcr.io/norcon/kalender-assistent:latest</code></pre>
         <p>Then open <code>http://localhost:8080</code>.</p>
       </details>
-      <div class="warn"><strong>Important:</strong> the interface has no login. Do not expose port 8080 to the internet; use a VPN for remote access. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
+      <div class="warn"><strong>Important:</strong> without <code>APP_PASSWORD</code> in <code>.env</code> the interface has no login. Do not expose port 8080 to the internet; use a VPN for remote access. With <code>APP_PASSWORD</code> the app asks for a password. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
     </div>
   </section>
 

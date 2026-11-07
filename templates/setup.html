@@ -87,6 +87,8 @@
       <section class="setup-step" data-step="5" hidden>
         <h2>{{ _("Zusammenfassung") }}</h2>
         <dl class="setup-summary"></dl>
+        <label>{{ _("Passwort für die Oberfläche (optional)") }}<input name="app_password" type="password" autocomplete="new-password" minlength="8"></label>
+        <p class="help">{{ _("Leer lassen, wenn nur dein Heimnetz Zugriff hat. Mit Passwort fragt die App beim Öffnen danach – wichtig, wenn sie aus dem Internet erreichbar ist.") }}</p>
         <p class="help">{{ _("Mit „Speichern und starten“ schreibt der Updater die Einstellungen in .env und startet die App neu. Danach ist die Einrichtung gesperrt; Zugangsdaten änderst du nur noch in .env.") }}</p>
         <div class="check-result" data-for="finish" role="status" aria-live="polite"></div>
         <div id="manual-env" hidden>

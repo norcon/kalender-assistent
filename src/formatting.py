@@ -43,6 +43,7 @@ HISTORY_LABELS = {
     "hidden": "Ausgeblendet (Absender ignoriert)",
     "unhidden": "Wieder eingeblendet",
     "reminder_changed": "Erinnerung geändert",
+    "dismiss_reason": "Grund fürs Entfernen angegeben",
 }
 
 TIMED_REMINDERS = (0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080)

@@ -2,14 +2,16 @@
 
 ## Deutsch
 
-**Kalender-Assistent hat bewusst keine Anmeldung.** Die Oberfläche zeigt
-Inhalte aus E-Mails und kann Termine in deine Kalender schreiben. Betreibe sie
-deshalb nur in einem vertrauenswürdigen Netz:
+**Ohne `APP_PASSWORD` hat Kalender-Assistent keine Anmeldung.** Die
+Oberfläche zeigt Inhalte aus E-Mails und kann Termine in deine Kalender
+schreiben. Betreibe sie deshalb in einem vertrauenswürdigen Netz:
 
 - Port `8080` nicht ins Internet freigeben (keine Portweiterleitung im Router).
 - Für Zugriff von unterwegs ein VPN verwenden (z. B. WireGuard, Tailscale).
-- Wer mehr Schutz will, stellt einen Reverse-Proxy mit Anmeldung davor
-  (z. B. Caddy oder Traefik mit Basic Auth / Authelia).
+- Optionaler Zugangsschutz: `APP_PASSWORD` in `.env` setzen. Die App fragt
+  dann nach dem Passwort (signiertes Sitzungs-Cookie, Sperre nach
+  Fehlversuchen). Ist sie aus dem Internet erreichbar, zusätzlich HTTPS über
+  einen Reverse-Proxy (z. B. Caddy oder Traefik) verwenden.
 
 Was die App selbst absichert:
 
@@ -52,10 +54,12 @@ Bitte **kein öffentliches Issue** anlegen, sondern über GitHub →
 
 ## English
 
-**Calendar Assistant deliberately has no login.** The web interface shows
-content from emails and can write events to your calendars, so run it only on
-a trusted network: do not expose port `8080` to the internet, use a VPN for
-remote access, or put a reverse proxy with authentication in front of it.
+**Without `APP_PASSWORD`, Calendar Assistant has no login.** The web
+interface shows content from emails and can write events to your calendars, so
+run it on a trusted network: do not expose port `8080` to the internet and use
+a VPN for remote access. Optional access protection: set `APP_PASSWORD` in
+`.env` (signed session cookie, lockout after failed attempts); if the app is
+reachable from the internet, also use HTTPS via a reverse proxy.
 
 Credentials and server addresses live only in `.env` and cannot be changed in
 the interface. The mailbox is opened read-only; iCloud is only written when you

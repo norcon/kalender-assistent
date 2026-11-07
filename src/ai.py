@@ -124,8 +124,30 @@ def calendar_rules(calendars: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(calendars: list[dict[str, Any]]) -> str:
-    return _PROMPT_TEMPLATE.replace("{calendar_rules}", calendar_rules(calendars))
+def rejection_rules(rejections: list[dict[str, Any]] | None) -> str:
+    """Von der Familie abgelehnte Vorschläge als Gegenbeispiele."""
+    if not rejections:
+        return ""
+    lines = []
+    for item in rejections:
+        sender = str(item.get("source_sender") or "")
+        domain = sender.rsplit("@", 1)[-1].strip(" >").lower() if "@" in sender else sender
+        lines.append(
+            f"- {_quoted(str(item.get('title') or ''))} aus der E-Mail "
+            f"{_quoted(str(item.get('source_subject') or ''))} ({domain})"
+        )
+    return (
+        "\n\nDiese Einträge hat die Familie zuletzt als „kein Termin“ oder „betrifft uns "
+        "nicht“ abgelehnt. Gib vergleichbare Einträge aus ähnlichen E-Mails nicht mehr "
+        "aus – außer die E-Mail nennt eindeutig einen neuen, konkreten Termin, an dem "
+        "jemand aus der Familie teilnimmt:\n" + "\n".join(lines)
+    )
+
+
+def build_system_prompt(
+    calendars: list[dict[str, Any]], rejections: list[dict[str, Any]] | None = None
+) -> str:
+    return _PROMPT_TEMPLATE.replace("{calendar_rules}", calendar_rules(calendars)) + rejection_rules(rejections)
 
 
 def _decode_response_content(content: str) -> Any:
@@ -231,6 +253,7 @@ def extract_events(
     message_text: str,
     images: list[dict[str, Any]] | None = None,
     calendars: list[dict[str, Any]] | None = None,
+    rejections: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     calendars = calendars or []
     headers = {"Content-Type": "application/json"}
@@ -276,7 +299,7 @@ def extract_events(
                 "model": model,
                 "temperature": 0,
                 "messages": [
-                    {"role": "system", "content": build_system_prompt(calendars)},
+                    {"role": "system", "content": build_system_prompt(calendars, rejections)},
                     {
                         "role": "user",
                         "content": content,

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% from "_macros.html" import info %}
+  {% with page_title=_("Statistik") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="protokoll" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main" class="statistics">
+  <h1>{{ _("Statistik") }}</h1>
+  <p class="meta"><a href="/protokoll">← {{ _("Zum Protokoll") }}</a> · <a href="/protokoll/wartung">{{ _("Wartungs-Übersicht") }}</a> · {{ _("Letzte 12 Monate, nach Monat der Erkennung.") }}</p>
+
+  {% if not months %}
+    <section><p class="empty">{{ _("Noch keine Vorschläge – die Statistik füllt sich, sobald Termine erkannt werden.") }}</p></section>
+  {% else %}
+  <dl class="stat-tiles">
+    <div><dt>{{ _("Erkannt") }}</dt><dd>{{ totals.total }}</dd></div>
+    <div><dt>{{ _("Übernommen") }}</dt><dd>{{ totals.exported }}{% if rate is not none %} <span class="meta">({{ rate }} %)</span>{% endif %}</dd></div>
+    <div><dt>{{ _("Abgelehnt") }}</dt><dd>{{ totals.rejected }}</dd></div>
+    <div><dt>{{ _("Ausgeblendet") }}</dt><dd>{{ totals.hidden }}</dd></div>
+  </dl>
+  <p class="meta">{{ info(_("Quote = übernommen geteilt durch alle entschiedenen Vorschläge (übernommen, abgelehnt, ausgeblendet). Offene, verfallene und abgesagte zählen nicht mit."), _("Quote")) }} {{ _("Die Quote zählt nur entschiedene Vorschläge.") }}</p>
+
+  <section aria-labelledby="months-heading">
+    <h2 id="months-heading">{{ _("Vorschläge je Monat") }}</h2>
+    <ul class="chart-legend" aria-label="{{ _("Legende") }}">
+      {% for key, label in segments %}<li><span class="swatch seg-{{ key }}" aria-hidden="true"></span>{{ _(label) }}</li>{% endfor %}
+    </ul>
+    <div class="table-scroll">
+      <table class="stats-table month-chart">
+        <thead><tr>
+          <th scope="col">{{ _("Monat") }}</th>
+          <th scope="col" class="bar-col"><span class="visually-hidden">{{ _("Verteilung") }}</span></th>
+          {% for key, label in segments %}<th scope="col" class="num">{{ _(label) }}</th>{% endfor %}
+          <th scope="col" class="num">{{ _("Gesamt") }}</th>
+        </tr></thead>
+        <tbody>
+          {% for row in months %}
+            <tr>
+              <th scope="row">{{ row.label }}</th>
+              <td class="bar-col" aria-hidden="true">
+                <div class="stack" style="--width: {{ (100 * row.total / peak) if peak else 0 }}%">
+                  {% for key, label in segments %}{% if row[key] %}<span class="seg seg-{{ key }}" style="flex-grow: {{ row[key] }}" title="{{ _(label) }}: {{ row[key] }}"></span>{% endif %}{% endfor %}
+                </div>
+              </td>
+              {% for key, label in segments %}<td class="num" data-label="{{ _(label) }}">{{ row[key] }}</td>{% endfor %}
+              <td class="num" data-label="{{ _("Gesamt") }}"><strong>{{ row.total }}</strong></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="reasons-heading">
+    <h2 id="reasons-heading">{{ _("Gründe beim Ablehnen") }} {{ info(_("Nach dem Entfernen eines Vorschlags lässt sich ein Grund antippen. „Kein Termin“ und „Nicht für uns“ bekommt die KI als Gegenbeispiele mit."), _("Gründe")) }}</h2>
+    {% if reasons_total %}
+      <ul class="reason-bars">
+        {% for reason in reasons %}
+          <li><span class="reason-label">{{ _(reason.label) }}</span><span class="reason-track"><span class="reason-fill" style="--share: {{ reason.share }}%"></span></span><span class="num">{{ reason.count }}</span></li>
+        {% endfor %}
+      </ul>
+      {% if without_reason %}<p class="meta">{{ _("Ohne Angabe: {count}", count=without_reason) }}</p>{% endif %}
+    {% else %}
+      <p class="empty">{{ _("Noch keine Gründe angegeben. Nach dem Entfernen eines Vorschlags erscheinen dafür Knöpfe in der Meldung unten.") }}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+  </main>
+  {% include "_footer.html" %}
+</body>
+</html>

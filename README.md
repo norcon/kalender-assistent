@@ -91,10 +91,11 @@ siehe [SECURITY.md](SECURITY.md).
 
 Die Oberfläche ist auf Port `8080` an allen Netzwerkschnittstellen des
 Docker-Hosts erreichbar. Im Heimnetz erreichst du sie unter
-`http://<server-ip>:8080`. Die Oberfläche hat derzeit keine Anmeldung und
-zeigt Inhalte aus E-Mails. Begrenze den Port deshalb per Host-/Router-Firewall
-auf dein vertrauenswürdiges Heimnetz und gib ihn nicht ins öffentliche Internet
-frei. Für Zugriff von unterwegs VPN verwenden.
+`http://<server-ip>:8080`. Ohne `APP_PASSWORD` in `.env` hat die Oberfläche
+keine Anmeldung und zeigt Inhalte aus E-Mails. Begrenze den Port deshalb per
+Host-/Router-Firewall auf dein vertrauenswürdiges Heimnetz und gib ihn nicht
+ins öffentliche Internet frei; für Zugriff von unterwegs VPN verwenden. Mit
+`APP_PASSWORD` fragt die App nach einem Passwort (siehe [SECURITY.md](SECURITY.md)).
 
 Auf der Startseite kannst du mit **Jetzt prüfen** einen sofortigen IMAP-Lauf
 starten. Währenddessen zeigt das Live-Aktivitätsfeld Status- und

@@ -19,6 +19,7 @@
     {% endfor %}
   </ul>
   <div class="nav-tools">
+    {% if login_required() %}<form method="post" action="/abmelden" class="logout-form"><button type="submit" class="logout-button" aria-label="{{ _("Abmelden") }}" title="{{ _("Abmelden") }}"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button></form>{% endif %}
     <a class="help-link" href="/hilfe" aria-label="{{ _("Hilfe: So funktioniert’s") }}"{% if active == "hilfe" %} aria-current="page"{% endif %}>?</a>
     {% set other = "en" if current_lang() == "de" else "de" %}
     <button type="button" id="language-toggle" class="language-toggle" data-lang="{{ other }}" lang="{{ other }}" aria-label="{{ "Switch to English" if other == "en" else "Auf Deutsch umschalten" }}">{{ other|upper }}</button>

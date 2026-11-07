@@ -38,11 +38,13 @@
   --shadow: 0 1px 2px rgb(60 64 67 / 12%);
   --radius: .5rem;
   --tap: 44px;
+  --seg-exported: #2a78d6; --seg-rejected: #eb6834; --seg-hidden: #1baf7a; --seg-open: #eda100; --seg-other: #b8bcc2;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
+    --seg-exported: #3987e5; --seg-rejected: #d95926; --seg-hidden: #199e70; --seg-open: #c98500; --seg-other: #5f6368;
     --bg: #121416;
     --surface: #1e2124;
     --surface-2: #26292d;
@@ -72,6 +74,7 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --seg-exported: #3987e5; --seg-rejected: #d95926; --seg-hidden: #199e70; --seg-open: #c98500; --seg-other: #5f6368;
   --bg: #121416;
   --surface: #1e2124;
   --surface-2: #26292d;
@@ -675,3 +678,51 @@ button.small { min-height: 2rem; padding: .3rem .7rem; font-size: .88rem; }
 .mass-alert-actions form { margin: 0; }
 button.ghost { background: transparent; color: var(--text-2); border-color: var(--border); }
 button.ghost:hover:not(:disabled) { background: var(--neutral-soft); color: var(--text); }
+.toast:has(.toast-choices) { flex-wrap: wrap; }
+.toast-choices { order: 10; flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; padding: 0 0 .2rem; }
+.toast-choices-label { font-size: .85rem; opacity: .85; margin-right: .2rem; }
+.toast-choice { background: transparent; color: inherit; border: 1px solid currentColor; border-radius: 2rem; min-height: 2.1rem; padding: .2rem .75rem; font-size: .88rem; }
+.toast-choice[aria-pressed="true"] { background: var(--bg); color: var(--text); }
+.toast-choice:disabled:not([aria-pressed="true"]) { opacity: .45; }
+
+/* ---------- Statistik ---------- */
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .6rem; margin: 1rem 0 .4rem; }
+.stat-tiles > div { padding: .7rem .9rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.stat-tiles dt { font-size: .85rem; color: var(--text-2); }
+.stat-tiles dd { margin: .2rem 0 0; font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-tiles dd .meta { font-size: .9rem; font-weight: 400; }
+.chart-legend { list-style: none; display: flex; flex-wrap: wrap; gap: .3rem 1rem; padding: 0; margin: 0 0 .6rem; font-size: .88rem; color: var(--text-2); }
+.chart-legend li { display: inline-flex; align-items: center; gap: .35rem; }
+.swatch { width: .8rem; height: .8rem; border-radius: 3px; display: inline-block; }
+.seg-exported { background: var(--seg-exported); }
+.seg-rejected { background: var(--seg-rejected); }
+.seg-hidden { background: var(--seg-hidden); }
+.seg-open { background: var(--seg-open); }
+.seg-other { background: var(--seg-other); }
+.month-chart { overflow-wrap: normal; }
+.month-chart th, .month-chart td { white-space: nowrap; }
+.month-chart thead th { font-size: .85rem; }
+.month-chart .bar-col { width: 100%; min-width: 8rem; }
+.stack { display: flex; gap: 2px; height: .9rem; width: var(--width); min-width: 4px; }
+.stack .seg { display: block; min-width: 3px; height: 100%; }
+.stack .seg:first-child { border-radius: 4px 0 0 4px; }
+.stack .seg:last-child { border-radius: 0 4px 4px 0; }
+.stack .seg:only-child { border-radius: 4px; }
+.reason-bars { list-style: none; padding: 0; margin: 0; display: grid; gap: .45rem; }
+.reason-bars li { display: grid; grid-template-columns: minmax(7rem, 11rem) 1fr 3rem; align-items: center; gap: .6rem; }
+.reason-track { height: .7rem; background: var(--neutral-soft); border-radius: 4px; overflow: hidden; }
+.reason-fill { display: block; height: 100%; width: var(--share); background: var(--seg-rejected); border-radius: 4px; }
+.reason-bars .num { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .month-chart thead .bar-col { display: none; }
+  .month-chart td.bar-col { flex-basis: 100%; width: 100%; min-width: 0; padding: .1rem 0 .2rem; }
+}
+
+/* ---------- Anmeldung ---------- */
+.login { max-width: 26rem; }
+.login-form { display: grid; gap: .8rem; margin: 1rem 0; }
+.login-form label:not(.checkbox) { display: grid; gap: .3rem; font-weight: 600; }
+.login-form .checkbox { display: flex; align-items: center; gap: .5rem; }
+.logout-form { margin: 0; }
+.logout-button { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 50%; width: 2.5rem; height: 2.5rem; min-height: 2.5rem; padding: 0; }
+.logout-button:hover:not(:disabled) { background: var(--neutral-soft); color: var(--text); }
