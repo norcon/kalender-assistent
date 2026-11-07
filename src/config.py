@@ -42,6 +42,26 @@ class Settings:
     updater_url: str = "http://updater:8000"
     update_check: bool = True
     app_password: str = ""  # leer = kein Zugangsschutz
+    app_url: str = ""  # Adresse für Links in Benachrichtigungen
+    ntfy_url: str = ""
+    ntfy_token: str = ""
+    pushover_token: str = ""
+    pushover_user: str = ""
+    homeassistant_url: str = ""
+    homeassistant_token: str = ""
+    homeassistant_service: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_security: str = "starttls"  # starttls, ssl oder none
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    notify_email_to: str = ""
+    notify_suggestions: str = "1"
+    notify_outages: str = "1"
+    notify_updates: str = "1"
+    notify_detail: str = "titel"  # titel oder anzahl
+    notify_outage_minutes: int = 60
     target_calendars: str = ""  # Erstbelegung der Zielkalender, z. B. "Alex,Sam,Familie"
 
     @property
@@ -67,6 +87,21 @@ class Settings:
             update_repository=os.getenv("UPDATE_REPOSITORY", "norcon/kalender-assistent").strip(),
             updater_url=os.getenv("UPDATER_URL", "http://updater:8000").strip(),
             app_password=os.getenv("APP_PASSWORD", "").strip("\r\n"),
+            app_url=os.getenv("APP_URL", "").strip(),
+            ntfy_url=os.getenv("NTFY_URL", "").strip(),
+            ntfy_token=os.getenv("NTFY_TOKEN", "").strip(),
+            pushover_token=os.getenv("PUSHOVER_TOKEN", "").strip(),
+            pushover_user=os.getenv("PUSHOVER_USER", "").strip(),
+            homeassistant_url=os.getenv("HOMEASSISTANT_URL", "").strip(),
+            homeassistant_token=os.getenv("HOMEASSISTANT_TOKEN", "").strip(),
+            homeassistant_service=os.getenv("HOMEASSISTANT_SERVICE", "").strip(),
+            smtp_host=os.getenv("SMTP_HOST", "").strip(),
+            smtp_port=int(os.getenv("SMTP_PORT", "587") or 587),
+            smtp_security=(os.getenv("SMTP_SECURITY", "starttls").strip().lower() or "starttls"),
+            smtp_username=os.getenv("SMTP_USERNAME", "").strip(),
+            smtp_password=os.getenv("SMTP_PASSWORD", "").strip("\r\n"),
+            smtp_from=os.getenv("SMTP_FROM", "").strip(),
+            notify_email_to=os.getenv("NOTIFY_EMAIL_TO", "").strip(),
             update_check=os.getenv("UPDATE_CHECK", "1").strip().lower() not in {"0", "false", "no", "nein"},
             target_calendars=os.getenv("TARGET_CALENDARS", "").strip(),
             imap_host=required("IMAP_HOST"),

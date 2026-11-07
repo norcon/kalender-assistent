@@ -235,3 +235,20 @@ document.addEventListener("click", function (event) {
     });
   });
 })();
+
+// Einstellungen: Test-Benachrichtigung senden.
+document.addEventListener("click", function (event) {
+  var button = event.target.closest && event.target.closest("#notify-test");
+  if (!button) return;
+  var result = document.getElementById("notify-test-result");
+  button.disabled = true;
+  result.textContent = t("Sende …");
+  fetch("/api/benachrichtigungen/test", { method: "POST" }).then(function (response) {
+    return response.json().then(function (data) {
+      if (!response.ok) throw new Error(data.detail || t("Aktion fehlgeschlagen."));
+      result.textContent = Object.keys(data.results).map(function (name) {
+        return name + ": " + (data.results[name] === "ok" ? t("gesendet") : data.results[name]);
+      }).join(" · ");
+    });
+  }).catch(function (error) { result.textContent = error.message; }).then(function () { button.disabled = false; });
+});

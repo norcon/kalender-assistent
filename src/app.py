@@ -46,6 +46,7 @@ from . import (
     mail_idle,
     demo,
     i18n,
+    notify,
     setup_wizard,
     updates,
     person_learning,
@@ -171,6 +172,10 @@ async def _perform_mail_check(trigger: str) -> bool:
     _update_check_state("running", started_at=started_at)
     logger.info("Postfachprüfung gestartet (%s).", trigger)
     try:
+        before_id = await asyncio.to_thread(db.max_suggestion_id, settings.database_path)
+    except Exception:  # noqa: BLE001 – nur für Benachrichtigungen
+        before_id = None
+    try:
         await asyncio.to_thread(mail.poll_mailbox, settings)
     except Exception as error:
         completed_at = datetime.now(timezone.utc).isoformat()
@@ -185,7 +190,109 @@ async def _perform_mail_check(trigger: str) -> bool:
     _update_check_state("success", completed_at=completed_at)
     _remember_mail_result(mail_last_success=completed_at)
     logger.info("Postfachprüfung abgeschlossen.")
+    if before_id is not None:
+        await _notify_new_suggestions(before_id)
     return True
+
+
+# ---------- Benachrichtigungen ----------
+
+def _in_language(function, *args, **kwargs):
+    token = i18n.activate(settings.language if settings.language in i18n.LANGUAGES else "de")
+    try:
+        return function(*args, **kwargs)
+    finally:
+        i18n.reset(token)
+
+
+async def _notify_new_suggestions(before_id: int) -> None:
+    if settings.notify_suggestions != "1" or not notify.channels(settings):
+        return
+    try:
+        items = await asyncio.to_thread(db.new_open_suggestions, settings.database_path, before_id)
+        if not items:
+            return
+
+        def text() -> tuple[str, str]:
+            title = i18n.ngettext("{count} neuer Terminvorschlag", "{count} neue Terminvorschläge", len(items))
+            if settings.notify_detail == "anzahl":
+                return title, _("Zum Prüfen in der App öffnen.")
+            lines = [f"• {item['title']} – {formatting.event_time(item['starts_at'], settings.caldav_timezone)}" for item in items[:8]]
+            if len(items) > 8:
+                lines.append(_("… und {count} weitere", count=len(items) - 8))
+            return title, "\n".join(lines)
+
+        title, message = _in_language(text)
+        await asyncio.to_thread(notify.send, settings, title, message)
+    except Exception as error:  # noqa: BLE001 – Benachrichtigung darf den Abruf nicht stören
+        logger.warning("Benachrichtigung über neue Vorschläge fehlgeschlagen: %s", type(error).__name__)
+
+
+_outage_since: dict[str, float] = {}
+OUTAGE_KEYS = {"mail": "Postfach", "ai": "KI-Server", "icloud": "iCloud"}
+
+
+def _check_outages(now: float | None = None) -> None:
+    """Länger andauernde Fehler melden – und die Entwarnung."""
+    now = now if now is not None else time.monotonic()
+    state = db.get_service_state(settings.database_path)
+    items = {item["key"]: item for item in _in_language(_status_summary)}
+    for key, label in OUTAGE_KEYS.items():
+        item = items.get(key)
+        flag = f"notified_outage_{key}"
+        if item and item["state"] == "error":
+            started = _outage_since.setdefault(key, now)
+            if not state.get(flag) and now - started >= settings.notify_outage_minutes * 60:
+                _in_language(lambda: notify.send(
+                    settings, _("Störung: {name}", name=_(label)),
+                    _("{name} ist seit über {minutes} Minuten gestört: {text}", name=_(label),
+                      minutes=settings.notify_outage_minutes, text=item["text"]),
+                    path="/protokoll", urgent=True,
+                ))
+                db.set_service_state(settings.database_path, **{flag: "1"})
+        else:
+            _outage_since.pop(key, None)
+            if state.get(flag):
+                _in_language(lambda: notify.send(
+                    settings, _("Wieder in Ordnung: {name}", name=_(label)),
+                    _("{name} funktioniert wieder.", name=_(label)),
+                ))
+                db.set_service_state(settings.database_path, **{flag: ""})
+
+
+def _check_new_version() -> None:
+    if not settings.update_check:
+        return
+    available = updates.releases(settings.update_repository)
+    current = updates.parse_version(version.VERSION)
+    if not available or not current or available[0]["key"] <= current:
+        return
+    newest = available[0]["version"]
+    if db.get_service_state(settings.database_path).get("notified_version") == newest:
+        return
+    _in_language(lambda: notify.send(
+        settings, _("Neue Version {version}", version=newest),
+        _("Kalender-Assistent {version} ist verfügbar (installiert: {current}). Update unter Sicherungen → Version und Updates.",
+          version=newest, current=version.VERSION),
+        path="/sicherungen#version",
+    ))
+    db.set_service_state(settings.database_path, notified_version=newest)
+
+
+async def _notification_worker() -> None:
+    await asyncio.sleep(60)  # Start abwarten, Status soll erst ermittelt sein
+    last_version_check = 0.0
+    while True:
+        try:
+            if notify.channels(settings):
+                if settings.notify_outages == "1":
+                    await asyncio.to_thread(_check_outages)
+                if settings.notify_updates == "1" and time.monotonic() - last_version_check > 6 * 3600:
+                    last_version_check = time.monotonic()
+                    await asyncio.to_thread(_check_new_version)
+        except Exception as error:  # noqa: BLE001
+            logger.warning("Prüfung für Benachrichtigungen fehlgeschlagen: %s", type(error).__name__)
+        await asyncio.sleep(120)
 
 
 async def _perform_with_followups(trigger: str) -> bool:
@@ -397,6 +504,13 @@ def _check_mass_deletion(result: dict[str, Any]) -> None:
         "Kalendersicherung: auffällig viele Termine fehlen plötzlich (%s).",
         ", ".join(f"{hit['calendar']}: {hit['deleted']} von {hit['before']}" for hit in hits),
     )
+    if settings.notify_outages == "1" and notify.channels(settings):
+        _in_language(lambda: notify.send(
+            settings, _("Auffällig viele Termine fehlen"),
+            _("Bei der Kalendersicherung fehlten plötzlich {count} Termine ({calendars}). Wurde versehentlich etwas gelöscht?",
+              count=alert["deleted"], calendars=", ".join(hit["calendar"] for hit in hits)),
+            path=(_mass_alert() or {}).get("link") or "/sicherungen/kalender", urgent=True,
+        ))
 
 
 def _mass_alert() -> dict[str, Any] | None:
@@ -528,6 +642,7 @@ def _start_workers() -> None:
         workers.update({
             "Kalendersicherung": _calendar_backup_worker,
             "KI-Prüfung": _ai_check_worker,
+            "Benachrichtigungen": _notification_worker,
         })
         if settings.mail_configured:
             workers["Postfachabruf"] = _mail_worker
@@ -753,6 +868,7 @@ async def logout():
 
 
 templates.env.globals["login_required"] = lambda: bool(settings.app_password)
+templates.env.globals["notify_channels"] = lambda: notify.channels(settings)
 
 
 def _require_setup_mode() -> None:
@@ -3231,6 +3347,17 @@ async def calendar_backup_search(
     if verlauf in HISTORY_GROUPINGS:  # Wahl pro Gerät merken
         response.set_cookie("verlauf", verlauf, max_age=31536000, samesite="lax")
     return response
+
+
+@app.post("/api/benachrichtigungen/test")
+async def notification_test():
+    if not notify.channels(settings):
+        raise HTTPException(status_code=409, detail=_("Kein Kanal eingerichtet. Zugangsdaten in .env eintragen."))
+    results = await asyncio.to_thread(lambda: _in_language(lambda: notify.send(
+        settings, _("Test vom Kalender-Assistenten"),
+        _("Wenn du das liest, kommen Benachrichtigungen an."),
+    )))
+    return {"results": results}
 
 
 @app.post("/sicherungen/warnung/ausblenden")

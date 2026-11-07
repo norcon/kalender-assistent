@@ -130,6 +130,33 @@ PARAMETERS: tuple[Parameter, ...] = (
         unit="Tage", minimum=1, maximum=365,
     ),
     Parameter(
+        "notify_suggestions", "Benachrichtigungen", "Neue Vorschläge",
+        "Nach jedem Abruf mit neuen Terminvorschlägen eine Nachricht senden.",
+        kind="choice", choices=(("1", "An"), ("0", "Aus")),
+    ),
+    Parameter(
+        "notify_detail", "Benachrichtigungen", "Inhalt der Nachricht",
+        "„Mit Titeln“ nennt Termin und Datum. „Nur Anzahl“ verrät nichts über die "
+        "Termine – sinnvoll, wenn die Nachricht über fremde Server läuft (z. B. ntfy.sh).",
+        kind="choice", choices=(("titel", "Mit Titeln"), ("anzahl", "Nur Anzahl")),
+    ),
+    Parameter(
+        "notify_outages", "Benachrichtigungen", "Störungen",
+        "Melden, wenn Postfach, KI-Server oder iCloud länger gestört sind (und wenn es "
+        "wieder läuft) sowie bei auffällig vielen gelöschten Kalenderterminen.",
+        kind="choice", choices=(("1", "An"), ("0", "Aus")),
+    ),
+    Parameter(
+        "notify_outage_minutes", "Benachrichtigungen", "Störung melden nach",
+        "So lange muss eine Störung bestehen, bevor eine Nachricht kommt.",
+        unit="Minuten", minimum=10, maximum=1440,
+    ),
+    Parameter(
+        "notify_updates", "Benachrichtigungen", "Neue Version",
+        "Einmal melden, wenn auf GitHub eine neue Version bereitsteht.",
+        kind="choice", choices=(("1", "An"), ("0", "Aus")),
+    ),
+    Parameter(
         "backup_hour", "Backup", "Uhrzeit der täglichen Sicherung",
         "Volle Stunde in der eingestellten Zeitzone. Wurde die Sicherung "
         "verpasst (z. B. Server aus), wird sie später am Tag nachgeholt.",

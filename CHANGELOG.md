@@ -4,6 +4,18 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.24.0 – 2026-11-07
+
+- **Benachrichtigungen** über ntfy, Pushover, Home Assistant und E-Mail
+  (Zugangsdaten in `.env`, jeder eingetragene Kanal wird genutzt):
+  - neue Terminvorschläge nach jedem Abruf – wahlweise mit Titeln oder nur
+    mit Anzahl;
+  - Störungen von Postfach, KI-Server oder iCloud nach einstellbarer Dauer
+    (Standard 60 Minuten) samt Entwarnung, außerdem bei Massenlöschung;
+  - einmalig, wenn eine neue Version bereitsteht.
+- Einstellungen → Benachrichtigungen: Ereignisse an/aus, Kanäle im Überblick,
+  „Test senden“. Mit `APP_URL` enthalten die Nachrichten einen Link zur App.
+
 ## 0.23.0 – 2026-11-07
 
 - **Zugangsschutz (optional):** Mit `APP_PASSWORD` in `.env` fragt die App

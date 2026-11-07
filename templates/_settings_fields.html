@@ -1,3 +1,4 @@
+{% from "_macros.html" import info %}
     {% for group, fields in groups.items() %}
       <section aria-labelledby="group-{{ loop.index }}">
         <h2 id="group-{{ loop.index }}">{{ _(group) }}</h2>
@@ -24,5 +25,13 @@
             </div>
           </div>
         {% endfor %}
+        {% if group == "Benachrichtigungen" %}
+          {% set channels = notify_channels() %}
+          <div class="notify-channels">
+            <p>{% if channels %}{{ _("Eingerichtete Kanäle: {list}", list=channels|join(", ")) }}{% else %}{{ _("Noch kein Kanal eingerichtet.") }}{% endif %}
+              {{ info(_("Die Kanäle richtest du in .env ein: ntfy (NTFY_URL, optional NTFY_TOKEN), Pushover (PUSHOVER_TOKEN, PUSHOVER_USER), Home Assistant (HOMEASSISTANT_URL, HOMEASSISTANT_TOKEN, HOMEASSISTANT_SERVICE) oder E-Mail (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, NOTIFY_EMAIL_TO). Mit APP_URL enthalten die Nachrichten einen Link zur App."), _("Kanäle")) }}</p>
+            {% if channels %}<button type="button" class="secondary" id="notify-test">{{ _("Test senden") }}</button> <span id="notify-test-result" role="status" aria-live="polite"></span>{% endif %}
+          </div>
+        {% endif %}
       </section>
     {% endfor %}

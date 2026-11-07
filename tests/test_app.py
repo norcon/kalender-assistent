@@ -1506,6 +1506,74 @@ class StatisticsAndReasonTests(unittest.TestCase):
                 client.post(f"/api/suggestions/{item['id']}/dismiss")
 
 
+class NotificationAppTests(unittest.TestCase):
+    def _with_channel(self, **values):
+        return replace(app_module.settings, ntfy_url="https://ntfy.sh/test-thema", **values)
+
+    def test_new_suggestions_are_announced_with_titles_or_count(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app):
+                before = db.max_suggestion_id(app_module.settings.database_path)
+                _add_suggestion("Laternenumzug", "2099-11-11T17:00")
+                with patch.object(app_module, "settings", self._with_channel()), patch.object(app_module.notify, "send") as send:
+                    asyncio.run(app_module._notify_new_suggestions(before))
+                title, message = send.call_args.args[1:3]
+                self.assertEqual(title, "1 neuer Terminvorschlag")
+                self.assertIn("Laternenumzug", message)
+                with patch.object(app_module, "settings", self._with_channel(notify_detail="anzahl")), patch.object(app_module.notify, "send") as send:
+                    asyncio.run(app_module._notify_new_suggestions(before))
+                self.assertNotIn("Laternenumzug", send.call_args.args[2])
+                with patch.object(app_module, "settings", self._with_channel(notify_suggestions="0")), patch.object(app_module.notify, "send") as send:
+                    asyncio.run(app_module._notify_new_suggestions(before))
+                send.assert_not_called()
+
+    def test_outage_reported_once_after_delay_and_recovery(self):
+        path = app_module.settings.database_path
+        error = [{"key": "ai", "label": "KI-Server", "state": "error", "text": "Nicht erreichbar"}]
+        ok = [{"key": "ai", "label": "KI-Server", "state": "ok", "text": "Erreichbar"}]
+        app_module._outage_since.clear()
+        db.set_service_state(path, notified_outage_ai="")
+        with patch.object(app_module, "settings", self._with_channel(notify_outage_minutes=60)), \
+                patch.object(app_module.notify, "send") as send:
+            with patch.object(app_module, "_status_summary", return_value=error):
+                app_module._check_outages(now=1000.0)
+                app_module._check_outages(now=1000.0 + 59 * 60)
+                send.assert_not_called()
+                app_module._check_outages(now=1000.0 + 61 * 60)
+                app_module._check_outages(now=1000.0 + 90 * 60)
+            self.assertEqual(send.call_count, 1)
+            self.assertEqual(send.call_args.args[1], "Störung: KI-Server")
+            with patch.object(app_module, "_status_summary", return_value=ok):
+                app_module._check_outages(now=2000.0 + 99 * 60)
+                app_module._check_outages(now=2000.0 + 100 * 60)
+            self.assertEqual(send.call_count, 2)
+            self.assertEqual(send.call_args.args[1], "Wieder in Ordnung: KI-Server")
+
+    def test_new_version_reported_once(self):
+        path = app_module.settings.database_path
+        db.set_service_state(path, notified_version="")
+        newer = [{"version": "99.0.0", "key": (99, 0, 0)}]
+        with patch.object(app_module, "settings", self._with_channel(update_check=True)), \
+                patch.object(app_module.updates, "releases", return_value=newer), \
+                patch.object(app_module.notify, "send") as send:
+            app_module._check_new_version()
+            app_module._check_new_version()
+        self.assertEqual(send.call_count, 1)
+        self.assertEqual(send.call_args.args[1], "Neue Version 99.0.0")
+
+    def test_test_endpoint_and_settings_section(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                self.assertEqual(client.post("/api/benachrichtigungen/test").status_code, 409)
+                self.assertIn("Noch kein Kanal eingerichtet", client.get("/einstellungen").text)
+                with patch.object(app_module, "settings", self._with_channel()), \
+                        patch.object(app_module.notify, "send", return_value={"ntfy": "ok"}):
+                    self.assertEqual(client.post("/api/benachrichtigungen/test").json(), {"results": {"ntfy": "ok"}})
+                    page = client.get("/einstellungen").text
+                    self.assertIn("Eingerichtete Kanäle: ntfy", page)
+                    self.assertIn('id="notify-test"', page)
+
+
 class HealthAndStatusTests(unittest.TestCase):
     def test_health_endpoint_and_status_bar(self):
         with patch.object(app_module.mail, "poll_mailbox"):

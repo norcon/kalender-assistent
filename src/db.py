@@ -661,6 +661,22 @@ def list_suggestions(database_path: str, include_dismissed: bool = False):
     return [_decode_suggestion(row) for row in rows]
 
 
+def max_suggestion_id(database_path: str) -> int:
+    with connect(database_path) as connection:
+        return int(connection.execute("SELECT COALESCE(MAX(id), 0) FROM suggestions").fetchone()[0])
+
+
+def new_open_suggestions(database_path: str, after_id: int) -> list[dict[str, Any]]:
+    """Seit after_id neu angelegte, sichtbare Vorschläge (für Benachrichtigungen)."""
+    with connect(database_path) as connection:
+        rows = connection.execute(
+            "SELECT id, title, starts_at FROM suggestions WHERE id > ? AND dismissed = 0 "
+            "AND hidden_reason IS NULL ORDER BY starts_at, id",
+            (after_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def get_suggestion_version(database_path: str) -> int:
     with connect(database_path) as connection:
         row = connection.execute(

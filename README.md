@@ -30,8 +30,15 @@ Termine aus Schul-, Vereins- und Praxis-Mails nicht mehr abtippen wollen.
   Termin, lernt Kalender-Korrekturen je Absender.
 - **Weniger Rauschen:** Versand-, Werbe- und Newsletter-Mails werden
   erkannt; Absender lassen sich ausblenden, ohne dass etwas verloren geht.
+- **Weniger Rauschen, das lernt:** Beim Ablehnen ein Grund per Tipp („Kein
+  Termin“, „Nicht für uns“ …); die KI bekommt Abgelehntes als Gegenbeispiele.
 - **Sicher aufbewahrt:** tägliche Datenbank-Sicherung und versionierte
-  Sicherung der iCloud-Kalender mit Wiederherstellung einzelner Termine.
+  Sicherung der iCloud-Kalender mit Änderungsverlauf, Wiederherstellung
+  einzelner Termine und Warnung bei Massenlöschung.
+- **Benachrichtigungen:** neue Vorschläge, Störungen und neue Versionen über
+  ntfy, Pushover, Home Assistant oder E-Mail.
+- **Statistik:** Vorschläge je Monat, Übernahmequote, Gründe beim Ablehnen.
+- **Optionaler Zugangsschutz** per Passwort (`APP_PASSWORD`).
 - **Alltagstauglich:** Handy-App für den Home-Bildschirm, Hell/Dunkel,
   Deutsch/Englisch, Sofort-Erkennung neuer Mails (IMAP IDLE), Demo-Modus.
 - **Datensparsam:** Postfach nur lesend, keine Cloud nötig, keine Anmeldung
@@ -314,6 +321,26 @@ Server-Adressen und Zugangsdaten (IMAP, KI-Server, iCloud) sind bewusst nur in
 `.env` änderbar und werden auf der Seite nur angezeigt (Passwörter nicht). Da
 die Oberfläche keinen Login hat, könnte sonst jemand im Netz z. B. alle E-Mails
 an einen fremden KI-Server umleiten.
+
+## Benachrichtigungen
+
+Die App meldet neue Vorschläge, länger andauernde Störungen (Postfach,
+KI-Server, iCloud – samt Entwarnung), auffällig viele gelöschte Kalendertermine
+und neue Versionen. Welche Ereignisse, legst du unter **Einstellungen →
+Benachrichtigungen** fest; dort steht auch „Test senden“. Die Kanäle kommen aus
+`.env` – jeder eingetragene wird genutzt:
+
+| Kanal | Einträge in `.env` |
+|---|---|
+| [ntfy](https://ntfy.sh) | `NTFY_URL=https://ntfy.sh/mein-geheimes-thema`, optional `NTFY_TOKEN` |
+| [Pushover](https://pushover.net) | `PUSHOVER_TOKEN`, `PUSHOVER_USER` |
+| Home Assistant | `HOMEASSISTANT_URL`, `HOMEASSISTANT_TOKEN` (langlebiges Token), `HOMEASSISTANT_SERVICE` (z. B. `mobile_app_mein_iphone`) |
+| E-Mail | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY` (`starttls`/`ssl`/`none`), `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `NOTIFY_EMAIL_TO` |
+
+Mit `APP_URL=http://<server-ip>:8080` enthalten die Nachrichten einen Link zur
+App. Laufen Nachrichten über fremde Server (z. B. ntfy.sh), unter „Inhalt der
+Nachricht“ besser **Nur Anzahl** wählen – dann verrät die Nachricht nichts über
+die Termine.
 
 ## Sicherungen
 
