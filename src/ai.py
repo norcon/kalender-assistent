@@ -288,9 +288,11 @@ def extract_events(
         response.raise_for_status()
     except httpx.HTTPStatusError as error:
         if images and error.response.status_code in {400, 404, 415, 422}:
+            detail = " ".join(error.response.text.split())[:300]
             raise ValueError(
                 "Der konfigurierte KI-Endpunkt hat Bildanhänge abgelehnt. "
                 "Bitte ein Vision-fähiges Modell konfigurieren."
+                + (f" Antwort des Servers: {detail}" if detail else "")
             ) from error
         raise
     result = response.json()

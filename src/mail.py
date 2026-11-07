@@ -7,6 +7,7 @@ import imaplib
 import io
 import logging
 import math
+import warnings
 import mimetypes
 import re
 import ssl
@@ -18,6 +19,7 @@ from typing import Any
 
 import httpx
 import pymupdf as fitz
+from PIL import Image, UnidentifiedImageError
 from pypdf import PdfReader
 
 from .i18n import _
@@ -26,6 +28,10 @@ from .config import Settings
 
 logger = logging.getLogger(__name__)
 _SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+# JPEG und PNG versteht jeder Vision-Server; alles andere wird umgewandelt.
+_PASSTHROUGH_FORMATS = {"JPEG": "image/jpeg", "PNG": "image/png"}
+_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff")
+_MAX_DECODE_PIXELS = 40_000_000  # Schutz vor „Dekompressionsbomben“
 _MAX_VISION_BYTES = 8 * 1024 * 1024
 _MAX_VISION_IMAGES = 10
 _MAX_VISION_PIXELS = 2_500_000
@@ -85,6 +91,41 @@ def _html_to_text(value: str) -> str:
     return html.unescape("".join(parser.parts))
 
 
+def _vision_image(data: bytes) -> tuple[str, bytes] | None:
+    """Bild so aufbereiten, dass jeder Vision-Server es annimmt.
+
+    Maßgeblich ist der echte Inhalt, nicht der Typ im Mail-Header. JPEG und PNG
+    gehen unverändert durch; WebP, GIF, BMP und TIFF werden zu PNG (mit
+    Transparenz) oder JPEG und bei Bedarf verkleinert. None = nicht lesbar.
+    """
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data)) as image:
+                if image.width * image.height > _MAX_DECODE_PIXELS:
+                    return None
+                if image.format in _PASSTHROUGH_FORMATS:
+                    return _PASSTHROUGH_FORMATS[image.format], data
+                image.seek(0)  # bei Animationen das erste Bild
+                image.load()
+                pixels = image.width * image.height
+                if pixels > _MAX_VISION_PIXELS:
+                    scale = math.sqrt(_MAX_VISION_PIXELS / pixels)
+                    image.thumbnail((max(1, int(image.width * scale)), max(1, int(image.height * scale))))
+                transparent = image.mode in ("RGBA", "LA", "PA") or (
+                    image.mode == "P" and "transparency" in image.info
+                )
+                output = io.BytesIO()
+                if transparent:
+                    image.convert("RGBA").save(output, "PNG", optimize=True)
+                    return "image/png", output.getvalue()
+                image.convert("RGB").save(output, "JPEG", quality=85)
+                return "image/jpeg", output.getvalue()
+    except (UnidentifiedImageError, Image.DecompressionBombError, Image.DecompressionBombWarning,
+            OSError, ValueError, EOFError):
+        return None
+
+
 def _attachment_content(part: Message) -> tuple[str, list[dict[str, Any]]]:
     payload = part.get_payload(decode=True) or b""
     content_type = part.get_content_type().lower()
@@ -132,22 +173,22 @@ def _attachment_content(part: Message) -> tuple[str, list[dict[str, Any]]]:
         if content_type in _SUPPORTED_IMAGE_TYPES
         else guessed_type or content_type
     )
-    if image_type.startswith("image/") or filename.endswith(
-        (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
-    ):
-        if image_type not in _SUPPORTED_IMAGE_TYPES:
+    if image_type.startswith("image/") or filename.endswith(_IMAGE_EXTENSIONS):
+        prepared = _vision_image(payload)
+        if prepared is None:
             logger.warning(
-                "Bildanhang %s hat nicht unterstützten Typ %s; "
-                "nur JPEG, PNG und WebP werden an die Vision-KI gesendet.",
+                "Bildanhang %s (%s) lässt sich nicht lesen und wird nicht an die "
+                "Vision-KI gesendet; unterstützt sind JPEG, PNG, WebP, GIF, BMP und TIFF.",
                 filename or "(ohne Dateiname)",
                 image_type,
             )
             return "", []
+        mime_type, data = prepared
         return "", [
             {
                 "name": filename or "Bildanhang",
-                "mime_type": image_type,
-                "data": payload,
+                "mime_type": mime_type,
+                "data": data,
             }
         ]
     if _is_calendar_part(part):

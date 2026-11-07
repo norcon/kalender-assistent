@@ -4,6 +4,20 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.19.2 – 2026-11-07
+
+- Bilder in Mails werden vor dem Senden an die KI in ein Format gebracht,
+  das jeder Vision-Server versteht: WebP, GIF, BMP und TIFF werden zu JPEG
+  (bzw. PNG bei Transparenz) umgewandelt und große Bilder verkleinert. Bisher
+  lehnten manche Server WebP ab („'url' field must be a base64 encoded
+  image“), z. B. das Vorschaubild in iCloud-Mails zu geteilten Alben – die
+  ganze Mail scheiterte dann.
+- Maßgeblich ist der echte Bildinhalt, nicht der Typ im Mail-Header.
+  Unlesbare Bilder werden übersprungen, statt die Auswertung der Mail zu
+  verhindern.
+- Lehnt der KI-Server Bilder ab, steht seine Antwort jetzt mit im Protokoll.
+- Neue Abhängigkeit: Pillow 13.0.0.
+
 ## 0.19.1 – 2026-11-07
 
 - Das Symbol neben dem Namen oben links ist jetzt das eigene App-Icon. Das

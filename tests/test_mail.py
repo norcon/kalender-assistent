@@ -6,7 +6,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
+import io
 import pymupdf
+from PIL import Image
 
 from src import db, mail
 from src.mail import (
@@ -17,6 +19,12 @@ from src.mail import (
     _search_uids,
     poll_mailbox,
 )
+
+
+def _image_bytes(format_name, mode="RGB", size=(40, 30)):
+    output = io.BytesIO()
+    Image.new(mode, size, (200, 80, 40, 128)[: len(mode)]).save(output, format_name)
+    return output.getvalue()
 
 
 class MessageTextTests(unittest.TestCase):
@@ -64,10 +72,11 @@ class MessageTextTests(unittest.TestCase):
         self.assertNotIn("HTML-Kopie", extracted)
 
     def test_extracts_image_attachment_for_vision_model(self):
+        png = _image_bytes("PNG")
         message = EmailMessage()
         message.set_content("Bitte Einladung beachten.")
         message.add_attachment(
-            b"fake-png-content",
+            png,
             maintype="image",
             subtype="png",
             filename="einladung.png",
@@ -79,7 +88,42 @@ class MessageTextTests(unittest.TestCase):
         self.assertEqual(len(images), 1)
         self.assertEqual(images[0]["name"], "einladung.png")
         self.assertEqual(images[0]["mime_type"], "image/png")
-        self.assertEqual(images[0]["data"], b"fake-png-content")
+        self.assertEqual(images[0]["data"], png)  # PNG geht unverändert durch
+
+    def test_converts_webp_gif_and_mislabelled_images(self):
+        cases = [
+            ("album-thumbnail.webp", "webp", _image_bytes("WEBP"), "image/jpeg"),
+            ("logo.webp", "webp", _image_bytes("WEBP", mode="RGBA"), "image/png"),
+            ("animiert.gif", "gif", _image_bytes("GIF"), "image/jpeg"),
+            ("falsch.jpg", "jpeg", _image_bytes("WEBP"), "image/jpeg"),  # Header lügt
+        ]
+        for name, subtype, data, expected in cases:
+            with self.subTest(name):
+                message = EmailMessage()
+                message.set_content("Text")
+                message.add_attachment(data, maintype="image", subtype=subtype, filename=name)
+                images = _message_content(message)[1]
+                self.assertEqual(images[0]["mime_type"], expected)
+                magic = b"\x89PNG" if expected == "image/png" else b"\xff\xd8"
+                self.assertTrue(images[0]["data"].startswith(magic))
+
+    def test_large_converted_image_is_downscaled(self):
+        message = EmailMessage()
+        message.set_content("Text")
+        message.add_attachment(_image_bytes("WEBP", size=(3000, 2000)), maintype="image", subtype="webp", filename="gross.webp")
+        data = _message_content(message)[1][0]["data"]
+        with Image.open(io.BytesIO(data)) as image:
+            self.assertLessEqual(image.width * image.height, mail._MAX_VISION_PIXELS)
+
+    def test_unreadable_image_is_skipped_not_fatal(self):
+        message = EmailMessage()
+        message.set_content("Bitte lesen.")
+        message.add_attachment(b"kein bild", maintype="image", subtype="webp", filename="kaputt.webp")
+        message.add_attachment(b"<svg/>", maintype="image", subtype="svg+xml", filename="icon.svg")
+        with self.assertLogs("src.mail", "WARNING"):
+            text, images = _message_content(message)
+        self.assertEqual(images, [])
+        self.assertIn("Bitte lesen.", text)
 
     def test_renders_textless_pdf_page_for_vision_model(self):
         document = pymupdf.open()
