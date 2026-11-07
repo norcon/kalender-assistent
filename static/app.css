@@ -594,4 +594,7 @@ main.setup { max-width: 46rem; }
 .setup-summary dd { margin: 0; overflow-wrap: anywhere; }
 .setup-nav { display: flex; justify-content: space-between; gap: .6rem; margin: 1rem 0 3rem; }
 .setup-nav #setup-next, .setup-nav #setup-finish { margin-left: auto; }
+.setup-skip { background: none; border: 0; padding: .5rem .2rem; color: var(--text-2); text-decoration: underline; cursor: pointer; font: inherit; }
+.setup-skip:hover { color: var(--text); background: none; }
+.setup-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
 #manual-env pre { white-space: pre-wrap; overflow-wrap: anywhere; }

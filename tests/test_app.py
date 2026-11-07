@@ -1089,6 +1089,39 @@ class SetupModeTests(unittest.TestCase):
                         self.assertEqual(client.post("/api/setup/caldav", json={"username": "u", "password": "p"}).json()["calendars"], [{"name": "Alex"}])
                     self.assertTrue(client.get("/api/setup/state").json()["setup_mode"])
 
+    def test_skip_and_resume(self):
+        path = app_module.settings.database_path
+        unconfigured = replace(app_module._env_settings, setup_mode=True, mail_configured=False)
+        with patch.object(app_module.mail, "poll_mailbox"), \
+                patch.object(app_module, "_env_settings", unconfigured), \
+                patch.object(app_module, "settings", unconfigured):
+            with TestClient(app_module.app) as client:
+                self.assertEqual(client.get("/", follow_redirects=False).headers["location"], "/einrichtung")
+                self.assertIn('id="setup-skip"', client.get("/einrichtung").text)
+                self.assertEqual(client.post("/api/setup/skip").status_code, 200)
+                self.assertFalse(app_module.settings.setup_mode)
+                self.assertNotIn("Postfachabruf", app_module._workers)
+                self.assertIn("KI-Prüfung", app_module._workers)
+                page = client.get("/", follow_redirects=False)
+                self.assertEqual(page.status_code, 200)
+                self.assertIn('id="setup-resume"', page.text)
+                self.assertEqual(client.get("/einrichtung", follow_redirects=False).headers["location"], "/")
+                self.assertEqual(client.post("/api/setup/skip").status_code, 404)
+                self.assertEqual(client.post("/api/check").status_code, 409)
+                self.assertEqual(client.get("/health").json()["checks"]["mail"], "off")
+            # Auch nach einem Neustart bleibt der Assistent aus
+            with TestClient(app_module.app) as client:
+                self.assertEqual(client.get("/", follow_redirects=False).status_code, 200)
+                self.assertNotIn("Postfachabruf", app_module._workers)
+                self.assertEqual(client.post("/api/setup/resume").status_code, 200)
+                self.assertTrue(app_module.settings.setup_mode)
+                self.assertEqual(client.get("/", follow_redirects=False).headers["location"], "/einrichtung")
+        self.assertFalse(db.get_service_state(path).get(app_module.SETUP_SKIPPED_KEY))
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                self.assertNotIn('id="setup-resume"', client.get("/").text)
+                self.assertEqual(client.post("/api/setup/resume").status_code, 404)
+
     def test_finish_with_and_without_updater(self):
         before = db.list_target_calendars(app_module.settings.database_path)
         payload = {"language": "en", "timezone": "Europe/Berlin", "imap_host": "imap.example.org", "imap_username": "a@b.de",

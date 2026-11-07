@@ -4,6 +4,15 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.19.0 – 2026-11-07
+
+- Einrichtungsassistent: Neuer Knopf „Überspringen“. Die App startet dann
+  ohne Postfach, der Assistent erscheint auch nach einem Neustart nicht mehr.
+  Ein Hinweis oben auf jeder Seite startet ihn bei Bedarf erneut; alternativ
+  die Zugangsdaten direkt in `.env` eintragen.
+- Ohne eingerichtetes Postfach zeigt die Statusanzeige „Nicht eingerichtet“,
+  und der Postfachabruf läuft nicht.
+
 ## 0.18.0 – 2026-11-07
 
 Einrichtungsassistent:

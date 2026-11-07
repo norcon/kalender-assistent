@@ -8,6 +8,7 @@ import re
 import threading
 from collections import Counter, deque
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from functools import partial
 import time
 import zoneinfo
@@ -74,6 +75,8 @@ templates.env.globals["app_version"] = version.VERSION
 templates.env.globals["app_released"] = version.RELEASED
 templates.env.globals["demo_mode"] = False  # wird in _reload_settings gesetzt
 templates.env.globals["setup_mode"] = False
+templates.env.globals["setup_skipped"] = False
+SETUP_SKIPPED_KEY = "setup_skipped"
 templates.env.globals["_"] = i18n.gettext
 templates.env.globals["_n"] = i18n.ngettext
 templates.env.globals["current_lang"] = i18n.current
@@ -249,8 +252,15 @@ def _reload_settings() -> None:
     settings = settings_store.apply_overrides(
         _env_settings, db.get_app_settings(_env_settings.database_path)
     )
+    # Übersprungene Einrichtung: App läuft ohne Postfach, bis .env ergänzt ist.
+    skipped = settings.setup_mode and bool(
+        db.get_service_state(settings.database_path).get(SETUP_SKIPPED_KEY)
+    )
+    if skipped:
+        settings = replace(settings, setup_mode=False)
     templates.env.globals["demo_mode"] = settings.demo_mode
     templates.env.globals["setup_mode"] = settings.setup_mode
+    templates.env.globals["setup_skipped"] = skipped
 
 
 async def _run_backup(*, prune: bool = True) -> Path:
@@ -462,9 +472,29 @@ def _start_watchdog() -> None:
     threading.Thread(target=_hang_watchdog, name="watchdog", daemon=True).start()
 
 
+def _start_workers() -> None:
+    """Startet die passenden Hintergrundprozesse, die noch nicht laufen."""
+    workers = {
+        "Datenbanksicherung": _backup_worker,
+        "Archivierung": _archive_worker,
+    }
+    if not (settings.demo_mode or settings.setup_mode):  # Demo/Einrichtung: keine Verbindungen nach außen
+        workers.update({
+            "Kalendersicherung": _calendar_backup_worker,
+            "KI-Prüfung": _ai_check_worker,
+        })
+        if settings.mail_configured:
+            workers["Postfachabruf"] = _mail_worker
+    for name, worker in workers.items():
+        if name not in _workers:
+            _workers[name] = asyncio.create_task(worker())
+    if "Postfachabruf" in workers and _idle_watcher is None:
+        _start_idle_watcher(asyncio.get_running_loop())
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global _heartbeat
+    global _heartbeat, _idle_watcher
     db.initialize(settings.database_path)
     _reload_settings()
     if settings.demo_mode:
@@ -485,21 +515,10 @@ async def lifespan(_: FastAPI):
     _stop_threads.clear()
     _heartbeat = time.monotonic()
     _workers.clear()
-    workers = {
-        "Datenbanksicherung": _backup_worker,
-        "Archivierung": _archive_worker,
-    }
-    if not (settings.demo_mode or settings.setup_mode):  # Demo/Einrichtung: keine Verbindungen nach außen
-        workers.update({
-            "Postfachabruf": _mail_worker,
-            "Kalendersicherung": _calendar_backup_worker,
-            "KI-Prüfung": _ai_check_worker,
-        })
-    _workers.update({name: asyncio.create_task(worker()) for name, worker in workers.items()})
+    _idle_watcher = None
+    _start_workers()
     heartbeat = asyncio.create_task(_heartbeat_worker())
     _start_watchdog()
-    if not (settings.demo_mode or settings.setup_mode):
-        _start_idle_watcher(asyncio.get_running_loop())
     try:
         yield
     finally:
@@ -644,6 +663,28 @@ async def setup_page(request: Request):
 @app.get("/api/setup/state")
 async def setup_state():
     return {"setup_mode": settings.setup_mode, "version": version.VERSION}
+
+
+@app.post("/api/setup/skip")
+async def setup_skip():
+    """Assistent überspringen: Die App startet ohne Postfach; .env später ergänzen."""
+    _require_setup_mode()
+    db.set_service_state(settings.database_path, **{SETUP_SKIPPED_KEY: datetime.now(timezone.utc).isoformat()})
+    _reload_settings()
+    _start_workers()
+    _status_cache.clear()
+    logger.info("Einrichtungsassistent übersprungen; das Postfach ist nicht eingerichtet.")
+    return {"ok": True}
+
+
+@app.post("/api/setup/resume")
+async def setup_resume():
+    """Übersprungenen Assistenten wieder öffnen (nur solange das Postfach fehlt)."""
+    if settings.demo_mode or settings.mail_configured:
+        raise HTTPException(status_code=404, detail=_("Die Einrichtung ist bereits abgeschlossen."))
+    db.set_service_state(settings.database_path, **{SETUP_SKIPPED_KEY: ""})
+    _reload_settings()
+    return {"ok": True}
 
 
 @app.post("/api/setup/imap")
@@ -975,6 +1016,11 @@ async def check_mailbox():
         return JSONResponse(
             status_code=200,
             content={"status": "success", "message": _("Demo-Modus: es ist kein Postfach angebunden.")},
+        )
+    if not settings.mail_configured:
+        return JSONResponse(
+            status_code=409,
+            content={"status": "error", "message": _("Das Postfach ist noch nicht eingerichtet.")},
         )
     if _mail_check_lock.locked():
         return JSONResponse(

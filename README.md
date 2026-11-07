@@ -61,7 +61,9 @@ Dann `http://<server-ip>:8080` im Browser öffnen: Der **Einrichtungsassistent**
 fragt Sprache und Zeitzone, Postfach, KI-Server (mit Modellliste und
 Probe-Auswertung) und iCloud samt Zielkalendern ab, prüft jede Verbindung
 sofort und schreibt die Einstellungen über den Updater in `.env`. Danach ist
-er gesperrt – Zugangsdaten änderst du nur noch in `.env`.
+er gesperrt – Zugangsdaten änderst du nur noch in `.env`. Mit „Überspringen“
+startet die App ohne Postfach; ein Hinweis oben auf jeder Seite öffnet den
+Assistenten bei Bedarf erneut.
 
 Ohne Updater (`docker compose up -d`) zeigt der Assistent am Ende die fertigen
 Zeilen für `.env` zum Kopieren. Wer lieber direkt `.env` bearbeitet, trägt

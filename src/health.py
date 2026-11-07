@@ -74,7 +74,9 @@ def status_items(
     # Postfach
     success = service_state.get("mail_last_success")
     failure = service_state.get("mail_last_error")
-    if check_state.get("status") == "running":
+    if not settings.mail_configured:
+        mail = ("off", _("Nicht eingerichtet"))
+    elif check_state.get("status") == "running":
         mail = ("ok", _("Abruf läuft …"))
     elif failure and (not success or failure > success):
         mail = ("error", _("Letzter Abruf fehlgeschlagen ({age})", age=formatting.relative_time(failure, now)))
@@ -91,7 +93,9 @@ def status_items(
     # IMAP IDLE
     status = (idle_state or {}).get("status")
     minutes = max(1, round(settings.imap_poll_seconds / 60))
-    if status == "active":
+    if not settings.mail_configured:
+        idle = ("off", _("Aus – kein Postfach eingerichtet"))
+    elif status == "active":
         idle_minutes = max(1, round(effective_poll_seconds(settings, idle_state) / 60))
         idle = ("ok", _("Neue E-Mails werden sofort erkannt – zur Sicherheit Abruf alle {minutes} Min.", minutes=idle_minutes))
     elif status == "unsupported":

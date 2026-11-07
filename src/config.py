@@ -36,6 +36,7 @@ class Settings:
     newsletter_min_confidence_percent: int = 95
     demo_mode: bool = False
     setup_mode: bool = False  # Zugangsdaten fehlen → nur der Einrichtungsassistent läuft
+    mail_configured: bool = True  # Postfach-Zugangsdaten vorhanden (oder Demo)
     language: str = "auto"
     update_repository: str = "norcon/kalender-assistent"
     updater_url: str = "http://updater:8000"
@@ -60,6 +61,7 @@ class Settings:
         return cls(
             demo_mode=demo,
             setup_mode=setup,
+            mail_configured=demo or all(imap.values()),
             language=os.getenv("APP_LANGUAGE", "auto").strip().lower() or "auto",
             update_repository=os.getenv("UPDATE_REPOSITORY", "norcon/kalender-assistent").strip(),
             updater_url=os.getenv("UPDATER_URL", "http://updater:8000").strip(),

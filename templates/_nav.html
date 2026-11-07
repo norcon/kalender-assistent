@@ -29,3 +29,4 @@
   </div>
 </nav>
 {% if demo_mode %}<p class="demo-banner" role="note">{{ _("Demo-Modus: erfundene Beispieldaten. Es werden keine Mails gelesen und nichts an iCloud gesendet.") }}</p>{% endif %}
+{% if setup_skipped %}<div class="demo-banner setup-banner" role="note"><span>{{ _("Die Einrichtung wurde übersprungen: Es ist kein Postfach angebunden. Zugangsdaten in .env eintragen oder den Assistenten erneut starten.") }}</span> <button type="button" class="secondary" id="setup-resume">{{ _("Einrichtung starten") }}</button></div>{% endif %}

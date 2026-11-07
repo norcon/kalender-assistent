@@ -19,6 +19,16 @@ document.addEventListener("click", function (event) {
   window.location.reload();
 });
 
+// Übersprungene Einrichtung: Assistent erneut starten.
+document.addEventListener("click", function (event) {
+  var button = event.target.closest && event.target.closest("#setup-resume");
+  if (!button) return;
+  button.disabled = true;
+  fetch("/api/setup/resume", { method: "POST" }).then(function (response) {
+    window.location.href = response.ok ? "/einrichtung" : "/";
+  }).catch(function () { button.disabled = false; });
+});
+
 // Darstellung umschalten: Automatisch → Hell → Dunkel → Automatisch.
 (function () {
   var labels = { auto: t("Automatisch"), light: t("Hell"), dark: t("Dunkel") };

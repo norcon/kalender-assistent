@@ -10,7 +10,7 @@ from src import health
 NOW = datetime(2026, 11, 4, 20, 0, tzinfo=timezone.utc)
 SETTINGS = SimpleNamespace(
     imap_poll_seconds=300, calendar_backup_minutes=60, ai_model="kalender-assistent",
-    ai_base_url="http://ai/v1", ai_api_key="",
+    ai_base_url="http://ai/v1", ai_api_key="", mail_configured=True,
 )
 
 
@@ -35,6 +35,16 @@ class StatusItemTests(unittest.TestCase):
         failed = items(service_state={"mail_last_success": ago(hours=1), "mail_last_error": ago(minutes=1)})
         self.assertEqual(failed["mail"]["state"], "error")
         self.assertEqual(items(check_state={"status": "running"})["mail"]["text"], "Abruf läuft …")
+
+    def test_mail_not_configured_after_skipped_setup(self):
+        with patch.object(health, "_age", side_effect=AssertionError("kein Abruf erwartet")):
+            result = {item["key"]: item for item in health.status_items(
+                SimpleNamespace(**{**vars(SETTINGS), "mail_configured": False}),
+                service_state={}, check_state={"status": "idle"}, ai_state=None, idle_state=None,
+                last_calendar_snapshot=None, caldav_configured=False, now=NOW,
+            )}
+        self.assertEqual((result["mail"]["state"], result["mail"]["text"]), ("off", "Nicht eingerichtet"))
+        self.assertEqual(result["idle"]["state"], "off")
 
     def test_idle_ai_and_icloud_states(self):
         self.assertEqual(items(idle_state={"status": "active"})["idle"]["state"], "ok")
