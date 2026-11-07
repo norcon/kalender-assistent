@@ -668,3 +668,10 @@ button.small { min-height: 2rem; padding: .3rem .7rem; font-size: .88rem; }
   button.small { min-height: var(--tap); }
   .segment, .tab { min-height: var(--tap); }
 }
+
+.notice.danger { background: var(--danger-soft); border-left-color: var(--danger); }
+.mass-alert p { margin: 0 0 .6rem; }
+.mass-alert-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.mass-alert-actions form { margin: 0; }
+button.ghost { background: transparent; color: var(--text-2); border-color: var(--border); }
+button.ghost:hover:not(:disabled) { background: var(--neutral-soft); color: var(--text); }

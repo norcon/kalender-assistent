@@ -4,6 +4,16 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.22.0 – 2026-11-07
+
+- Kalender-Sicherung: „Wiederherstellen“ steht wieder bei allen gesicherten
+  Terminen – bei unveränderten dezent, um den Stand in iCloud bei Problemen
+  bewusst zu überschreiben. Neue Termine haben weiterhin keinen Knopf.
+- Warnung bei Massenlöschung: Fehlen bei einer Kalendersicherung plötzlich
+  viele Termine (mindestens 5 und die Hälfte eines Kalenders oder 20
+  insgesamt), zeigen Startseite und Sicherungen einen deutlichen Hinweis mit
+  Link zu den gelöschten Terminen. „Ausblenden“ quittiert ihn.
+
 ## 0.21.0 – 2026-11-07
 
 - Kalender-Sicherung: Der Änderungsverlauf fasst die Änderungen jetzt nach

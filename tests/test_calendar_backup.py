@@ -129,6 +129,21 @@ class CalendarBackupTests(unittest.TestCase):
         self.assertEqual(points[1]["before_id"], sid)
         self.assertIsNone(points[2]["before_id"])
 
+    def test_mass_deletion_thresholds(self):
+        md = calendar_backup.mass_deletion
+        self.assertEqual(md({"deleted": 3, "deleted_by_calendar": {"A": 3}, "before_by_calendar": {"A": 4}}), [])
+        self.assertEqual(md({"deleted": 6, "deleted_by_calendar": {"A": 6}, "before_by_calendar": {"A": 100}}), [])
+        self.assertEqual([h["calendar"] for h in md({"deleted": 6, "deleted_by_calendar": {"A": 6, "B": 0}, "before_by_calendar": {"A": 10, "B": 5}})], ["A"])
+        many = md({"deleted": 25, "deleted_by_calendar": {"A": 15, "B": 10}, "before_by_calendar": {"A": 500, "B": 400}})
+        self.assertEqual([(h["calendar"], h["deleted"]) for h in many], [("A", 15), ("B", 10)])
+        t0 = datetime(2026, 11, 4, 10, tzinfo=timezone.utc)
+        self.snapshot(t0)
+        self.cloud.calendars["familie"].clear()
+        result = self.snapshot(t0 + timedelta(hours=1))
+        self.assertEqual(result["deleted_by_calendar"]["Familie"], 2)
+        self.assertEqual(result["before_by_calendar"]["Familie"], 2)
+        self.assertEqual(calendar_backup.previous_snapshot_id(self.store, result["snapshot_id"]), result["snapshot_id"] - 1)
+
     def test_running_series_counts_as_upcoming(self):
         familie = self.cloud.calendars["familie"]
         familie["/c/f/s.ics"] = ("1", "BEGIN:VEVENT\r\nUID:s\r\nSUMMARY:Turnen\r\nDTSTART:20250101T160000Z\r\nRRULE:FREQ=WEEKLY\r\nEND:VEVENT\r\n")

@@ -367,8 +367,50 @@ def _calendar_backup_sync() -> dict[str, object]:
             lambda url: caldav.list_event_etags(client, url),
             lambda url, hrefs: caldav.fetch_events(client, url, hrefs),
         )
+    _check_mass_deletion(result)
     calendar_backup.prune(store, settings.calendar_keep_days)
     return result
+
+
+MASS_DELETE_KEY = "mass_delete_alert"
+
+
+def _check_mass_deletion(result: dict[str, Any]) -> None:
+    """Fehlen plötzlich viele Termine, Warnung merken (Startseite, Sicherungen)."""
+    hits = calendar_backup.mass_deletion(result)
+    if not hits:
+        return
+    store = settings.calendar_store_path
+    snapshot_id = int(result["snapshot_id"])
+    alert = {
+        "snapshot_id": snapshot_id,
+        "before_id": calendar_backup.previous_snapshot_id(store, snapshot_id),
+        "taken_at": datetime.now(timezone.utc).isoformat(),
+        "deleted": sum(hit["deleted"] for hit in hits),
+        "calendars": hits,
+    }
+    db.set_service_state(settings.database_path, **{MASS_DELETE_KEY: json.dumps(alert, ensure_ascii=False)})
+    logger.warning(
+        "Kalendersicherung: auffällig viele Termine fehlen plötzlich (%s).",
+        ", ".join(f"{hit['calendar']}: {hit['deleted']} von {hit['before']}" for hit in hits),
+    )
+
+
+def _mass_alert() -> dict[str, Any] | None:
+    raw = db.get_service_state(settings.database_path).get(MASS_DELETE_KEY)
+    try:
+        alert = json.loads(raw) if raw else None
+    except ValueError:
+        return None
+    if not alert or not alert.get("before_id"):
+        return alert
+    alert["link"] = "/sicherungen/kalender?" + urlencode(
+        {"stand": alert["before_id"], "status": "gelöscht", "zeitraum": "alle"}
+    )
+    return alert
+
+
+templates.env.globals["mass_alert"] = _mass_alert
 
 
 async def _run_calendar_backup() -> dict[str, object]:
@@ -3007,6 +3049,14 @@ async def calendar_backup_search(
     if verlauf in HISTORY_GROUPINGS:  # Wahl pro Gerät merken
         response.set_cookie("verlauf", verlauf, max_age=31536000, samesite="lax")
     return response
+
+
+@app.post("/sicherungen/warnung/ausblenden")
+async def dismiss_mass_alert(request: Request):
+    db.set_service_state(settings.database_path, **{MASS_DELETE_KEY: ""})
+    target = urlsplit(request.headers.get("referer") or "/")
+    path = target.path if target.path.startswith("/") and not target.path.startswith("//") else "/"
+    return RedirectResponse(path, status_code=303)
 
 
 @app.post("/sicherungen/kalender/eintrag/{presence_id}/wiederherstellen")

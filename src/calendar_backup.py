@@ -224,7 +224,8 @@ def take_snapshot(
     nichts als gelöscht markiert) und die Sicherung gilt als unvollständig.
     """
     now = now or datetime.now(timezone.utc)
-    summary = {"added": 0, "changed": 0, "deleted": 0, "total": 0, "errors": []}
+    summary = {"added": 0, "changed": 0, "deleted": 0, "total": 0, "errors": [],
+               "deleted_by_calendar": {}, "before_by_calendar": {}}
     with closing(connect(store_path)) as connection, connection:
         snapshot_id = connection.execute(
             "INSERT INTO snapshots(taken_at, status, calendars) VALUES (?, 'running', ?)",
@@ -271,6 +272,8 @@ def take_snapshot(
                     (snapshot_id, open_rows[href]["id"]),
                 )
             summary["deleted"] += len(gone)
+            summary["deleted_by_calendar"][name] = len(gone)
+            summary["before_by_calendar"][name] = len(open_rows)
 
             for href, (etag, ics) in fetched.items():
                 version_hash = sha256(ics.encode("utf-8")).hexdigest()
@@ -321,6 +324,34 @@ def take_snapshot(
         f" (Fehler: {', '.join(summary['errors'])})" if summary["errors"] else "",
     )
     return summary
+
+
+MASS_DELETE_TOTAL = 20  # so viele Löschungen in einem Lauf sind immer auffällig
+MASS_DELETE_CALENDAR = 5  # je Kalender: mindestens so viele …
+MASS_DELETE_SHARE = 0.5  # … und mindestens dieser Anteil seiner Termine
+
+
+def mass_deletion(summary: dict[str, Any]) -> list[dict[str, Any]]:
+    """Kalender mit auffällig vielen Löschungen in diesem Lauf (leer = unauffällig)."""
+    deleted = summary.get("deleted_by_calendar", {})
+    before = summary.get("before_by_calendar", {})
+    hits = [
+        {"calendar": name, "deleted": count, "before": before.get(name, 0)}
+        for name, count in deleted.items()
+        if count >= MASS_DELETE_CALENDAR and count >= MASS_DELETE_SHARE * max(1, before.get(name, 0))
+    ]
+    if not hits and summary.get("deleted", 0) >= MASS_DELETE_TOTAL:
+        hits = [{"calendar": name, "deleted": count, "before": before.get(name, 0)}
+                for name, count in deleted.items() if count]
+    return sorted(hits, key=lambda hit: -hit["deleted"])
+
+
+def previous_snapshot_id(store_path: str, snapshot_id: int) -> int | None:
+    with closing(connect(store_path)) as connection:
+        row = connection.execute(
+            "SELECT MAX(id) FROM snapshots WHERE id < ? AND status != 'running'", (snapshot_id,)
+        ).fetchone()
+    return row[0] if row and row[0] is not None else None
 
 
 def prune(store_path: str, keep_days: int, now: datetime | None = None) -> int:

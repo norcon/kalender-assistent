@@ -8,6 +8,7 @@
   {% with active="sicherungen" %}{% include "_nav.html" %}{% endwith %}
   <main id="main">
   <h1>{{ _("Sicherungen") }}</h1>
+  {% include "_mass_alert.html" %}
 
   {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
   {% if problem %}<p class="message problem" role="alert">{{ problem }}</p>{% endif %}

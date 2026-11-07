@@ -1257,7 +1257,7 @@ class CalendarBackupPageTests(unittest.TestCase):
                 self.assertEqual(args[1:3], ("https://p1.example/c/fam-neu/", "a.ics"))
                 self.assertIn("SUMMARY:Martinszug", args[3])
 
-    def test_unchanged_events_have_no_restore_button(self):
+    def test_unchanged_events_offer_overwrite(self):
         from src import calendar_backup
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
@@ -1273,7 +1273,9 @@ class CalendarBackupPageTests(unittest.TestCase):
                 page = client.get("/sicherungen/kalender?zeitraum=alle").text
                 self.assertIn("Repair Café", page)
                 self.assertNotIn("status-unverändert", page)
-                self.assertNotIn("Wiederherstellen</button>", page)
+                self.assertEqual(page.count("Wiederherstellen</button>"), 1)
+                self.assertIn('class="small ghost"', page)
+                self.assertIn("„Repair Café“ im Kalender „Alex“ mit dem Stand aus dieser Sicherung überschreiben?", page)
                 self.assertNotIn('class="tabs"', page)  # neuester Stand: keine Reiter
                 Path(store).unlink(missing_ok=True)
 
@@ -1381,6 +1383,28 @@ class CalendarBackupPageTests(unittest.TestCase):
                 self.assertEqual(response.cookies.get("verlauf"), "monat")
                 self.assertRegex(client.get("/sicherungen/kalender").text, r'verlauf=monat"\s*aria-current="true"')
                 client.cookies.clear()
+
+    def test_mass_deletion_warning_and_dismiss(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                first = self._seed()
+                with self.assertLogs("src.app", "WARNING"):
+                    app_module._check_mass_deletion({
+                        "snapshot_id": first + 1, "deleted": 8,
+                        "deleted_by_calendar": {"Familie": 8, "Privat": 0},
+                        "before_by_calendar": {"Familie": 10, "Privat": 4},
+                    })
+                for url in ("/", "/sicherungen", "/sicherungen/kalender"):
+                    page = client.get(url).text
+                    self.assertIn("Auffällig viele Termine fehlen", page, url)
+                self.assertIn(f"/sicherungen/kalender?stand={first}&amp;status=gel%C3%B6scht&amp;zeitraum=alle", page)
+                self.assertIn("8 Termine (Familie)", page)
+                response = client.post("/sicherungen/warnung/ausblenden", headers={"Referer": "http://testserver/sicherungen"}, follow_redirects=False)
+                self.assertEqual((response.status_code, response.headers["location"]), (303, "/sicherungen"))
+                self.assertNotIn("Auffällig viele Termine fehlen", client.get("/").text)
+                app_module._check_mass_deletion({"snapshot_id": first + 1, "deleted": 2,
+                                                 "deleted_by_calendar": {"Familie": 2}, "before_by_calendar": {"Familie": 3}})
+                self.assertNotIn("Auffällig viele Termine fehlen", client.get("/").text)  # unter der Schwelle
 
     def test_calendar_selection_defaults_to_all_and_can_exclude(self):
         with patch.object(app_module.mail, "poll_mailbox"):

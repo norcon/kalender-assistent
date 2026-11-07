@@ -11,6 +11,7 @@
   <h1>{{ _("Kalender-Sicherung durchsuchen") }}</h1>
 
   {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
+  {% include "_mass_alert.html" %}
   {% if problem %}<p class="message problem" role="alert">{{ problem }}</p>{% endif %}
 
   {% if not snapshots %}

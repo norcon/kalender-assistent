@@ -26,9 +26,9 @@
                   </dl>
                 {% endif %}
               </div>
-              {% if item.status in ("gelöscht", "geändert") %}
+              {% if item.status != "neu" %}
                 <form method="post" action="/sicherungen/kalender/eintrag/{{ item.id }}/wiederherstellen" class="row-action" data-confirm="{% if item.status == 'gelöscht' %}{{ _("„{title}“ im Kalender „{calendar}“ wieder anlegen?", title=item.summary, calendar=item.calendar) }}{% else %}{{ _("„{title}“ im Kalender „{calendar}“ mit dem Stand aus dieser Sicherung überschreiben?", title=item.summary, calendar=item.calendar) }}{% endif %}">
-                  <button type="submit" class="small secondary" {% if not caldav_configured %}disabled{% endif %}>{{ _("Wiederherstellen") }}</button>
+                  <button type="submit" class="small {{ "ghost" if item.status == "unverändert" else "secondary" }}" {% if not caldav_configured %}disabled{% endif %}>{{ _("Wiederherstellen") }}</button>
                 </form>
               {% endif %}
             </li>

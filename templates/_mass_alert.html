@@ -1,0 +1,10 @@
+{%- set alert = mass_alert() -%}
+{% if alert %}
+<div class="notice danger mass-alert" role="alert">
+  <p><strong>{{ _("Auffällig viele Termine fehlen") }}</strong> – {{ _("bei der Kalendersicherung {age} fehlten plötzlich {count} Termine ({calendars}). Wurde versehentlich etwas gelöscht?", age=alert.taken_at|relative_time, count=alert.deleted, calendars=alert.calendars|map(attribute="calendar")|join(", ")) }}</p>
+  <div class="mass-alert-actions">
+    {% if alert.link %}<a class="button" href="{{ alert.link }}">{{ _("Gelöschte Termine ansehen") }}</a>{% endif %}
+    <form method="post" action="/sicherungen/warnung/ausblenden"><button type="submit" class="secondary">{{ _("Ausblenden") }}</button></form>
+  </div>
+</div>
+{% endif %}
