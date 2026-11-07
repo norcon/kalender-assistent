@@ -91,9 +91,9 @@ def ai_probe(base_url: str, api_key: str, model: str, calendars: list[dict[str, 
         raise SetupError(_("Die Probe-Auswertung ist fehlgeschlagen ({error}). Modell und Server prüfen.", error=type(error).__name__)) from error
 
 
-def caldav_test(url: str, username: str, password: str) -> list[dict[str, Any]]:
+def caldav_test(url: str, username: str, password: str, auth_mode: str | None = None) -> list[dict[str, Any]]:
     try:
-        calendars = caldav.discover_icloud_calendars(url, username, password, 30)
+        calendars = caldav.discover_icloud_calendars(url, username, password, 30, auth_mode=auth_mode)
     except httpx.HTTPStatusError as error:
         raise SetupError(_("Der Kalender-Server hat die Anmeldung abgelehnt (HTTP {status}). Benutzer, Passwort und Adresse prüfen.", status=error.response.status_code)) from error
     except (httpx.HTTPError, ValueError) as error:

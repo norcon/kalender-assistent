@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="{{ current_lang() }}">
+<head>
+  {% from "_macros.html" import info %}
+  {% with page_title=_("Verbindungen") %}{% include "_head.html" %}{% endwith %}
+</head>
+<body>
+  {% with active="einstellungen" %}{% include "_nav.html" %}{% endwith %}
+  <main id="main" class="connections">
+  <p class="breadcrumb"><a href="/einstellungen">{{ _("Einstellungen") }}</a> › {{ _("Verbindungen") }}</p>
+  <h1>{{ _("Verbindungen") }}</h1>
+  <p class="meta">{{ _("Postfächer, KI-Server, Kalender-Server und Benachrichtigungen. Passwörter und Tokens liegen verschlüsselt in der Datenbank; der Schlüssel liegt getrennt davon, Sicherungen der Datenbank allein sind deshalb wertlos. Jede geänderte Verbindung wird vor dem Speichern geprüft, danach startet die App kurz neu.") }}</p>
+
+  {% if store_error %}<p class="message problem" role="alert">{{ _("Die gespeicherten Verbindungen sind nicht lesbar ({error}); es gelten die Werte aus .env. Fehlt die Datei secret.key im Datenordner?", error=store_error) }}</p>{% endif %}
+  {% if not editable %}<p class="notice">{{ reason }}</p>{% endif %}
+  {% if pending_cleanup %}
+    <div class="notice">
+      <p>{{ _("Diese Werte stehen noch zusätzlich in .env, gelten aber bereits aus der App: {keys}", keys=pending_cleanup|join(", ")) }}{% if cleanup_message %} <span class="meta">({{ cleanup_message }})</span>{% endif %}</p>
+      <button type="button" class="secondary" id="cleanup-env">{{ _("Jetzt aus .env entfernen") }}</button>
+      <span class="meta">{{ _("Braucht den Updater; vorher wird .env gesichert.") }}</span>
+    </div>
+  {% endif %}
+
+  <form class="connection-form" data-section="postfaecher" novalidate>
+    <section aria-labelledby="mailboxes-heading">
+      <h2 id="mailboxes-heading">{{ _("Postfächer") }}</h2>
+      <p class="help">{{ _("Das erste Postfach ist Pflicht. Weitere Postfächer oder Ordner werden einzeln abgerufen. Den Ordner des ersten Postfachs stellst du unter Einstellungen → Postfach ein.") }}</p>
+      <div class="mailbox-list">
+        {% for box in mailboxes %}{% include "_connection_mailbox.html" %}{% endfor %}
+      </div>
+      {% if editable %}
+        <template id="mailbox-template">{% with box={"number": 0, "fields": {}, "password_set": False, "folder": "INBOX"} %}{% include "_connection_mailbox.html" %}{% endwith %}</template>
+        <button type="button" class="secondary" id="add-mailbox"{% if mailboxes|length >= max_mailboxes %} hidden{% endif %}>{{ _("Weiteres Postfach hinzufügen") }}</button>
+      {% endif %}
+      {% include "_connection_actions.html" %}
+    </section>
+  </form>
+
+  {% for section, fields in sections.items() %}
+    <form class="connection-form" data-section="{{ section }}" novalidate>
+      <section aria-labelledby="section-{{ section }}">
+        <h2 id="section-{{ section }}">{{ {"ki": _("KI-Server"), "kalender": _("Kalender-Server"), "benachrichtigungen": _("Benachrichtigungen")}[section] }}</h2>
+        {% if section == "kalender" %}<p class="help">{{ _("iCloud, Nextcloud, mailbox.org, Fastmail, Posteo oder ein anderer CalDAV-Server. Benutzer und Passwort leeren, um ohne Kalender zu arbeiten.") }}</p>{% endif %}
+        {% if section == "benachrichtigungen" %}<p class="help">{{ _("Jeder vollständig eingetragene Kanal wird genutzt. Welche Ereignisse gemeldet werden, stellst du unter Einstellungen → Benachrichtigungen ein.") }}</p>{% endif %}
+        <div class="setup-grid">
+          {% for key, label, kind in fields %}
+            <label{% if kind == "url" %} class="wide"{% endif %}>{{ _(label) }}
+              {% if kind.startswith("choice:") %}
+                <select name="{{ key }}"{% if not editable %} disabled{% endif %}>
+                  {% for option in kind[7:].split("|") %}<option value="{{ option }}"{% if (stored.get(key) or kind[7:].split("|")[0]) == option %} selected{% endif %}>{{ option }}</option>{% endfor %}
+                </select>
+              {% elif kind == "secret" %}
+                <input type="password" name="{{ key }}" autocomplete="new-password" placeholder="{{ _("gesetzt – leer lassen für unverändert") if secret_set.get(key) else _("nicht gesetzt") }}"{% if not editable %} disabled{% endif %}>
+                {% if secret_set.get(key) and editable %}<span class="clear-secret"><input type="checkbox" name="{{ key }}__clear"> {{ _("löschen") }}</span>{% endif %}
+              {% else %}
+                <input type="{{ "number" if kind == "port" else "text" }}" name="{{ key }}" value="{{ stored.get(key, "") }}"{% if key == "CALDAV_URL" %} placeholder="https://caldav.icloud.com"{% elif key == "SMTP_PORT" %} placeholder="587"{% endif %} autocomplete="off"{% if not editable %} disabled{% endif %}>
+              {% endif %}
+            </label>
+          {% endfor %}
+        </div>
+        {% include "_connection_actions.html" %}
+      </section>
+    </form>
+  {% endfor %}
+  </main>
+  {% include "_footer.html" %}
+  <script src="/static/connections.js?v={{ app_version }}" defer></script>
+</body>
+</html>

@@ -122,6 +122,30 @@ class UpdaterTests(unittest.TestCase):
         self.assertEqual(docker.calls[:2], [["pull", "kalender-assistent"], ["stop", "kalender-assistent"]])
         self.assertEqual((self.project / "data" / "calendar-assistant.sqlite3").read_text(), "alt")
 
+    def test_env_cleanup_only_matching_allowed_keys(self):
+        import hashlib
+        env = self.project / ".env"
+        env.write_text("IMAP_HOST=mail\nIMAP_PASSWORD='ge heim'\nAI_MODEL=m\nKALENDER_VERSION=0.16.1\nNTFY_URL=https://ntfy.sh/a\n")
+        digest = lambda value: hashlib.sha256(value.encode()).hexdigest()
+        instance = self.make(FakeDocker(self.project))
+        self.assertFalse(updater.cleanup_env(instance, {"KALENDER_VERSION": digest("0.16.1")})[0])  # nicht erlaubt
+        self.assertFalse(updater.cleanup_env(instance, {"AI_MODEL": digest("m")})[0])
+        ok, _message, removed = updater.cleanup_env(instance, {
+            "IMAP_HOST": digest("mail"), "IMAP_PASSWORD": digest("ge heim"), "NTFY_URL": digest("https://ntfy.sh/anders"),
+        })
+        self.assertTrue(ok)
+        self.assertEqual(sorted(removed), ["IMAP_HOST", "IMAP_PASSWORD"])
+        text = env.read_text()
+        self.assertNotIn("IMAP_PASSWORD", text)
+        self.assertIn("NTFY_URL=https://ntfy.sh/a", text)  # Prüfsumme passte nicht → bleibt
+        self.assertIn("AI_MODEL=m", text)
+        self.assertIn("KALENDER_VERBINDUNGEN=app", text)
+        self.assertTrue(updater.configured(env))  # Ersteinrichtung bleibt gesperrt
+        backups = list((self.project / "backups").glob("env-vor-aufraeumen-*/.env"))
+        self.assertEqual(len(backups), 1)
+        self.assertIn("IMAP_PASSWORD", backups[0].read_text())
+        self.assertEqual(updater.cleanup_env(instance, {"IMAP_HOST": digest("mail")})[1], "Nichts zu entfernen.")
+
     def test_rejects_bad_input_and_parallel_updates(self):
         instance = self.make(FakeDocker(self.project))
         for request in ({"version": "latest"}, {"version": "1.2.3; rm -rf /"}, {"version": "1.2.3", "backup": "../.env"},

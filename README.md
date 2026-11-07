@@ -68,7 +68,9 @@ Dann `http://<server-ip>:8080` im Browser öffnen: Der **Einrichtungsassistent**
 fragt Sprache und Zeitzone, Postfach, KI-Server (mit Modellliste und
 Probe-Auswertung) und iCloud samt Zielkalendern ab, prüft jede Verbindung
 sofort und schreibt die Einstellungen über den Updater in `.env`. Danach ist
-er gesperrt – Zugangsdaten änderst du nur noch in `.env`. Mit „Überspringen“
+er gesperrt. Beim nächsten Start übernimmt die App die Zugangsdaten
+verschlüsselt und räumt sie aus `.env`; ändern lassen sie sich danach unter
+**Einstellungen → Verbindungen** (mit `APP_PASSWORD`). Mit „Überspringen“
 startet die App ohne Postfach; ein Hinweis oben auf jeder Seite öffnet den
 Assistenten bei Bedarf erneut.
 
@@ -297,6 +299,24 @@ Die Werte werden in der Datenbank gespeichert und überschreiben die
 Werte aus `.env`; **Alles auf .env-Werte zurücksetzen** entfernt alle
 Anpassungen.
 
+### Verbindungen
+
+Postfächer, KI-Server, Kalender-Server und Benachrichtigungs-Kanäle stehen
+unter **Einstellungen → Verbindungen**. Passwörter und Tokens liegen dort
+verschlüsselt in der Datenbank; der Schlüssel liegt getrennt in
+`data/secret.key` (oder `APP_SECRET_KEY`), Datenbank-Sicherungen allein sind
+also wertlos. Bearbeiten lassen sich die Verbindungen nur mit eingeschaltetem
+Zugangsschutz (`APP_PASSWORD`); jede Änderung wird vor dem Speichern geprüft,
+danach startet die App kurz neu.
+
+Werte in `.env` werden beim Start übernommen und anschließend vom Updater aus
+`.env` entfernt (vorher gesichert in `backups/env-vor-aufraeumen-…/` – diese
+Kopie enthält die Zugangsdaten im Klartext und kann nach erfolgreicher Prüfung
+gelöscht werden). Neue Werte in `.env` werden beim nächsten Start ebenfalls
+übernommen; ein unveränderter alter Wert überschreibt nie eine Änderung aus der
+Oberfläche. Ohne Updater bleiben die Werte zusätzlich in `.env` stehen, gelten
+aber aus der App.
+
 **Zielkalender:** Unter Einstellungen → Zielkalender wählst du aus den
 gefundenen iCloud-Kalendern, in welche die App schreiben darf, die Reihenfolge
 der Buttons und welcher ein gemeinsamer Kalender ist (wird nur für ausdrücklich
@@ -324,8 +344,8 @@ an einen fremden KI-Server umleiten.
 
 ## Mehrere Postfächer
 
-Weitere Postfächer – oder weitere Ordner desselben Postfachs – trägst du in
-`.env` als `IMAP2_*` bis `IMAP9_*` ein (gleiche Felder wie das erste:
+Weitere Postfächer – oder weitere Ordner desselben Postfachs – legst du unter
+**Einstellungen → Verbindungen** an oder trägst sie in `.env` ein als `IMAP2_*` bis `IMAP9_*` ein (gleiche Felder wie das erste:
 `HOST`, `PORT`, `USERNAME`, `PASSWORD`, `FOLDER`, optional `NAME`). Jedes
 Postfach wird einzeln abgerufen und hat eine eigene Sofort-Erkennung; ist eines
 gestört, laufen die anderen weiter.

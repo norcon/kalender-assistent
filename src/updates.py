@@ -102,3 +102,15 @@ def configure(url: str, values: dict[str, str]) -> tuple[bool, str]:
         return response.status_code == 202, str(data.get("message") or "")
     except (httpx.HTTPError, ValueError) as error:
         return False, type(error).__name__
+
+
+def cleanup_env(url: str, keys: dict[str, str]) -> tuple[bool, str, list[str]]:
+    """Übernommene Verbindungsdaten aus .env entfernen lassen (Updater prüft Prüfsummen)."""
+    try:
+        response = httpx.post(f"{url.rstrip('/')}/env/cleanup", json={"keys": keys}, timeout=15)
+        if response.status_code == 404:
+            return False, "Der Updater ist zu alt – bitte aktualisieren.", []
+        data = response.json()
+        return response.status_code == 200 and bool(data.get("ok")), str(data.get("message") or ""), list(data.get("removed") or [])
+    except (httpx.HTTPError, ValueError) as error:
+        return False, type(error).__name__, []

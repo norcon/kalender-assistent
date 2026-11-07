@@ -61,8 +61,9 @@
     <ul id="caldav-calendars" hidden></ul>
   </section>
   <section aria-labelledby="fixed-heading">
-    <h2 id="fixed-heading">{{ _("Zugangsdaten (nur in .env änderbar)") }}</h2>
-    <p class="meta">{{ _("Server-Adressen und Zugangsdaten sind hier bewusst nicht änderbar: Die Oberfläche hat keinen Login, und jemand im Netz könnte sonst z. B. E-Mails an einen fremden KI-Server umleiten. Nach Änderungen an .env:") }} <code>docker compose up -d</code></p>
+    <h2 id="fixed-heading">{{ _("Verbindungen") }}</h2>
+    <p class="meta">{{ _("Postfächer, KI-Server, Kalender-Server und Benachrichtigungs-Kanäle. Bearbeiten lassen sie sich, sobald der Zugangsschutz (APP_PASSWORD) eingeschaltet ist.") }}</p>
+    <p><a class="button secondary" href="/einstellungen/verbindungen">{{ _("Verbindungen bearbeiten") }}</a></p>
     <dl class="fixed">
       {% for label, value in fixed %}<dt>{{ _(label) }}</dt><dd>{{ _(value) }}</dd>{% endfor %}
     </dl>

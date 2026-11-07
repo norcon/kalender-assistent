@@ -729,3 +729,14 @@ button.ghost:hover:not(:disabled) { background: var(--neutral-soft); color: var(
 
 .auto-form { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; margin: 0; }
 .auto-form select { width: auto; }
+
+/* ---------- Verbindungen ---------- */
+.connection-form section { margin-bottom: 1.2rem; }
+.mailbox-list { display: grid; gap: .8rem; margin-bottom: .8rem; }
+.mailbox { border: 1px solid var(--border); border-radius: 8px; padding: .6rem .9rem .8rem; }
+.mailbox legend { font-weight: 600; padding: 0 .3rem; }
+.connection-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .8rem; }
+.clear-secret { display: inline-flex; align-items: center; gap: .3rem; font-size: .85rem; font-weight: normal; color: var(--text-2); }
+.connections .setup-grid { gap: .8rem 1rem; margin-bottom: .4rem; }
+.connections .setup-grid label { display: grid; gap: .25rem; font-weight: 600; font-size: .9rem; align-content: start; }
+.connections .setup-grid input, .connections .setup-grid select { width: 100%; }

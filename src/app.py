@@ -39,6 +39,7 @@ from . import (
     backup,
     calendar_backup,
     caldav,
+    connections,
     db,
     formatting,
     health,
@@ -405,10 +406,67 @@ async def _mail_worker() -> None:
             await asyncio.sleep(5)
 
 
+# Verbindungsdaten aus der verschlüsselten Ablage (None = Ablage nicht lesbar → .env)
+_connection_state: dict[str, Any] = {"ok": False, "error": None, "cleanup": {}, "cleanup_message": None}
+
+
+def _connection_values() -> dict[str, str] | None:
+    if _env_settings.demo_mode or not _connection_state["ok"]:
+        return None
+    try:
+        return connections.values(connections.load(_env_settings.database_path))
+    except connections.StoreError as error:
+        _connection_state.update(ok=False, error=str(error))
+        logger.error("Gespeicherte Verbindungen nicht lesbar (%s); es gelten die Werte aus .env.", error)
+        return None
+
+
+def _migrate_connections() -> None:
+    """Beim Start: Verbindungsdaten aus .env verschlüsselt übernehmen."""
+    if _env_settings.demo_mode:
+        return
+    try:
+        _absorbed, removable = connections.absorb_env(_env_settings.database_path, os.environ)
+    except Exception as error:  # noqa: BLE001 – dann gelten die Werte aus .env
+        _connection_state.update(ok=False, error=type(error).__name__)
+        logger.error("Verbindungsdaten konnten nicht übernommen werden (%s); es gelten die Werte aus .env.",
+                     type(error).__name__)
+        return
+    _connection_state.update(ok=True, error=None, cleanup=removable)
+
+
+_background_tasks: set[asyncio.Task] = set()
+
+
+async def _delayed_env_cleanup() -> None:
+    await asyncio.sleep(15)  # Updater ggf. erst starten lassen
+    try:
+        await _cleanup_env_file()
+    except Exception as error:  # noqa: BLE001
+        logger.warning(".env-Aufräumen fehlgeschlagen: %s", type(error).__name__)
+
+
+async def _cleanup_env_file() -> None:
+    """Übernommene Werte über den Updater aus .env entfernen."""
+    removable = dict(_connection_state.get("cleanup") or {})
+    if not removable:
+        return
+    ok, message, removed = await asyncio.to_thread(updates.cleanup_env, settings.updater_url, removable)
+    if ok:
+        _connection_state.update(cleanup={}, cleanup_message=None)
+        if removed:
+            logger.info(".env aufgeräumt: %s (jetzt verschlüsselt in der App).", ", ".join(removed))
+    else:
+        _connection_state["cleanup_message"] = message
+        logger.warning(".env konnte nicht aufgeräumt werden (%s); die Werte bleiben dort, gelten aber aus der App.", message)
+
+
 def _reload_settings() -> None:
     global settings
+    stored = _connection_values()
+    base = _env_settings if stored is None else Settings.from_env(stored)
     settings = settings_store.apply_overrides(
-        _env_settings, db.get_app_settings(_env_settings.database_path)
+        base, db.get_app_settings(_env_settings.database_path)
     )
     # Übersprungene Einrichtung: App läuft ohne Postfach, bis .env ergänzt ist.
     skipped = settings.setup_mode and bool(
@@ -721,6 +779,7 @@ def _start_workers() -> None:
 async def lifespan(_: FastAPI):
     global _heartbeat
     db.initialize(settings.database_path)
+    _migrate_connections()
     _reload_settings()
     if settings.demo_mode:
         demo_language = "en" if settings.language == "en" else "de"
@@ -744,12 +803,15 @@ async def lifespan(_: FastAPI):
     _start_workers()
     heartbeat = asyncio.create_task(_heartbeat_worker())
     _start_watchdog()
+    if _connection_state.get("cleanup") and not settings.demo_mode:
+        _background_tasks.add(asyncio.create_task(_delayed_env_cleanup()))
     try:
         yield
     finally:
         _stop_threads.set()
         heartbeat.cancel()
-        tasks = [*_workers.values(), heartbeat]
+        tasks = [*_workers.values(), heartbeat, *_background_tasks]
+        _background_tasks.clear()
         _workers.clear()
         for worker in tasks:
             worker.cancel()
@@ -3442,6 +3504,222 @@ async def calendar_backup_search(
     if verlauf in HISTORY_GROUPINGS:  # Wahl pro Gerät merken
         response.set_cookie("verlauf", verlauf, max_age=31536000, samesite="lax")
     return response
+
+
+# ---------- Verbindungen (Postfächer, KI, Kalender, Benachrichtigungen) ----------
+
+# (Schlüssel, Beschriftung, Art) – Art: text, url, secret, port, choice:<a>|<b>
+CONNECTION_SECTIONS: dict[str, list[tuple[str, str, str]]] = {
+    "ki": [
+        ("AI_BASE_URL", "Adresse", "url"),
+        ("AI_API_KEY", "API-Schlüssel (meist leer)", "secret"),
+    ],
+    "kalender": [
+        ("CALDAV_URL", "Adresse", "url"),
+        ("CALDAV_NAME", "Anzeigename (leer = aus der Adresse)", "text"),
+        ("CALDAV_USERNAME", "Benutzer", "text"),
+        ("CALDAV_APP_PASSWORD", "Passwort (meist ein App-Passwort)", "secret"),
+        ("CALDAV_AUTH", "Anmeldeverfahren", "choice:basic|digest"),
+    ],
+    "benachrichtigungen": [
+        ("APP_URL", "Adresse der App für Links (z. B. http://192.168.1.10:8080)", "url"),
+        ("NTFY_URL", "ntfy: Thema-Adresse", "url"),
+        ("NTFY_TOKEN", "ntfy: Token (nur bei geschützten Themen)", "secret"),
+        ("PUSHOVER_TOKEN", "Pushover: App-Token", "secret"),
+        ("PUSHOVER_USER", "Pushover: User-Key", "text"),
+        ("HOMEASSISTANT_URL", "Home Assistant: Adresse", "url"),
+        ("HOMEASSISTANT_TOKEN", "Home Assistant: Zugriffstoken", "secret"),
+        ("HOMEASSISTANT_SERVICE", "Home Assistant: notify-Dienst (z. B. mobile_app_mein_iphone)", "text"),
+        ("SMTP_HOST", "E-Mail: SMTP-Server", "text"),
+        ("SMTP_PORT", "E-Mail: Port", "port"),
+        ("SMTP_SECURITY", "E-Mail: Verschlüsselung", "choice:starttls|ssl|none"),
+        ("SMTP_USERNAME", "E-Mail: Benutzer", "text"),
+        ("SMTP_PASSWORD", "E-Mail: Passwort", "secret"),
+        ("SMTP_FROM", "E-Mail: Absender", "text"),
+        ("NOTIFY_EMAIL_TO", "E-Mail: Empfänger", "text"),
+    ],
+}
+MAILBOX_FIELDS = (("NAME", "Name (optional)", "text"), ("HOST", "IMAP-Server", "text"), ("PORT", "Port", "port"),
+                  ("USERNAME", "Benutzer", "text"), ("PASSWORD", "Passwort", "secret"), ("FOLDER", "Ordner", "text"))
+MAX_MAILBOXES = 9
+
+
+def _mailbox_prefix(number: int) -> str:
+    return "IMAP_" if number == 1 else f"IMAP{number}_"
+
+
+def _connections_editable() -> tuple[bool, str]:
+    if settings.demo_mode:
+        return False, _("Im Demo-Modus nicht verfügbar.")
+    if not _connection_state["ok"]:
+        return False, _("Die gespeicherten Verbindungen sind nicht lesbar; es gelten die Werte aus .env.")
+    if not settings.app_password:
+        return False, _("Zum Bearbeiten zuerst den Zugangsschutz einschalten: APP_PASSWORD in .env setzen und die App neu starten.")
+    return True, ""
+
+
+def _stored_connections() -> dict[str, str]:
+    return _connection_values() or {}
+
+
+def _mailbox_rows(stored: dict[str, str]) -> list[dict[str, Any]]:
+    rows = []
+    for number in range(1, MAX_MAILBOXES + 1):
+        prefix = _mailbox_prefix(number)
+        if number > 1 and not stored.get(prefix + "HOST"):
+            continue
+        rows.append({
+            "number": number,
+            "fields": {field: stored.get(prefix + field, "") for field, _label, kind in MAILBOX_FIELDS if kind != "secret"},
+            "password_set": bool(stored.get(prefix + "PASSWORD")),
+            "folder": settings.imap_folder if number == 1 else stored.get(prefix + "FOLDER", "") or "INBOX",
+        })
+    return rows
+
+
+@app.get("/einstellungen/verbindungen", response_class=HTMLResponse)
+async def connections_page(request: Request):
+    stored = _stored_connections()
+    editable, reason = _connections_editable()
+    return templates.TemplateResponse(request=request, name="connections.html", context={
+        "editable": editable,
+        "reason": reason,
+        "sections": CONNECTION_SECTIONS,
+        "mailbox_fields": MAILBOX_FIELDS,
+        "mailboxes": _mailbox_rows(stored),
+        "max_mailboxes": MAX_MAILBOXES,
+        "stored": {key: value for key, value in stored.items() if key not in connections.SECRET_KEYS},
+        "secret_set": {key: True for key in stored if key in connections.SECRET_KEYS},
+        "store_error": _connection_state.get("error"),
+        "pending_cleanup": sorted(_connection_state.get("cleanup") or {}),
+        "cleanup_message": _connection_state.get("cleanup_message"),
+    })
+
+
+def _clean_value(key: str, kind: str, raw: Any) -> str:
+    value = "" if raw is None else str(raw)
+    if kind != "secret":
+        value = value.strip()
+    if len(value) > 500 or any(ord(character) < 32 for character in value):
+        raise ValueError(_("Ungültiger Wert bei „{field}“.", field=key))
+    if value and kind == "url" and not re.match(r"https?://", value):
+        raise ValueError(_("„{field}“ muss mit http:// oder https:// beginnen.", field=key))
+    if value and kind == "port" and not (value.isdigit() and 1 <= int(value) <= 65535):
+        raise ValueError(_("„{field}“ muss eine Portnummer sein.", field=key))
+    if value and kind.startswith("choice:") and value not in kind[7:].split("|"):
+        raise ValueError(_("Unbekannter Wert bei „{field}“.", field=key))
+    return value
+
+
+def _section_changes(section: str, payload: dict[str, Any], stored: dict[str, str]) -> dict[str, str | None]:
+    """Neue Werte eines Abschnitts; leeres Passwortfeld = unverändert, außer „löschen“ ist angehakt."""
+    changes: dict[str, str | None] = {}
+    if section == "postfaecher":
+        entries = payload.get("mailboxes")
+        if not isinstance(entries, list) or not entries or len(entries) > MAX_MAILBOXES:
+            raise ValueError(_("Ungültige Postfach-Liste."))
+        for number in range(1, MAX_MAILBOXES + 1):  # erst alles leeren, dann lückenlos neu schreiben
+            for field, _label, _kind in MAILBOX_FIELDS:
+                if number == 1 and field == "FOLDER":
+                    continue
+                changes[_mailbox_prefix(number) + field] = None
+        kept = [entry for index, entry in enumerate(entries) if index == 0 or not entry.get("remove")]
+        for number, entry in enumerate(kept, start=1):
+            prefix = _mailbox_prefix(number)
+            original = entry.get("orig")
+            original_prefix = _mailbox_prefix(int(original)) if str(original or "").isdigit() and 1 <= int(original) <= MAX_MAILBOXES else None
+            for field, _label, kind in MAILBOX_FIELDS:
+                if number == 1 and field == "FOLDER":
+                    continue
+                value = _clean_value(prefix + field, kind, entry.get(field.lower()))
+                if kind == "secret" and not value and original_prefix:
+                    value = stored.get(original_prefix + field, "")
+                changes[prefix + field] = value or None
+            if not (changes[prefix + "HOST"] and changes[prefix + "USERNAME"] and changes[prefix + "PASSWORD"]):
+                raise ValueError(_("Postfach {number}: Server, Benutzer und Passwort sind Pflicht.", number=number))
+        return changes
+    for key, _label, kind in CONNECTION_SECTIONS[section]:
+        value = _clean_value(key, kind, payload.get(key))
+        if kind == "secret" and not value and not payload.get(key + "__clear"):
+            value = stored.get(key, "")
+        changes[key] = value or None
+    return changes
+
+
+def _changed(changes: dict[str, str | None], stored: dict[str, str], keys) -> bool:
+    return any((changes.get(key) or "") != (stored.get(key) or "") for key in keys)
+
+
+def _test_section(section: str, changes: dict[str, str | None], stored: dict[str, str]) -> None:
+    """Geänderte Verbindungen vor dem Speichern prüfen (SetupError bei Problemen)."""
+    if section == "ki" and _changed(changes, stored, ("AI_BASE_URL", "AI_API_KEY")):
+        if not changes.get("AI_BASE_URL"):
+            raise setup_wizard.SetupError(_("Die Adresse des KI-Servers ist Pflicht."))
+        setup_wizard.ai_models(changes["AI_BASE_URL"], changes.get("AI_API_KEY") or "")
+    elif section == "kalender" and _changed(changes, stored, [k for k, _l, _t in CONNECTION_SECTIONS["kalender"]]):
+        if changes.get("CALDAV_USERNAME") or changes.get("CALDAV_APP_PASSWORD"):
+            if not (changes.get("CALDAV_USERNAME") and changes.get("CALDAV_APP_PASSWORD")):
+                raise setup_wizard.SetupError(_("Für den Kalender-Server Benutzer und Passwort angeben – oder beides leeren."))
+            setup_wizard.caldav_test(changes.get("CALDAV_URL") or "https://caldav.icloud.com",
+                                     changes["CALDAV_USERNAME"], changes["CALDAV_APP_PASSWORD"],
+                                     auth_mode=changes.get("CALDAV_AUTH") or "basic")
+    elif section == "postfaecher":
+        for number in range(1, MAX_MAILBOXES + 1):
+            prefix = _mailbox_prefix(number)
+            if not changes.get(prefix + "HOST"):
+                continue
+            keys = [prefix + field for field, _l, _k in MAILBOX_FIELDS if field != "NAME"]
+            if _changed(changes, stored, keys) or number > 1 and not stored.get(prefix + "HOST"):
+                folder = settings.imap_folder if number == 1 else changes.get(prefix + "FOLDER") or "INBOX"
+                try:
+                    setup_wizard.imap_test(changes[prefix + "HOST"], int(changes.get(prefix + "PORT") or 993),
+                                           changes[prefix + "USERNAME"], changes[prefix + "PASSWORD"] or "", folder)
+                except setup_wizard.SetupError as error:
+                    raise setup_wizard.SetupError(_("Postfach {number}: {error}", number=number, error=str(error))) from error
+
+
+def _schedule_restart() -> None:
+    """Prozess beenden; Docker startet die App mit den neuen Verbindungen neu."""
+    asyncio.get_running_loop().call_later(1.0, os.kill, os.getpid(), signal.SIGTERM)
+
+
+@app.post("/api/verbindungen/{section}")
+async def save_connections(section: str, request: Request):
+    if section not in (*CONNECTION_SECTIONS, "postfaecher"):
+        raise HTTPException(status_code=404, detail=_("Unbekannter Abschnitt."))
+    editable, reason = _connections_editable()
+    if not editable:
+        raise HTTPException(status_code=403, detail=reason)
+    try:
+        payload = await request.json()
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=_("Ungültige Anfrage.")) from error
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=422, detail=_("Ungültige Anfrage."))
+    stored = _stored_connections()
+    try:
+        changes = _section_changes(section, payload, stored)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    if not _changed(changes, stored, changes):
+        return {"status": "unchanged"}
+    try:
+        await asyncio.to_thread(_test_section, section, changes, stored)
+    except setup_wizard.SetupError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    await asyncio.to_thread(connections.update, settings.database_path, changes)
+    changed_keys = sorted(key for key in changes if (changes[key] or "") != (stored.get(key) or ""))
+    logger.info("Verbindungen geändert (%s): %s. Die App startet neu.", section, ", ".join(changed_keys))
+    _schedule_restart()
+    return {"status": "saved", "restarting": True}
+
+
+@app.post("/api/verbindungen-aufraeumen")
+async def cleanup_env_now():
+    """Erneut versuchen, übernommene Werte aus .env zu entfernen (entfernt nur bereits Gespeichertes)."""
+    _migrate_connections()
+    await _cleanup_env_file()
+    return {"pending": sorted(_connection_state.get("cleanup") or {}), "message": _connection_state.get("cleanup_message")}
 
 
 @app.post("/api/benachrichtigungen/test")

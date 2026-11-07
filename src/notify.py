@@ -1,6 +1,6 @@
 """Benachrichtigungen über ntfy, Pushover, Home Assistant und E-Mail.
 
-Zugangsdaten stehen nur in .env (wie alle anderen Zugangsdaten). Jeder
+Zugangsdaten liegen verschlüsselt in der App (siehe connections.py). Jeder
 eingerichtete Kanal wird genutzt. Fehler beim Senden werden protokolliert,
 stören aber nie den eigentlichen Ablauf.
 """

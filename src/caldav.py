@@ -23,8 +23,8 @@ def set_auth_mode(mode: str) -> None:
     AUTH_MODE = "digest" if (mode or "").strip().lower() == "digest" else "basic"
 
 
-def _auth(username: str, password: str) -> httpx.Auth:
-    if AUTH_MODE == "digest":
+def _auth(username: str, password: str, mode: str | None = None) -> httpx.Auth:
+    if (mode or AUTH_MODE) == "digest":
         return httpx.DigestAuth(username, password)
     return httpx.BasicAuth(username, password)
 
@@ -116,11 +116,12 @@ def _normalize_color(element: ET.Element | None) -> str | None:
 
 
 def discover_icloud_calendars(
-    base_url: str, username: str, app_password: str, timeout_seconds: int
+    base_url: str, username: str, app_password: str, timeout_seconds: int,
+    auth_mode: str | None = None,
 ) -> list[dict[str, str | bool | None]]:
     timeout = httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 10))
     with httpx.Client(
-        auth=_auth(username, app_password),
+        auth=_auth(username, app_password, auth_mode),
         timeout=timeout,
         follow_redirects=True,
         headers={"User-Agent": "FamilyCalendarAssistant/0.1"},

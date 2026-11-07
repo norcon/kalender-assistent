@@ -137,7 +137,7 @@ docker compose --profile updater up -d</code></pre>
         <li><strong>iCloud</strong> – Apple ID and app-specific password; then choose the target calendars and add a short description for the AI to each.</li>
         <li><strong>Save and start</strong> – the app restarts with the new settings.</li>
       </ol>
-      <div class="note"><strong>Locked afterwards:</strong> once setup is complete it cannot be run again from the browser. You then change credentials directly in <code>.env</code> and restart with <code>docker compose up -d</code>.</div>
+      <div class="note"><strong>Locked afterwards:</strong> once setup is complete it cannot be run again from the browser. The app stores the credentials encrypted and removes them from <code>.env</code>. You change them under <em>Settings → Connections</em> once <code>APP_PASSWORD</code> is set.</div>
       <p><strong>Skip:</strong> if something does not work, end the wizard with “Skip”. The app then starts without a mailbox and shows a notice at the top from which you can restart the wizard at any time – or you enter the credentials directly in <code>.env</code>.</p>
       <p>On a phone: open the page in the browser → <em>Share</em> → <em>Add to Home Screen</em>.</p>
 

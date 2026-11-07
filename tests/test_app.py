@@ -1095,6 +1095,7 @@ class SetupModeTests(unittest.TestCase):
         unconfigured = replace(app_module._env_settings, setup_mode=True, mail_configured=False)
         with patch.object(app_module.mail, "poll_mailbox"), \
                 patch.object(app_module, "_env_settings", unconfigured), \
+                patch.object(app_module, "_connection_values", return_value=None), \
                 patch.object(app_module, "settings", unconfigured):
             with TestClient(app_module.app) as client:
                 self.assertEqual(client.get("/", follow_redirects=False).headers["location"], "/einrichtung")
@@ -1644,6 +1645,79 @@ class AutoExportTests(unittest.TestCase):
                 self.assertEqual(db.list_auto_senders(path), [])
                 for item in (sure, unsure, no_calendar, other):
                     client.post(f"/api/suggestions/{item['id']}/dismiss")
+
+
+class ConnectionsPageTests(unittest.TestCase):
+    def _protected(self):
+        return replace(app_module.settings, app_password="geheim-123")
+
+    def _login(self, client):
+        client.post("/anmelden", content="passwort=geheim-123", headers={"Content-Type": "application/x-www-form-urlencoded"})
+
+    def test_read_only_without_password(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                page = client.get("/einstellungen/verbindungen").text
+                self.assertIn("APP_PASSWORD in .env setzen", page)
+                self.assertIn(" disabled", page)
+                self.assertNotIn("Prüfen und speichern", page)
+                self.assertEqual(client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "http://x/v1"}).status_code, 403)
+                self.assertIn('href="/einstellungen/verbindungen"', client.get("/einstellungen").text)
+
+    def test_save_tests_first_then_restarts(self):
+        path = app_module.settings.database_path
+        with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "_schedule_restart") as restart:
+            with TestClient(app_module.app) as client, patch.object(app_module, "settings", self._protected()):
+                self._login(client)
+                page = client.get("/einstellungen/verbindungen").text
+                self.assertIn("Prüfen und speichern", page)
+                self.assertNotIn(app_module.settings.imap_password, page)  # Passwörter nie im HTML
+                before = app_module.connections.values(app_module.connections.load(path))
+                # ungültig
+                response = client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "ftp://x"})
+                self.assertEqual(response.status_code, 422)
+                # Test schlägt fehl → nichts gespeichert
+                with patch.object(app_module.setup_wizard, "ai_models", side_effect=app_module.setup_wizard.SetupError("KI weg")):
+                    response = client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "http://neu:1234/v1", "AI_API_KEY": ""})
+                self.assertEqual((response.status_code, response.json()["detail"]), (422, "KI weg"))
+                restart.assert_not_called()
+                # Test ok → gespeichert, Schlüssel bleibt (leeres Feld = unverändert)
+                with patch.object(app_module.setup_wizard, "ai_models", return_value=["m"]) as models, self.assertLogs("src.app", "INFO"):
+                    response = client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "http://neu:1234/v1", "AI_API_KEY": ""})
+                self.assertEqual(response.json(), {"status": "saved", "restarting": True})
+                models.assert_called_once_with("http://neu:1234/v1", before.get("AI_API_KEY", ""))
+                restart.assert_called_once()
+                stored = app_module.connections.values(app_module.connections.load(path))
+                self.assertEqual(stored["AI_BASE_URL"], "http://neu:1234/v1")
+                self.assertEqual(client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "http://neu:1234/v1"}).json(), {"status": "unchanged"})
+                # Postfach hinzufügen und wieder entfernen; Passwort des ersten bleibt
+                mailboxes = [{"orig": "1", "name": "", "host": before["IMAP_HOST"], "port": "993", "username": before["IMAP_USERNAME"], "password": ""},
+                             {"orig": None, "name": "Schule", "host": "imap.schule.example", "port": "993", "username": "s@schule.example", "password": "pw2", "folder": "INBOX"}]
+                with patch.object(app_module.setup_wizard, "imap_test", return_value=["INBOX"]) as imap, self.assertLogs("src.app", "INFO"):
+                    self.assertEqual(client.post("/api/verbindungen/postfaecher", json={"mailboxes": mailboxes}).status_code, 200)
+                self.assertEqual(imap.call_args.args[0], "imap.schule.example")
+                stored = app_module.connections.values(app_module.connections.load(path))
+                self.assertEqual((stored["IMAP2_HOST"], stored["IMAP2_PASSWORD"], stored["IMAP_PASSWORD"]),
+                                 ("imap.schule.example", "pw2", before["IMAP_PASSWORD"]))
+                mailboxes[1] = {"orig": "2", "remove": True}
+                with self.assertLogs("src.app", "INFO"):
+                    client.post("/api/verbindungen/postfaecher", json={"mailboxes": mailboxes})
+                self.assertNotIn("IMAP2_HOST", app_module.connections.values(app_module.connections.load(path)))
+                missing = [{"orig": "1", "host": "x.example", "username": "", "password": ""}]
+                self.assertEqual(client.post("/api/verbindungen/postfaecher", json={"mailboxes": missing}).status_code, 422)
+                app_module.connections.update(path, {"AI_BASE_URL": before["AI_BASE_URL"]})
+                client.cookies.clear()
+
+    def test_cleanup_endpoint_uses_updater(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                with patch.object(app_module.updates, "cleanup_env", return_value=(True, "aufgeräumt", ["IMAP_PASSWORD"])) as cleanup, \
+                        self.assertLogs("src.app", "INFO"):
+                    data = client.post("/api/verbindungen-aufraeumen").json()
+                self.assertEqual(data["pending"], [])
+                keys = cleanup.call_args.args[1]
+                self.assertIn("IMAP_PASSWORD", keys)
+                self.assertEqual(keys["IMAP_PASSWORD"], app_module.connections.value_hash(os.environ["IMAP_PASSWORD"]))
 
 
 class HealthAndStatusTests(unittest.TestCase):

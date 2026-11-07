@@ -4,6 +4,26 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.28.0 – 2026-11-07
+
+- **Verbindungen in der App:** Postfächer, KI-Server, Kalender-Server und
+  Benachrichtigungs-Kanäle unter Einstellungen → Verbindungen bearbeiten –
+  nur mit eingeschaltetem Zugangsschutz (`APP_PASSWORD`). Jede geänderte
+  Verbindung wird vor dem Speichern geprüft; danach startet die App kurz neu.
+- **Verschlüsselt gespeichert:** Passwörter und Tokens liegen verschlüsselt
+  in der Datenbank (Fernet); der Schlüssel liegt getrennt in
+  `data/secret.key` oder `APP_SECRET_KEY`. Datenbank-Sicherungen allein sind
+  damit wertlos.
+- **Automatische Übernahme aus `.env`:** Beim Start übernimmt die App die
+  Verbindungsdaten aus `.env`; der Updater entfernt sie danach dort (nur
+  Werte, deren Prüfsumme passt; `.env` wird vorher gesichert) und vermerkt
+  `KALENDER_VERBINDUNGEN=app`. Neue Werte in `.env` werden beim nächsten
+  Start übernommen, unveränderte alte überschreiben keine Änderung aus der
+  Oberfläche. Ohne Updater bleiben sie in `.env`, gelten aber aus der App.
+- Für das Aufräumen von `.env` den Updater aktualisieren:
+  `docker compose --profile updater pull updater && docker compose --profile updater up -d updater`.
+- Neue Abhängigkeit: cryptography 50.0.2.
+
 ## 0.27.0 – 2026-11-07
 
 - **Mehrere Postfächer:** Weitere Postfächer oder Ordner über `IMAP2_*` bis

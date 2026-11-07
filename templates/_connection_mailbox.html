@@ -1,0 +1,17 @@
+<fieldset class="mailbox" data-orig="{{ box.number or "" }}">
+  <legend>{% if box.number == 1 %}{{ _("Postfach 1") }}{% else %}{{ _("Weiteres Postfach") }}{% endif %}</legend>
+  <div class="setup-grid">
+    {% for field, label, kind in mailbox_fields %}
+      {% if not (box.number == 1 and field == "FOLDER") %}
+        <label>{{ _(label) }}
+          {% if kind == "secret" %}
+            <input type="password" data-field="{{ field|lower }}" autocomplete="new-password" placeholder="{{ _("gesetzt – leer lassen für unverändert") if box.password_set else "" }}"{% if not editable %} disabled{% endif %}>
+          {% else %}
+            <input type="{{ "number" if kind == "port" else "text" }}" data-field="{{ field|lower }}" value="{{ box.folder if field == "FOLDER" else (box.fields.get(field) or ("993" if field == "PORT" else "")) }}" autocomplete="off"{% if not editable %} disabled{% endif %}>
+          {% endif %}
+        </label>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% if box.number != 1 and editable %}<label class="checkbox"><input type="checkbox" data-field="remove"> {{ _("Dieses Postfach entfernen") }}</label>{% endif %}
+</fieldset>

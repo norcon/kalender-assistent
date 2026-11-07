@@ -1,7 +1,21 @@
 import os
 from dataclasses import dataclass, replace
+from typing import Mapping
 from urllib.parse import urlsplit
 
+
+# Verbindungsdaten: werden aus .env in die verschlüsselte Ablage übernommen (siehe connections.py)
+_MAILBOX_FIELDS = ("HOST", "PORT", "USERNAME", "PASSWORD", "NAME")
+CONNECTION_KEYS: tuple[str, ...] = (
+    *(f"IMAP_{field}" for field in _MAILBOX_FIELDS),
+    *(f"IMAP{number}_{field}" for number in range(2, 10) for field in (*_MAILBOX_FIELDS, "FOLDER")),
+    "AI_BASE_URL", "AI_API_KEY",
+    "CALDAV_URL", "CALDAV_USERNAME", "CALDAV_APP_PASSWORD", "CALDAV_NAME", "CALDAV_AUTH",
+    "APP_URL", "NTFY_URL", "NTFY_TOKEN", "PUSHOVER_TOKEN", "PUSHOVER_USER",
+    "HOMEASSISTANT_URL", "HOMEASSISTANT_TOKEN", "HOMEASSISTANT_SERVICE",
+    "SMTP_HOST", "SMTP_PORT", "SMTP_SECURITY", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM",
+    "NOTIFY_EMAIL_TO",
+)
 
 KNOWN_SERVICES = {
     "icloud.com": "iCloud",
@@ -13,23 +27,23 @@ KNOWN_SERVICES = {
 }
 
 
-def extra_mailboxes_from_env() -> tuple:
+def extra_mailboxes_from_env(getenv=os.getenv) -> tuple:
     """IMAP2_* bis IMAP9_*: weitere Postfächer oder Ordner (unvollständige werden ignoriert)."""
     boxes = []
     for number in range(2, 10):
         prefix = f"IMAP{number}_"
-        host = os.getenv(prefix + "HOST", "").strip()
-        username = os.getenv(prefix + "USERNAME", "").strip()
-        password = os.getenv(prefix + "PASSWORD", "")
+        host = getenv(prefix + "HOST", "").strip()
+        username = getenv(prefix + "USERNAME", "").strip()
+        password = getenv(prefix + "PASSWORD", "")
         if not (host and username and password):
             continue
         boxes.append({
             "host": host,
-            "port": int(os.getenv(prefix + "PORT", "993") or 993),
+            "port": int(getenv(prefix + "PORT", "993") or 993),
             "username": username,
             "password": password.strip("\r\n"),
-            "folder": os.getenv(prefix + "FOLDER", "").strip() or "INBOX",
-            "name": os.getenv(prefix + "NAME", "").strip(),
+            "folder": getenv(prefix + "FOLDER", "").strip() or "INBOX",
+            "name": getenv(prefix + "NAME", "").strip(),
         })
     return tuple(boxes)
 
@@ -131,92 +145,99 @@ class Settings:
         return os.path.join(self.backup_dir, "calendar-history.sqlite3")
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls, connections: Mapping[str, str] | None = None) -> "Settings":
+        """Einstellungen aus der Umgebung; mit `connections` kommen Verbindungsdaten nur von dort."""
+
+        def getenv(name: str, default: str = "") -> str:
+            if connections is not None and name in CONNECTION_KEYS:
+                return connections.get(name, default)
+            return os.getenv(name, default)
+
         demo = os.getenv("DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "ja"}
 
-        imap = {name: os.getenv(name, "").strip() for name in ("IMAP_HOST", "IMAP_USERNAME", "IMAP_PASSWORD")}
+        imap = {name: getenv(name, "").strip() for name in ("IMAP_HOST", "IMAP_USERNAME", "IMAP_PASSWORD")}
         # Ohne Postfach-Zugangsdaten startet die App im Einrichtungsmodus (Assistent).
         setup = not demo and not all(imap.values())
 
         def required(name: str) -> str:
-            return os.getenv(name, "")
+            return getenv(name, "")
 
         return cls(
             demo_mode=demo,
             setup_mode=setup,
             mail_configured=demo or all(imap.values()),
-            language=os.getenv("APP_LANGUAGE", "auto").strip().lower() or "auto",
-            update_repository=os.getenv("UPDATE_REPOSITORY", "norcon/kalender-assistent").strip(),
-            updater_url=os.getenv("UPDATER_URL", "http://updater:8000").strip(),
-            app_password=os.getenv("APP_PASSWORD", "").strip("\r\n"),
-            app_url=os.getenv("APP_URL", "").strip(),
-            caldav_name=os.getenv("CALDAV_NAME", "").strip() or service_name_for(os.getenv("CALDAV_URL", "")),
-            caldav_auth=(os.getenv("CALDAV_AUTH", "basic").strip().lower() or "basic"),
-            ntfy_url=os.getenv("NTFY_URL", "").strip(),
-            ntfy_token=os.getenv("NTFY_TOKEN", "").strip(),
-            pushover_token=os.getenv("PUSHOVER_TOKEN", "").strip(),
-            pushover_user=os.getenv("PUSHOVER_USER", "").strip(),
-            homeassistant_url=os.getenv("HOMEASSISTANT_URL", "").strip(),
-            homeassistant_token=os.getenv("HOMEASSISTANT_TOKEN", "").strip(),
-            homeassistant_service=os.getenv("HOMEASSISTANT_SERVICE", "").strip(),
-            smtp_host=os.getenv("SMTP_HOST", "").strip(),
-            smtp_port=int(os.getenv("SMTP_PORT", "587") or 587),
-            smtp_security=(os.getenv("SMTP_SECURITY", "starttls").strip().lower() or "starttls"),
-            smtp_username=os.getenv("SMTP_USERNAME", "").strip(),
-            smtp_password=os.getenv("SMTP_PASSWORD", "").strip("\r\n"),
-            smtp_from=os.getenv("SMTP_FROM", "").strip(),
-            notify_email_to=os.getenv("NOTIFY_EMAIL_TO", "").strip(),
-            update_check=os.getenv("UPDATE_CHECK", "1").strip().lower() not in {"0", "false", "no", "nein"},
-            target_calendars=os.getenv("TARGET_CALENDARS", "").strip(),
+            language=getenv("APP_LANGUAGE", "auto").strip().lower() or "auto",
+            update_repository=getenv("UPDATE_REPOSITORY", "norcon/kalender-assistent").strip(),
+            updater_url=getenv("UPDATER_URL", "http://updater:8000").strip(),
+            app_password=getenv("APP_PASSWORD", "").strip("\r\n"),
+            app_url=getenv("APP_URL", "").strip(),
+            caldav_name=getenv("CALDAV_NAME", "").strip() or service_name_for(getenv("CALDAV_URL", "")),
+            caldav_auth=(getenv("CALDAV_AUTH", "basic").strip().lower() or "basic"),
+            ntfy_url=getenv("NTFY_URL", "").strip(),
+            ntfy_token=getenv("NTFY_TOKEN", "").strip(),
+            pushover_token=getenv("PUSHOVER_TOKEN", "").strip(),
+            pushover_user=getenv("PUSHOVER_USER", "").strip(),
+            homeassistant_url=getenv("HOMEASSISTANT_URL", "").strip(),
+            homeassistant_token=getenv("HOMEASSISTANT_TOKEN", "").strip(),
+            homeassistant_service=getenv("HOMEASSISTANT_SERVICE", "").strip(),
+            smtp_host=getenv("SMTP_HOST", "").strip(),
+            smtp_port=int(getenv("SMTP_PORT", "587") or 587),
+            smtp_security=(getenv("SMTP_SECURITY", "starttls").strip().lower() or "starttls"),
+            smtp_username=getenv("SMTP_USERNAME", "").strip(),
+            smtp_password=getenv("SMTP_PASSWORD", "").strip("\r\n"),
+            smtp_from=getenv("SMTP_FROM", "").strip(),
+            notify_email_to=getenv("NOTIFY_EMAIL_TO", "").strip(),
+            update_check=getenv("UPDATE_CHECK", "1").strip().lower() not in {"0", "false", "no", "nein"},
+            target_calendars=getenv("TARGET_CALENDARS", "").strip(),
             imap_host=required("IMAP_HOST"),
-            imap_port=int(os.getenv("IMAP_PORT", "993")),
+            imap_port=int(getenv("IMAP_PORT", "993")),
             imap_username=required("IMAP_USERNAME"),
             imap_password=required("IMAP_PASSWORD"),
-            imap_folder=os.getenv("IMAP_FOLDER", "INBOX"),
-            imap_name=os.getenv("IMAP_NAME", "").strip(),
-            extra_mailboxes=extra_mailboxes_from_env(),
-            imap_poll_seconds=max(30, int(os.getenv("IMAP_POLL_SECONDS", "300"))),
+            imap_folder=getenv("IMAP_FOLDER", "INBOX"),
+            imap_name=getenv("IMAP_NAME", "").strip(),
+            extra_mailboxes=extra_mailboxes_from_env(getenv),
+            imap_poll_seconds=max(30, int(getenv("IMAP_POLL_SECONDS", "300"))),
             imap_idle_poll_seconds=max(
-                30, int(os.getenv("IMAP_IDLE_POLL_SECONDS", "1800"))
+                30, int(getenv("IMAP_IDLE_POLL_SECONDS", "1800"))
             ),
             imap_initial_lookback_days=max(
-                1, int(os.getenv("IMAP_INITIAL_LOOKBACK_DAYS", "14"))
+                1, int(getenv("IMAP_INITIAL_LOOKBACK_DAYS", "14"))
             ),
             imap_max_message_bytes=max(
-                1024, int(os.getenv("IMAP_MAX_MESSAGE_BYTES", "10485760"))
+                1024, int(getenv("IMAP_MAX_MESSAGE_BYTES", "10485760"))
             ),
-            ai_base_url=os.getenv("AI_BASE_URL", "http://host.docker.internal:1234/v1")
+            ai_base_url=getenv("AI_BASE_URL", "http://host.docker.internal:1234/v1")
             .rstrip("/"),
-            ai_api_key=os.getenv("AI_API_KEY", ""),
-            ai_model=os.getenv("AI_MODEL", "local-model"),
-            ai_timeout_seconds=max(5, int(os.getenv("AI_TIMEOUT_SECONDS", "1800"))),
-            caldav_url=os.getenv("CALDAV_URL", "https://caldav.icloud.com").rstrip("/"),
-            caldav_username=os.getenv("CALDAV_USERNAME", "").strip(),
-            caldav_app_password=os.getenv("CALDAV_APP_PASSWORD", ""),
-            caldav_timeout_seconds=max(5, int(os.getenv("CALDAV_TIMEOUT_SECONDS", "30"))),
-            caldav_timezone=os.getenv("CALDAV_TIMEZONE", "Europe/Berlin").strip(),
-            database_path=os.getenv(
+            ai_api_key=getenv("AI_API_KEY", ""),
+            ai_model=getenv("AI_MODEL", "local-model"),
+            ai_timeout_seconds=max(5, int(getenv("AI_TIMEOUT_SECONDS", "1800"))),
+            caldav_url=getenv("CALDAV_URL", "https://caldav.icloud.com").rstrip("/"),
+            caldav_username=getenv("CALDAV_USERNAME", "").strip(),
+            caldav_app_password=getenv("CALDAV_APP_PASSWORD", ""),
+            caldav_timeout_seconds=max(5, int(getenv("CALDAV_TIMEOUT_SECONDS", "30"))),
+            caldav_timezone=getenv("CALDAV_TIMEZONE", "Europe/Berlin").strip(),
+            database_path=getenv(
                 "APP_DATABASE_PATH", "/data/calendar-assistant.sqlite3"
             ),
-            log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+            log_level=getenv("LOG_LEVEL", "INFO").upper(),
             default_event_minutes=min(
-                1440, max(5, int(os.getenv("DEFAULT_EVENT_MINUTES", "60")))
+                1440, max(5, int(getenv("DEFAULT_EVENT_MINUTES", "60")))
             ),
-            backup_dir=os.getenv("APP_BACKUP_DIR", "/backups"),
-            backup_hour=min(23, max(0, int(os.getenv("BACKUP_HOUR", "3")))),
-            backup_keep_days=max(1, int(os.getenv("BACKUP_KEEP_DAYS", "14"))),
+            backup_dir=getenv("APP_BACKUP_DIR", "/backups"),
+            backup_hour=min(23, max(0, int(getenv("BACKUP_HOUR", "3")))),
+            backup_keep_days=max(1, int(getenv("BACKUP_KEEP_DAYS", "14"))),
             calendar_backup_minutes=min(
-                1440, max(5, int(os.getenv("CALENDAR_BACKUP_MINUTES", "60")))
+                1440, max(5, int(getenv("CALENDAR_BACKUP_MINUTES", "60")))
             ),
-            calendar_keep_days=max(1, int(os.getenv("CALENDAR_KEEP_DAYS", "30"))),
-            reminder_minutes=min(10080, max(0, int(os.getenv("REMINDER_MINUTES", "60")))),
+            calendar_keep_days=max(1, int(getenv("CALENDAR_KEEP_DAYS", "30"))),
+            reminder_minutes=min(10080, max(0, int(getenv("REMINDER_MINUTES", "60")))),
             allday_reminder_hour=min(
-                24, max(0, int(os.getenv("ALLDAY_REMINDER_HOUR", "18")))
+                24, max(0, int(getenv("ALLDAY_REMINDER_HOUR", "18")))
             ),
             newsletter_min_confidence_percent=min(
-                100, max(0, int(os.getenv("NEWSLETTER_MIN_CONFIDENCE_PERCENT", "95")))
+                100, max(0, int(getenv("NEWSLETTER_MIN_CONFIDENCE_PERCENT", "95")))
             ),
             uncertain_threshold_percent=min(
-                100, max(0, int(os.getenv("UNCERTAIN_THRESHOLD_PERCENT", "60")))
+                100, max(0, int(getenv("UNCERTAIN_THRESHOLD_PERCENT", "60")))
             ),
         )

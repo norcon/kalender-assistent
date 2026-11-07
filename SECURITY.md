@@ -15,9 +15,19 @@ schreiben. Betreibe sie deshalb in einem vertrauenswürdigen Netz:
 
 Was die App selbst absichert:
 
-- Zugangsdaten und Server-Adressen stehen nur in `.env` und sind in der
-  Oberfläche nicht änderbar – sonst könnte jemand im Netz Mails an einen
-  fremden KI-Server umleiten.
+- Zugangsdaten und Server-Adressen (Postfächer, KI-Server, Kalender-Server,
+  Benachrichtigungen) liegen **verschlüsselt** in der Datenbank. Der Schlüssel
+  steht getrennt davon in `data/secret.key` (nur für die App lesbar) oder in
+  `APP_SECRET_KEY`. Datenbank-Sicherungen allein sind deshalb wertlos – den
+  Datenordner samt `secret.key` beim Umzug mitnehmen.
+- Bearbeiten lassen sich diese Verbindungen in der Oberfläche **nur mit
+  eingeschaltetem Zugangsschutz** (`APP_PASSWORD`) – sonst könnte jemand im
+  Netz z. B. alle Mails an einen fremden KI-Server umleiten. Jede Änderung wird
+  vor dem Speichern geprüft.
+- Werte in `.env` werden beim Start übernommen und danach vom Updater aus
+  `.env` entfernt; vorher sichert er `.env` nach
+  `backups/env-vor-aufraeumen-…/`. Diese Sicherung enthält die Zugangsdaten
+  im Klartext und kann gelöscht werden, sobald alles läuft.
 - Das Postfach wird nur lesend geöffnet; in iCloud wird nur auf Knopfdruck
   und nur in die eingestellten Zielkalender geschrieben.
 - Schreibende Anfragen von fremden Webseiten werden abgewiesen (CSRF-Schutz).
@@ -61,8 +71,14 @@ a VPN for remote access. Optional access protection: set `APP_PASSWORD` in
 `.env` (signed session cookie, lockout after failed attempts); if the app is
 reachable from the internet, also use HTTPS via a reverse proxy.
 
-Credentials and server addresses live only in `.env` and cannot be changed in
-the interface. The mailbox is opened read-only; iCloud is only written when you
+Credentials and server addresses are stored **encrypted** in the database; the
+key is kept separately in `data/secret.key` (or `APP_SECRET_KEY`), so database
+backups alone are useless. They can be edited in the interface only when access
+protection (`APP_PASSWORD`) is on; every change is tested first. Values found
+in `.env` are imported at start-up and then removed from `.env` by the updater
+(after backing it up to `backups/env-vor-aufraeumen-…/`, which contains them in
+plain text and can be deleted once everything works). The mailbox is opened
+read-only; iCloud is only written when you
 press a button, and only to the configured target calendars. Cross-site write
 requests are rejected, and the container runs as a non-root user.
 
@@ -77,8 +93,8 @@ your network can trigger an update or a rollback to an official version.
 
 During first-time setup the updater writes credentials to `.env` – only while
 no mailbox credentials are present there yet, and only a fixed list of keys.
-After that it refuses; credentials are then changed only in `.env` on the
-server.
+After that it refuses; credentials are then changed under Settings →
+Connections (with `APP_PASSWORD`) or by adding new values to `.env`.
 
 To report a vulnerability, please use GitHub → *Security* → *Report a
 vulnerability* instead of a public issue.

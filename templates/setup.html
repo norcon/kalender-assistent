@@ -101,7 +101,7 @@
         <dl class="setup-summary"></dl>
         <label>{{ _("Passwort für die Oberfläche (optional)") }}<input name="app_password" type="password" autocomplete="new-password" minlength="8"></label>
         <p class="help">{{ _("Leer lassen, wenn nur dein Heimnetz Zugriff hat. Mit Passwort fragt die App beim Öffnen danach – wichtig, wenn sie aus dem Internet erreichbar ist.") }}</p>
-        <p class="help">{{ _("Mit „Speichern und starten“ schreibt der Updater die Einstellungen in .env und startet die App neu. Danach ist die Einrichtung gesperrt; Zugangsdaten änderst du nur noch in .env.") }}</p>
+        <p class="help">{{ _("Mit „Speichern und starten“ schreibt der Updater die Einstellungen in .env und startet die App neu. Danach übernimmt die App die Zugangsdaten verschlüsselt und räumt sie aus .env; ändern lassen sie sich unter Einstellungen → Verbindungen (mit Passwort für die Oberfläche).") }}</p>
         <div class="check-result" data-for="finish" role="status" aria-live="polite"></div>
         <div id="manual-env" hidden>
           <p>{{ _("Der Updater läuft nicht oder hat abgelehnt. Bitte diese Zeilen auf dem Server in die Datei .env neben compose.yaml eintragen und danach docker compose up -d ausführen:") }}</p>

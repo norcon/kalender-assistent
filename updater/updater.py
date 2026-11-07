@@ -15,6 +15,7 @@ HTTP (intern):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -115,6 +116,15 @@ SETUP_KEYS = {
     "APP_LANGUAGE", "TARGET_CALENDARS", "APP_PASSWORD", "CALDAV_NAME", "CALDAV_AUTH",
 }
 CREDENTIAL_KEYS = ("IMAP_HOST", "IMAP_USERNAME", "IMAP_PASSWORD")
+# Verbindungsdaten, die die App verschlüsselt übernommen hat und die aus .env
+# entfernt werden dürfen (siehe src/connections.py) – sonst nichts.
+CLEANUP_KEY_PATTERN = re.compile(
+    r"(IMAP_(HOST|PORT|USERNAME|PASSWORD|NAME)|IMAP[2-9]_(HOST|PORT|USERNAME|PASSWORD|NAME|FOLDER)"
+    r"|AI_BASE_URL|AI_API_KEY|CALDAV_(URL|USERNAME|APP_PASSWORD|NAME|AUTH)|APP_URL|NTFY_(URL|TOKEN)"
+    r"|PUSHOVER_(TOKEN|USER)|HOMEASSISTANT_(URL|TOKEN|SERVICE)"
+    r"|SMTP_(HOST|PORT|SECURITY|USERNAME|PASSWORD|FROM)|NOTIFY_EMAIL_TO)"
+)
+MIGRATED_MARKER = "KALENDER_VERBINDUNGEN"  # =app: Zugangsdaten liegen verschlüsselt in der App
 
 
 # ---------- Ablauf ----------
@@ -218,8 +228,8 @@ class Updater:
         except PermissionError:
             pass
 
-    def _save_config(self, stamp: str) -> Path:
-        target = self.backup_dir / f"vor-update-{stamp}"
+    def _save_config(self, stamp: str, prefix: str = "vor-update") -> Path:
+        target = self.backup_dir / f"{prefix}-{stamp}"
         target.mkdir(parents=True, exist_ok=True)
         for name in (".env", "compose.yaml"):
             source = self.project_dir / name
@@ -310,7 +320,39 @@ class Updater:
 # ---------- Ersteinrichtung ----------
 
 def configured(env_file: Path) -> bool:
+    if read_env_value(env_file, MIGRATED_MARKER) == "app":
+        return True
     return all(read_env_value(env_file, key) for key in CREDENTIAL_KEYS)
+
+
+def cleanup_env(updater: "Updater", keys: dict[str, Any]) -> tuple[bool, str, list[str]]:
+    """Übernommene Verbindungsdaten aus .env entfernen.
+
+    Entfernt wird ein Schlüssel nur, wenn er erlaubt ist und sein Wert genau der
+    übergebenen Prüfsumme entspricht (also das ist, was die App gespeichert hat).
+    """
+    if not isinstance(keys, dict) or not keys:
+        return False, "Keine Schlüssel übergeben.", []
+    if any(not isinstance(key, str) or not CLEANUP_KEY_PATTERN.fullmatch(key) for key in keys):
+        return False, "Nicht erlaubte Schlüssel.", []
+    removable = []
+    for key, digest in keys.items():
+        value = read_env_value(updater.env_file, key)
+        if value and isinstance(digest, str) and hashlib.sha256(value.encode("utf-8")).hexdigest() == digest:
+            removable.append(key)
+    if not removable:
+        return True, "Nichts zu entfernen.", []
+    if not updater._lock.acquire(blocking=False):
+        return False, "Es läuft bereits ein Vorgang.", []
+    try:
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+        saved = updater._save_config(stamp, prefix="env-vor-aufraeumen")
+        set_env_values(updater.env_file, {**{key: None for key in removable}, MIGRATED_MARKER: "app"})
+        logger.info("Aus .env entfernt (jetzt verschlüsselt in der App): %s; Sicherung in %s.",
+                    ", ".join(removable), saved.name)
+    finally:
+        updater._lock.release()
+    return True, "aufgeräumt", removable
 
 
 def configure(updater: "Updater", values: dict[str, Any]) -> tuple[bool, str]:
@@ -381,16 +423,20 @@ def make_handler(updater: Updater) -> type[BaseHTTPRequestHandler]:
                 self._send(404, {"error": "not found"})
 
         def do_POST(self) -> None:  # noqa: N802
-            if self.path not in ("/update", "/configure"):
+            if self.path not in ("/update", "/configure", "/env/cleanup"):
                 self._send(404, {"error": "not found"})
                 return
             try:
-                length = min(int(self.headers.get("Content-Length") or 0), 4096)
+                length = min(int(self.headers.get("Content-Length") or 0), 16384)
                 request = json.loads(self.rfile.read(length) or b"{}")
             except ValueError:
                 self._send(400, {"error": "Ungültige Anfrage."})
                 return
             request = request if isinstance(request, dict) else {}
+            if self.path == "/env/cleanup":
+                ok, message, removed = cleanup_env(updater, request.get("keys") or {})
+                self._send(200 if ok else 409, {"ok": ok, "message": message, "removed": removed})
+                return
             if self.path == "/configure":
                 ok, message = configure(updater, request.get("values") or {})
             else:
