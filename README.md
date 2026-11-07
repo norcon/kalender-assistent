@@ -322,6 +322,24 @@ Server-Adressen und Zugangsdaten (IMAP, KI-Server, iCloud) sind bewusst nur in
 die Oberfläche keinen Login hat, könnte sonst jemand im Netz z. B. alle E-Mails
 an einen fremden KI-Server umleiten.
 
+## Andere Kalender-Server
+
+Statt iCloud funktioniert jeder Kalender-Server mit CalDAV-Standard. Im
+Einrichtungsassistenten gibt es eine Auswahl, sonst in `.env`:
+
+| Anbieter | `CALDAV_URL` | Hinweis |
+|---|---|---|
+| iCloud | `https://caldav.icloud.com` | App-spezifisches Passwort |
+| Nextcloud | `https://<host>/remote.php/dav` | App-Passwort, `CALDAV_NAME=Nextcloud` |
+| mailbox.org | `https://dav.mailbox.org/` | |
+| Fastmail | `https://caldav.fastmail.com/dav/` | App-Passwort mit CalDAV-Zugriff |
+| Posteo | `https://posteo.de:8443/` | |
+| Baïkal, Radicale, Synology … | Adresse des Servers | ältere Baïkal: `CALDAV_AUTH=digest` |
+
+Die Oberfläche nennt den Dienst beim Namen (`CALDAV_NAME`, sonst aus der
+Adresse abgeleitet). Reine Aufgabenlisten werden ausgeblendet. Google Kalender
+wird nicht unterstützt (verlangt eine OAuth-Anmeldung).
+
 ## Benachrichtigungen
 
 Die App meldet neue Vorschläge, länger andauernde Störungen (Postfach,

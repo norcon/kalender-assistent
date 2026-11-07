@@ -1,5 +1,27 @@
 import os
 from dataclasses import dataclass
+from urllib.parse import urlsplit
+
+
+KNOWN_SERVICES = {
+    "icloud.com": "iCloud",
+    "fastmail.com": "Fastmail",
+    "mailbox.org": "mailbox.org",
+    "posteo.de": "Posteo",
+    "gmx.net": "GMX",
+    "web.de": "WEB.DE",
+}
+
+
+def service_name_for(url: str) -> str:
+    """Anzeigename aus der CalDAV-Adresse: bekannte Dienste, sonst der Hostname."""
+    host = (urlsplit(url.strip()).hostname or "").lower()
+    if not host:
+        return "iCloud"  # Standard-Adresse
+    for domain, name in KNOWN_SERVICES.items():
+        if host == domain or host.endswith("." + domain):
+            return name
+    return host
 
 
 @dataclass(frozen=True)
@@ -43,6 +65,8 @@ class Settings:
     update_check: bool = True
     app_password: str = ""  # leer = kein Zugangsschutz
     app_url: str = ""  # Adresse für Links in Benachrichtigungen
+    caldav_name: str = "iCloud"  # Anzeigename des Kalenderdienstes
+    caldav_auth: str = "basic"  # basic oder digest
     ntfy_url: str = ""
     ntfy_token: str = ""
     pushover_token: str = ""
@@ -88,6 +112,8 @@ class Settings:
             updater_url=os.getenv("UPDATER_URL", "http://updater:8000").strip(),
             app_password=os.getenv("APP_PASSWORD", "").strip("\r\n"),
             app_url=os.getenv("APP_URL", "").strip(),
+            caldav_name=os.getenv("CALDAV_NAME", "").strip() or service_name_for(os.getenv("CALDAV_URL", "")),
+            caldav_auth=(os.getenv("CALDAV_AUTH", "basic").strip().lower() or "basic"),
             ntfy_url=os.getenv("NTFY_URL", "").strip(),
             ntfy_token=os.getenv("NTFY_TOKEN", "").strip(),
             pushover_token=os.getenv("PUSHOVER_TOKEN", "").strip(),

@@ -103,7 +103,7 @@
       element.append(list);
     },
     async caldav() {
-      report("caldav", t("Verbinde mit iCloud …"));
+      report("caldav", t("Verbinde mit dem Kalender-Server …"));
       const data = await post("/api/setup/caldav", { url: value("caldav_url"), username: value("caldav_username"), password: form.elements.caldav_password.value });
       calendars = data.calendars;
       const list = document.querySelector("#target-list ul");
@@ -143,7 +143,7 @@
       [t("Zeitzone"), value("timezone")],
       [t("Postfach"), `${value("imap_username")} @ ${value("imap_host")}:${value("imap_port") || 993} · ${value("imap_folder") || "INBOX"}`],
       [t("KI"), `${value("ai_model")} · ${value("ai_base_url")}`],
-      [t("iCloud"), value("caldav_username") || t("nicht eingerichtet")],
+      [t("Kalender"), value("caldav_username") ? `${form.elements.caldav_provider.selectedOptions[0].textContent.trim()} · ${value("caldav_username")}` : t("nicht eingerichtet")],
       [t("Zielkalender"), targets().map((target) => target.name).join(", ") || "–"],
       [t("Zugangsschutz"), form.elements.app_password.value ? t("mit Passwort") : t("ohne Passwort")],
     ];
@@ -192,6 +192,7 @@
         imap_password: form.elements.imap_password.value, imap_folder: value("imap_folder") || "INBOX",
         ai_base_url: value("ai_base_url"), ai_api_key: form.elements.ai_api_key.value, ai_model: value("ai_model"),
         caldav_url: value("caldav_url"), caldav_username: value("caldav_username"), caldav_password: form.elements.caldav_password.value,
+        caldav_name: value("caldav_name"),
         app_password: form.elements.app_password.value,
         targets: targets(),
       });
@@ -222,6 +223,15 @@
   });
 
   form.elements.app_password.addEventListener("input", summary);
+
+  // Kalender-Anbieter: Adresse, Anzeigename und Hinweis vorbelegen.
+  form.elements.caldav_provider.addEventListener("change", () => {
+    const option = form.elements.caldav_provider.selectedOptions[0];
+    form.elements.caldav_url.value = option.dataset.url;
+    form.elements.caldav_name.value = option.dataset.name;
+    document.getElementById("caldav-hint").textContent = option.dataset.hint;
+    if (!option.dataset.url || option.value === "nextcloud") form.elements.caldav_url.focus();
+  });
 
   show(1);
 })();

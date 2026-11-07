@@ -24,6 +24,15 @@ def _response(href: str, properties: str) -> str:
 
 
 class CalDAVDiscoveryTests(unittest.TestCase):
+    def test_auth_mode_switches_between_basic_and_digest(self):
+        try:
+            caldav.set_auth_mode("digest")
+            self.assertIsInstance(caldav._auth("u", "p"), httpx.DigestAuth)
+            caldav.set_auth_mode("irgendwas")
+            self.assertIsInstance(caldav._auth("u", "p"), httpx.BasicAuth)
+        finally:
+            caldav.set_auth_mode("basic")
+
     @patch("src.caldav.httpx.Client")
     def test_discovers_calendar_names_and_reported_write_access(self, client_factory):
         responses = [
@@ -53,7 +62,16 @@ class CalDAVDiscoveryTests(unittest.TestCase):
                 + _response(
                     "/home/child/",
                     "<d:resourcetype><d:collection/><c:calendar/>"
-                    "</d:resourcetype><d:displayname>Mia</d:displayname>",
+                    "</d:resourcetype><d:displayname>Mia</d:displayname>"
+                    '<c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/>'
+                    "</c:supported-calendar-component-set>",
+                )
+                + _response(
+                    "/home/tasks/",
+                    "<d:resourcetype><d:collection/><c:calendar/>"
+                    "</d:resourcetype><d:displayname>Aufgaben</d:displayname>"
+                    '<c:supported-calendar-component-set><c:comp name="VTODO"/>'
+                    "</c:supported-calendar-component-set>",
                 )
             ),
         ]
@@ -319,16 +337,16 @@ class CalDAVDiscoveryTests(unittest.TestCase):
         )
 
     @patch("src.caldav.discover_icloud_calendars")
-    def test_refuses_calendar_without_confirmed_write_permission(self, discover):
+    def test_refuses_calendar_with_denied_write_permission(self, discover):
         discover.return_value = [
             {
                 "name": "Familie",
-                "write_access": None,
+                "write_access": False,
                 "calendar_url": "https://caldav.icloud.com/home/family/",
             }
         ]
 
-        with self.assertRaisesRegex(ValueError, "keine bestätigte Schreibberechtigung"):
+        with self.assertRaisesRegex(ValueError, "erlaubt kein Schreiben"):
             caldav.create_icloud_event(
                 "https://caldav.icloud.com",
                 "tablet@example.org",

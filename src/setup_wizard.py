@@ -95,9 +95,9 @@ def caldav_test(url: str, username: str, password: str) -> list[dict[str, Any]]:
     try:
         calendars = caldav.discover_icloud_calendars(url, username, password, 30)
     except httpx.HTTPStatusError as error:
-        raise SetupError(_("iCloud hat die Anmeldung abgelehnt. Apple-ID und app-spezifisches Passwort prüfen.")) from error
+        raise SetupError(_("Der Kalender-Server hat die Anmeldung abgelehnt (HTTP {status}). Benutzer, Passwort und Adresse prüfen.", status=error.response.status_code)) from error
     except (httpx.HTTPError, ValueError) as error:
-        raise SetupError(_("iCloud ist nicht erreichbar ({error}).", error=type(error).__name__)) from error
+        raise SetupError(_("Der Kalender-Server ist nicht erreichbar oder antwortet nicht wie erwartet ({error}). Adresse prüfen.", error=type(error).__name__)) from error
     return [{"name": c["name"], "color": c.get("color"), "write_access": c.get("write_access")} for c in calendars]
 
 
@@ -137,6 +137,7 @@ def env_values(form: dict[str, Any]) -> dict[str, str]:
         "CALDAV_USERNAME": form.get("caldav_username", ""),
         "CALDAV_APP_PASSWORD": form.get("caldav_password", ""),
         "CALDAV_TIMEZONE": form.get("timezone") or "Europe/Berlin",
+        "CALDAV_NAME": form.get("caldav_name", ""),
         "APP_LANGUAGE": form.get("language") or "auto",
         "APP_PASSWORD": form.get("app_password", ""),
     }

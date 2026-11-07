@@ -128,3 +128,26 @@ class UpdaterConfigureTests(unittest.TestCase):
                        {"IMAP_HOST": "h"}, {}):
             self.assertFalse(updater.configure(self.updater, values)[0], values)
         self.assertEqual(self.calls, [])
+
+
+class ServiceNameTests(unittest.TestCase):
+    def test_service_name_from_url_and_branding(self):
+        from src import i18n
+        from src.config import service_name_for
+        self.assertEqual(service_name_for(""), "iCloud")
+        self.assertEqual(service_name_for("https://caldav.icloud.com"), "iCloud")
+        self.assertEqual(service_name_for("https://caldav.fastmail.com/dav/"), "Fastmail")
+        self.assertEqual(service_name_for("https://dav.mailbox.org/"), "mailbox.org")
+        self.assertEqual(service_name_for("https://cloud.example.org/remote.php/dav"), "cloud.example.org")
+        try:
+            i18n.set_service_name("Nextcloud")
+            self.assertEqual(i18n.gettext("iCloud nicht konfiguriert"), "Nextcloud nicht konfiguriert")
+            self.assertIn("Nextcloud", i18n.js_catalog("de")["iCloud nicht konfiguriert"])
+            token = i18n.activate("en")
+            try:
+                self.assertNotIn("iCloud", i18n.gettext("iCloud nicht konfiguriert"))
+            finally:
+                i18n.reset(token)
+        finally:
+            i18n.set_service_name("iCloud")
+        self.assertEqual(i18n.js_catalog("de"), {})

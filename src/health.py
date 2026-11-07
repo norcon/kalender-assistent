@@ -134,5 +134,5 @@ def status_items(
             _("Kalender gesichert {age}", age=formatting.relative_time(taken, now))
             + (" " + _("(unvollständig)") if partial else ""),
         )
-    items.append({"key": "icloud", "label": "iCloud", "state": cloud[0], "text": cloud[1]})
+    items.append({"key": "icloud", "label": _("iCloud"), "state": cloud[0], "text": cloud[1]})
     return items

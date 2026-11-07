@@ -14,6 +14,20 @@ from . import recurrence
 
 logger = logging.getLogger(__name__)
 
+# „basic“ (Standard, z. B. iCloud, Nextcloud, Fastmail) oder „digest“ (z. B. ältere Baïkal-Server)
+AUTH_MODE = "basic"
+
+
+def set_auth_mode(mode: str) -> None:
+    global AUTH_MODE
+    AUTH_MODE = "digest" if (mode or "").strip().lower() == "digest" else "basic"
+
+
+def _auth(username: str, password: str) -> httpx.Auth:
+    if AUTH_MODE == "digest":
+        return httpx.DigestAuth(username, password)
+    return httpx.BasicAuth(username, password)
+
 _DAV_NS = "DAV:"
 _CALDAV_NS = "urn:ietf:params:xml:ns:caldav"
 _APPLE_NS = "http://apple.com/ns/ical/"
@@ -26,6 +40,7 @@ _PROPFIND = f"""<?xml version="1.0" encoding="utf-8" ?>
     <d:resourcetype />
     <d:displayname />
     <d:current-user-privilege-set />
+    <c:supported-calendar-component-set />
   </d:prop>
 </d:propfind>"""
 
@@ -82,7 +97,7 @@ def _request(
     try:
         root = ET.fromstring(response.content)
     except ET.ParseError as error:
-        raise ValueError("iCloud returned an invalid XML response") from error
+        raise ValueError("The CalDAV server returned an invalid XML response") from error
     return response, root
 
 
@@ -105,7 +120,7 @@ def discover_icloud_calendars(
 ) -> list[dict[str, str | bool | None]]:
     timeout = httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 10))
     with httpx.Client(
-        auth=(username, app_password),
+        auth=_auth(username, app_password),
         timeout=timeout,
         follow_redirects=True,
         headers={"User-Agent": "FamilyCalendarAssistant/0.1"},
@@ -121,7 +136,7 @@ def discover_icloud_calendars(
             None,
         )
         if not principal_href:
-            raise ValueError("iCloud did not return a calendar principal")
+            raise ValueError("The CalDAV server did not return a calendar principal")
 
         principal_url = urljoin(service_url, principal_href)
         principal_response, principal_root = _request(client, principal_url, "0")
@@ -134,7 +149,7 @@ def discover_icloud_calendars(
             None,
         )
         if not home_href:
-            raise ValueError("iCloud did not return a calendar home")
+            raise ValueError("The CalDAV server did not return a calendar home")
 
         home_url = urljoin(str(principal_response.url), home_href)
         home_response, home_root = _request(client, home_url, "1")
@@ -146,6 +161,14 @@ def discover_icloud_calendars(
                 _local_name(item) == "calendar" for item in resource_type.iter()
             ):
                 continue
+            components = _property_value(response, "supported-calendar-component-set")
+            names = {
+                (item.get("name") or "").upper()
+                for item in (components.iter() if components is not None else [])
+                if _local_name(item) == "comp"
+            }
+            if names and "VEVENT" not in names:
+                continue  # z. B. reine Aufgabenlisten (Nextcloud „Tasks“)
             href_value = _href(response)
             if not href_value:
                 continue
@@ -523,9 +546,9 @@ def _send_icloud_event(
             _("Der iCloud-Kalender „{calendar}“ wurde nicht eindeutig gefunden.", calendar=calendar_name)
         )
     calendar = matches[0]
-    if calendar["write_access"] is not True:
+    if calendar["write_access"] is False:  # None = Server meldet keine Rechte → versuchen
         raise ValueError(
-            _("iCloud meldet keine bestätigte Schreibberechtigung für „{calendar}“.", calendar=calendar_name)
+            _("iCloud erlaubt kein Schreiben in den Kalender „{calendar}“.", calendar=calendar_name)
         )
 
     suggestion_id = int(suggestion["id"])
@@ -544,7 +567,7 @@ def _send_icloud_event(
 
     timeout = httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 10))
     with httpx.Client(
-        auth=(username, app_password),
+        auth=_auth(username, app_password),
         timeout=timeout,
         follow_redirects=True,
         headers={"User-Agent": "FamilyCalendarAssistant/0.1"},
@@ -654,9 +677,9 @@ def delete_icloud_event(
             _("Der iCloud-Kalender „{calendar}“ wurde nicht eindeutig gefunden.", calendar=calendar_name)
         )
     calendar = matches[0]
-    if calendar["write_access"] is not True:
+    if calendar["write_access"] is False:  # None = Server meldet keine Rechte → versuchen
         raise ValueError(
-            _("iCloud meldet keine bestätigte Schreibberechtigung für „{calendar}“.", calendar=calendar_name)
+            _("iCloud erlaubt kein Schreiben in den Kalender „{calendar}“.", calendar=calendar_name)
         )
 
     uid = event_uid(int(suggestion["id"]))
@@ -664,7 +687,7 @@ def delete_icloud_event(
     event_url = urljoin(str(calendar["calendar_url"]).rstrip("/") + "/", filename)
     timeout = httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 10))
     with httpx.Client(
-        auth=(username, app_password),
+        auth=_auth(username, app_password),
         timeout=timeout,
         follow_redirects=True,
         headers={"User-Agent": "FamilyCalendarAssistant/0.1"},
@@ -691,7 +714,7 @@ _ETAG_PROPFIND = f"""<?xml version="1.0" encoding="utf-8" ?>
 
 def open_client(username: str, app_password: str, timeout_seconds: int) -> httpx.Client:
     return httpx.Client(
-        auth=(username, app_password),
+        auth=_auth(username, app_password),
         timeout=httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 10)),
         follow_redirects=True,
         headers={"User-Agent": "FamilyCalendarAssistant/0.1"},
@@ -719,7 +742,7 @@ def list_event_etags(client: httpx.Client, calendar_url: str) -> dict[str, str]:
     try:
         root = ET.fromstring(response.content)
     except ET.ParseError as error:
-        raise ValueError("iCloud returned an invalid XML response") from error
+        raise ValueError("The CalDAV server returned an invalid XML response") from error
     collection_path = _href_path(calendar_url).rstrip("/")
     etags: dict[str, str] = {}
     for item in _responses(root):
@@ -768,7 +791,7 @@ def fetch_events(
         try:
             root = ET.fromstring(response.content)
         except ET.ParseError as error:
-            raise ValueError("iCloud returned an invalid XML response") from error
+            raise ValueError("The CalDAV server returned an invalid XML response") from error
         for item in _responses(root):
             href = _href(item)
             etag = _property_value(item, "getetag")

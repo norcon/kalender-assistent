@@ -14,5 +14,5 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="{{ _("Kalender") }}">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-{% if current_lang() != "de" %}<script src="/i18n/{{ current_lang() }}.js?v={{ app_version }}"></script>{% endif %}
+{% if current_lang() != "de" or service_name() != "iCloud" %}<script src="/i18n/{{ current_lang() }}.js?v={{ app_version }}-{{ service_name()|urlencode }}"></script>{% endif %}
 <script src="/static/app.js?v={{ app_version }}" defer></script>

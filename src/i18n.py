@@ -36,8 +36,33 @@ def reset(token: contextvars.Token) -> None:
     _current.reset(token)
 
 
+_service = "iCloud"  # Name des Kalenderdienstes; ersetzt „iCloud“ in allen Texten
+
+
+def set_service_name(name: str) -> None:
+    global _service
+    _service = (name or "").strip() or "iCloud"
+
+
+def service_name() -> str:
+    return _service
+
+
+def brand(text: str) -> str:
+    return text if _service == "iCloud" else text.replace("iCloud", _service)
+
+
+def js_catalog(language: str) -> dict[str, str]:
+    """Übersetzungen für den Browser, mit eingesetztem Dienstnamen."""
+    base = catalog(language) if language != DEFAULT else {}
+    result = {key: brand(value) for key, value in base.items()}
+    if _service != "iCloud" and language == DEFAULT:
+        result.update({key: brand(key) for key in catalog("en") if "iCloud" in key})
+    return result
+
+
 def gettext(text: str, /, **values: Any) -> str:
-    translated = catalog(current()).get(text, text)
+    translated = brand(catalog(current()).get(text, text))
     return translated.format(**values) if values else translated
 
 

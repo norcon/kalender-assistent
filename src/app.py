@@ -416,6 +416,8 @@ def _reload_settings() -> None:
     )
     if skipped:
         settings = replace(settings, setup_mode=False)
+    i18n.set_service_name(settings.caldav_name)
+    caldav.set_auth_mode(settings.caldav_auth)
     templates.env.globals["demo_mode"] = settings.demo_mode
     templates.env.globals["setup_mode"] = settings.setup_mode
     templates.env.globals["setup_skipped"] = skipped
@@ -915,6 +917,7 @@ async def logout():
 
 
 templates.env.globals["login_required"] = lambda: bool(settings.app_password)
+templates.env.globals["service_name"] = i18n.service_name
 templates.env.globals["notify_channels"] = lambda: notify.channels(settings)
 
 
@@ -959,6 +962,7 @@ class SetupFinishRequest(BaseModel):
     caldav_url: str = Field(default="https://caldav.icloud.com", max_length=500)
     caldav_username: str = Field(default="", max_length=320)
     caldav_password: str = Field(default="", max_length=500)
+    caldav_name: str = Field(default="", max_length=60)
     app_password: str = Field(default="", max_length=200)
     targets: list[dict] = Field(default_factory=list, max_length=30)
 
@@ -1091,7 +1095,7 @@ async def setup_finish(request: SetupFinishRequest):
 async def translations_script(language: str):
     if language not in i18n.LANGUAGES:
         raise HTTPException(status_code=404, detail=_("Unbekannte Sprache"))
-    body = "window.I18N = " + json.dumps(i18n.catalog(language), ensure_ascii=False) + ";\n"
+    body = "window.I18N = " + json.dumps(i18n.js_catalog(language), ensure_ascii=False) + ";\n"
     return Response(
         content=body,
         media_type="application/javascript",

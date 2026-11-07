@@ -19,7 +19,7 @@
     <h1>{{ _("Einrichtung") }}</h1>
     <p class="meta">{{ _("In fünf Schritten zur fertigen Einrichtung. Jede Verbindung wird sofort geprüft; gespeichert wird erst ganz am Ende.") }}</p>
     <ol class="setup-steps" aria-label="{{ _("Fortschritt") }}">
-      {% for label in [_("Sprache"), _("Postfach"), _("KI"), _("iCloud"), _("Fertig")] %}<li data-step="{{ loop.index }}">{{ label }}</li>{% endfor %}
+      {% for label in [_("Sprache"), _("Postfach"), _("KI"), _("Kalender"), _("Fertig")] %}<li data-step="{{ loop.index }}">{{ label }}</li>{% endfor %}
     </ol>
 
     <form id="setup-form" novalidate>
@@ -69,13 +69,25 @@
       </section>
 
       <section class="setup-step" data-step="4" hidden>
-        <h2>{{ _("iCloud-Kalender") }}</h2>
-        <p class="help">{{ _("Auf account.apple.com unter „Anmelden und Sicherheit“ → „App-spezifische Passwörter“ ein Passwort erstellen. Ohne iCloud zeigt die App die Vorschläge trotzdem an – dann diesen Schritt überspringen.") }}</p>
+        <h2>{{ _("Kalender") }}</h2>
+        <p class="help">{{ _("Wohin sollen die Termine? Ohne Kalender zeigt die App die Vorschläge trotzdem an – dann diesen Schritt überspringen.") }}</p>
         <div class="setup-grid">
-          <label>{{ _("Apple-ID (E-Mail)") }}<input name="caldav_username" autocomplete="username"></label>
-          <label>{{ _("App-spezifisches Passwort") }}<input name="caldav_password" type="password" autocomplete="off" placeholder="xxxx-xxxx-xxxx-xxxx"></label>
+          <label>{{ _("Anbieter") }}<select name="caldav_provider">
+            <option value="icloud" data-url="https://caldav.icloud.com" data-name="" data-hint="{{ _("Benutzer ist deine Apple-ID. Auf account.apple.com unter „Anmelden und Sicherheit“ → „App-spezifische Passwörter“ ein Passwort erstellen.") }}" selected>iCloud</option>
+            <option value="nextcloud" data-url="https://cloud.example.org/remote.php/dav" data-name="Nextcloud" data-hint="{{ _("Adresse deiner Nextcloud mit /remote.php/dav am Ende. Am besten ein App-Passwort unter Persönliche Einstellungen → Sicherheit erstellen.") }}">Nextcloud</option>
+            <option value="mailbox" data-url="https://dav.mailbox.org/" data-name="mailbox.org" data-hint="{{ _("Benutzer ist deine E-Mail-Adresse. Bei Zwei-Faktor-Anmeldung ein App-Passwort verwenden.") }}">mailbox.org</option>
+            <option value="fastmail" data-url="https://caldav.fastmail.com/dav/" data-name="Fastmail" data-hint="{{ _("Benutzer ist deine E-Mail-Adresse; unter Einstellungen → Passwörter & Sicherheit ein App-Passwort mit Kalender-Zugriff (CalDAV) erstellen.") }}">Fastmail</option>
+            <option value="posteo" data-url="https://posteo.de:8443/" data-name="Posteo" data-hint="{{ _("Benutzer ist deine E-Mail-Adresse, Passwort dein Posteo-Passwort.") }}">Posteo</option>
+            <option value="other" data-url="" data-name="" data-hint="{{ _("Adresse des CalDAV-Servers eintragen (z. B. Baïkal, Radicale, Synology). Google Kalender wird nicht unterstützt.") }}">{{ _("Anderer CalDAV-Server") }}</option>
+          </select></label>
+          <label class="wide">{{ _("Adresse") }}<input name="caldav_url" value="https://caldav.icloud.com" autocomplete="off"></label>
         </div>
-        <input type="hidden" name="caldav_url" value="https://caldav.icloud.com">
+        <p class="help" id="caldav-hint">{{ _("Benutzer ist deine Apple-ID. Auf account.apple.com unter „Anmelden und Sicherheit“ → „App-spezifische Passwörter“ ein Passwort erstellen.") }}</p>
+        <input type="hidden" name="caldav_name" value="">
+        <div class="setup-grid">
+          <label>{{ _("Benutzer") }}<input name="caldav_username" autocomplete="username"></label>
+          <label>{{ _("Passwort (meist ein App-Passwort)") }}<input name="caldav_password" type="password" autocomplete="off"></label>
+        </div>
         <button type="button" class="secondary" data-check="caldav">{{ _("Kalender laden") }}</button>
         <p class="check-result" data-for="caldav" role="status" aria-live="polite"></p>
         <div id="target-list" class="setup-targets" hidden>

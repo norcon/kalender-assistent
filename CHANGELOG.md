@@ -4,6 +4,20 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.26.0 – 2026-11-07
+
+- **Andere Kalender-Server:** Neben iCloud jetzt jeder CalDAV-Server,
+  z. B. Nextcloud, mailbox.org, Fastmail, Posteo, Baïkal, Radicale.
+  - Einrichtungsassistent mit Anbieterauswahl, vorbelegter Adresse und
+    passenden Hinweisen.
+  - Die Oberfläche nennt den Dienst beim Namen (`CALDAV_NAME`, sonst aus der
+    Adresse abgeleitet) statt „iCloud“.
+  - Reine Aufgabenlisten werden ausgeblendet; Server ohne Rechte-Angabe
+    funktionieren (nur ein ausdrückliches „kein Schreibrecht“ blockiert).
+  - `CALDAV_AUTH=digest` für Server mit Digest-Anmeldung.
+  - Echt getestet gegen Radicale (Erkennen, Anlegen, Sichern, Löschen,
+    Wiederherstellen).
+
 ## 0.25.0 – 2026-11-07
 
 - **Auto-Übernahme pro Absender** (Regeln → Trefferquote je Absender →
