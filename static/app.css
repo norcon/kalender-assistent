@@ -401,6 +401,7 @@ td.actions-cell { text-align: right; }
 .status { font-size: .75rem; border-radius: .2rem; padding: .05rem .4rem; margin-left: .4rem; font-weight: normal; white-space: nowrap; }
 .status-gelöscht { background: var(--danger-soft); color: var(--danger); }
 .status-geändert { background: var(--warn-soft); color: var(--warn-text); }
+.status-neu { background: var(--success-soft); color: var(--success); }
 .status-unverändert { background: var(--neutral-soft); color: var(--text-2); }
 
 /* ---------- Schmale Bildschirme ---------- */
@@ -628,6 +629,7 @@ html.js .no-js-only { display: none; }
 .tab { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .8rem; border-radius: 2rem; border: 1px solid var(--border); color: var(--text); text-decoration: none; min-height: 2.25rem; background: var(--surface); }
 .tab-gelöscht[aria-current="true"] { background: var(--danger); border-color: var(--danger); color: var(--surface); }
 .tab-geändert[aria-current="true"] { background: var(--warn-text); border-color: var(--warn-text); color: var(--surface); }
+.tab-neu[aria-current="true"] { background: var(--success); border-color: var(--success); color: var(--surface); }
 .tab-alle[aria-current="true"] { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .result-summary { display: flex; align-items: center; gap: .3rem; color: var(--text-2); margin: .6rem 0 0; }
 #backup-results[aria-busy="true"] .backup-list { opacity: .55; transition: opacity .15s; }

@@ -2825,6 +2825,7 @@ async def save_calendar_selection(request: Request):
 
 
 BACKUP_PAGE_SIZE = 100
+BACKUP_STATUSES = ("gelöscht", "geändert", "neu", "alle")
 _BACKUP_FILTERS = ("stand", "q", "kalender", "status", "zeitraum")
 
 
@@ -2896,14 +2897,14 @@ async def calendar_backup_search(
     filters = {"text": q, "calendar": kalender, "period": period, "today": today}
     counts = (
         await asyncio.to_thread(calendar_backup.count_by_status, store, int(selected["id"]), **filters)
-        if selected else {"gelöscht": 0, "geändert": 0, "unverändert": 0, "alle": 0}
+        if selected else {"gelöscht": 0, "geändert": 0, "unverändert": 0, "alle": 0, "neu": 0}
     )
     if is_newest:
         chosen = "alle"  # im neuesten Stand ist nichts gelöscht oder geändert
-    elif status in ("gelöscht", "geändert", "alle"):
+    elif status in BACKUP_STATUSES:
         chosen = status
     else:  # Standard: dorthin, wo es etwas zu sehen gibt
-        chosen = next((key for key in ("gelöscht", "geändert") if counts[key]), "alle")
+        chosen = next((key for key in ("gelöscht", "geändert", "neu") if counts[key]), "alle")
     rows = (
         await asyncio.to_thread(
             calendar_backup.search, store, int(selected["id"]),
@@ -2916,7 +2917,7 @@ async def calendar_backup_search(
     state = {
         "stand": "" if is_newest or not selected else str(selected["id"]),
         "q": q.strip(), "kalender": kalender,
-        "status": "" if is_newest or status not in ("gelöscht", "geändert", "alle") else status,
+        "status": "" if is_newest or status not in BACKUP_STATUSES else status,
         "zeitraum": "" if period == "kommend" else period,
     }
 

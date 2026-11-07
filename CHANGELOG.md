@@ -4,6 +4,11 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.20.1 – 2026-11-07
+
+- Kalender-Sicherung durchsuchen: neuer Reiter **Neu** – Termine, die seit
+  dem gewählten Stand hinzugekommen sind (ohne „Wiederherstellen“).
+
 ## 0.20.0 – 2026-11-07
 
 „Kalender-Sicherung durchsuchen“ neu gestaltet:

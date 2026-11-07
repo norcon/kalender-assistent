@@ -109,7 +109,7 @@ class CalendarBackupTests(unittest.TestCase):
         self.snapshot(t0 + timedelta(hours=2))  # unverändert
         sid = first["snapshot_id"]
         counts = calendar_backup.count_by_status(self.store, sid)
-        self.assertEqual((counts["gelöscht"], counts["alle"]), (1, 3))
+        self.assertEqual((counts["gelöscht"], counts["alle"], counts["neu"]), (1, 3, 0))
         deleted = calendar_backup.search(self.store, sid, status="gelöscht")
         self.assertEqual([row["summary"] for row in deleted], ["Elternabend"])
         all_rows = calendar_backup.search(self.store, sid, period="kommend", today=date(2000, 1, 1))
@@ -119,10 +119,15 @@ class CalendarBackupTests(unittest.TestCase):
         self.assertEqual(len(calendar_backup.search(self.store, sid, period="vergangen", today=date(2100, 1, 1))), 2)
         page = calendar_backup.search(self.store, sid, limit=2, offset=2)
         self.assertEqual(len(page), 1)
+        self.cloud.calendars["familie"]["/c/f/n.ics"] = ("1", ics("n", "Laternenbasteln"))
+        latest = self.snapshot(t0 + timedelta(hours=3))
+        self.assertEqual(calendar_backup.count_by_status(self.store, sid)["neu"], 1)
+        self.assertEqual([r["summary"] for r in calendar_backup.search(self.store, sid, status="neu")], ["Laternenbasteln"])
+        self.assertEqual(calendar_backup.count_by_status(self.store, sid, text="training")["neu"], 0)
         points = calendar_backup.change_points(calendar_backup.list_snapshots(self.store))
-        self.assertEqual([p["id"] for p in points], [second["snapshot_id"], sid])
-        self.assertEqual(points[0]["before_id"], sid)
-        self.assertIsNone(points[1]["before_id"])
+        self.assertEqual([p["id"] for p in points], [latest["snapshot_id"], second["snapshot_id"], sid])
+        self.assertEqual(points[1]["before_id"], sid)
+        self.assertIsNone(points[2]["before_id"])
 
     def test_running_series_counts_as_upcoming(self):
         familie = self.cloud.calendars["familie"]

@@ -15,7 +15,7 @@
   {% endif %}
   {% if not is_newest %}
   <div class="tabs" role="group" aria-label="{{ _("Status") }}">
-    {% for key, label in [("gelöscht", _("Gelöscht")), ("geändert", _("Geändert")), ("alle", _("Alle"))] %}
+    {% for key, label in [("gelöscht", _("Gelöscht")), ("geändert", _("Geändert")), ("neu", _("Neu")), ("alle", _("Alle"))] %}
       <a class="tab tab-{{ key }}" data-live href="{{ link(status=key) }}"{% if chosen == key %} aria-current="true"{% endif %}>{{ label }} <span class="chip-count">{{ counts[key] }}</span></a>
     {% endfor %}
   </div>
@@ -23,7 +23,7 @@
 </div>
 <p class="result-summary">
   {{ _n("{count} Termin", "{count} Termine", counts[chosen]) }}
-  {{ info(_("„Gelöscht“ fehlt heute in iCloud, „geändert“ sieht heute anders aus. „Wiederherstellen“ schreibt den gezeigten Stand in den ursprünglichen Kalender zurück: Fehlt der Termin, wird er neu angelegt, sonst überschrieben."), _("Status")) }}
+  {{ info(_("„Gelöscht“ fehlt heute in iCloud, „geändert“ sieht heute anders aus, „neu“ ist seitdem hinzugekommen. „Alle“ zeigt den Stand der Sicherung. „Wiederherstellen“ schreibt den gezeigten Stand in den ursprünglichen Kalender zurück: Fehlt der Termin, wird er neu angelegt, sonst überschrieben."), _("Status")) }}
 </p>
 <div id="backup-list" class="backup-list">
   {% include "_calendar_backup_groups.html" %}

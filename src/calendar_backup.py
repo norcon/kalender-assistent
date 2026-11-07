@@ -468,6 +468,8 @@ def search(
     conditions, params = _conditions(snapshot_id, text, calendar, period, today)
     params.update(limit=limit, offset=offset, today=params.get("today", (today or date.today()).isoformat()))
     params.setdefault("today_compact", (today or date.today()).strftime("%Y%m%d"))
+    if status == "neu":
+        return _search_added(store_path, conditions[2:], params)
     if only_changed:
         conditions.append("(c.id IS NULL OR c.version_hash != p.version_hash)")
     if status == "gelöscht":
@@ -492,6 +494,32 @@ def search(
         return [dict(row) for row in connection.execute(query, params)]
 
 
+# Heute vorhanden, im gewählten Stand aber noch nicht (seitdem neu angelegt).
+_ADDED_SQL = (
+    "p.valid_to IS NULL AND NOT EXISTS (SELECT 1 FROM presence o "
+    "WHERE o.calendar = p.calendar AND o.href = p.href AND o.valid_from <= :snapshot "
+    "AND (o.valid_to IS NULL OR o.valid_to > :snapshot))"
+)
+
+
+def _search_added(store_path: str, filters: list[str], params: dict[str, Any]) -> list[dict[str, Any]]:
+    query = f"""
+        SELECT p.id, p.calendar, p.href, v.summary, v.dtstart, v.dtend, v.location, v.recurring,
+               'neu' AS status, {_UPCOMING_SQL} AS upcoming,
+               v.summary AS current_summary, v.dtstart AS current_dtstart,
+               v.dtend AS current_dtend, v.location AS current_location
+        FROM presence p JOIN event_versions v ON v.hash = p.version_hash
+        WHERE {' AND '.join([_ADDED_SQL, *filters])}
+        ORDER BY upcoming DESC,
+                 CASE WHEN v.recurring = 1 AND substr(v.dtstart, 1, 10) < :today THEN 1 ELSE 0 END,
+                 CASE WHEN {_UPCOMING_SQL} THEN v.dtstart END ASC,
+                 v.dtstart DESC, v.summary
+        LIMIT :limit OFFSET :offset
+    """
+    with closing(connect(store_path)) as connection:
+        return [dict(row) for row in connection.execute(query, params)]
+
+
 def count_by_status(
     store_path: str,
     snapshot_id: int,
@@ -501,7 +529,8 @@ def count_by_status(
     period: str = "alle",
     today: date | None = None,
 ) -> dict[str, int]:
-    """Anzahl je Status (gelöscht/geändert/unverändert) plus „alle“."""
+    """Anzahl je Status (gelöscht/geändert/unverändert), „alle“ (= Termine des
+    Stands) und „neu“ (seitdem hinzugekommen, nicht Teil von „alle“)."""
     conditions, params = _conditions(snapshot_id, text, calendar, period, today)
     query = f"""
         SELECT {STATUS_SQL} AS status, COUNT(*) AS n
@@ -513,7 +542,9 @@ def count_by_status(
     with closing(connect(store_path)) as connection:
         for row in connection.execute(query, params):
             counts[row["status"]] = row["n"]
-    counts["alle"] = sum(counts.values())
+        counts["alle"] = sum(counts.values())
+        added = f"SELECT COUNT(*) FROM presence p JOIN event_versions v ON v.hash = p.version_hash WHERE {' AND '.join([_ADDED_SQL, *conditions[2:]])}"
+        counts["neu"] = connection.execute(added, params).fetchone()[0]
     return counts
 
 

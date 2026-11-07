@@ -1300,6 +1300,7 @@ class CalendarBackupPageTests(unittest.TestCase):
             snap(t0 + _td(hours=1))  # ohne Änderungen
             del cloud["/c/a.ics"]
             cloud["/c/b.ics"] = ('"2"', event("b", "Elternabend", "20261120T190000Z", "Aula"))
+            cloud["/c/d.ics"] = ('"1"', event("d", "Laternenbasteln", "20261121T150000Z"))
             snap(t0 + _td(hours=2))
         before = first + 1  # Stand direkt vor der Änderung
         today = datetime(2026, 11, 7, 12, tzinfo=timezone.utc)
@@ -1326,6 +1327,13 @@ class CalendarBackupPageTests(unittest.TestCase):
                 self.assertIn("<mark>Raum 12</mark>", listing)
                 self.assertIn("<mark>Aula</mark>", listing)
                 self.assertEqual(listing.count("Wiederherstellen</button>"), 1)
+
+                self.assertRegex(page, r'tab-neu" data-live href="[^"]*">Neu <span class="chip-count">1')
+                added = client.get(f"/sicherungen/kalender?stand={before}&status=neu").text.split('id="backup-list"')[1]
+                self.assertIn("Laternenbasteln", added)
+                self.assertIn("status-neu", added)
+                self.assertNotIn("Wiederherstellen</button>", added)  # „neu“ lässt sich nicht wiederherstellen
+                self.assertNotIn("Martinszug", added)
 
                 part = client.get(f"/sicherungen/kalender?stand={before}&status=alle&teil=liste").text
                 self.assertNotIn("<html", part)

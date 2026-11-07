@@ -5,5 +5,5 @@ Bei jeder Änderung erhöhen und in CHANGELOG.md eintragen:
 - PATCH (0.0.X) für Korrekturen und kleine Anpassungen
 """
 
-VERSION = "0.20.0"
+VERSION = "0.20.1"
 RELEASED = "2026-11-07"
