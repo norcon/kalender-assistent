@@ -57,11 +57,13 @@ class UpdaterTests(unittest.TestCase):
         return updater.Updater(self.project, run=docker.run, sleep=lambda _s: None, fetch=docker.fetch, health_timeout=0.05)
 
     def wait(self, instance):
-        for _ in range(200):
-            if instance.state.get("state") != "running":
-                return instance.state
-            time.sleep(0.01)
-        self.fail("Updater wurde nicht fertig")
+        # Erst fertig, wenn der Hintergrund-Thread auch Protokoll und Statusdatei
+        # geschrieben und die Sperre freigegeben hat (sonst räumt tearDown zu früh auf).
+        if not instance._lock.acquire(timeout=5):
+            self.fail("Updater wurde nicht fertig")
+        instance._lock.release()
+        self.assertNotEqual(instance.state.get("state"), "running")
+        return instance.state
 
     def test_env_editing_keeps_other_lines(self):
         env = self.project / ".env"
