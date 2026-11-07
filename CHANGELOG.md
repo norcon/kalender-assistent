@@ -4,6 +4,11 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.28.1 – 2026-11-07
+
+- Veröffentlichung von 0.28.0 (der Release-Bau war an einem zu strengen Test
+  gescheitert; inhaltlich unverändert).
+
 ## 0.28.0 – 2026-11-07
 
 - **Verbindungen in der App:** Postfächer, KI-Server, Kalender-Server und

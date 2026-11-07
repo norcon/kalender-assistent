@@ -1669,9 +1669,11 @@ class ConnectionsPageTests(unittest.TestCase):
         with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "_schedule_restart") as restart:
             with TestClient(app_module.app) as client, patch.object(app_module, "settings", self._protected()):
                 self._login(client)
+                original_password = app_module.connections.values(app_module.connections.load(path))["IMAP_PASSWORD"]
+                app_module.connections.update(path, {"IMAP_PASSWORD": "unverwechselbar-4711"})
                 page = client.get("/einstellungen/verbindungen").text
                 self.assertIn("Prüfen und speichern", page)
-                self.assertNotIn(app_module.settings.imap_password, page)  # Passwörter nie im HTML
+                self.assertNotIn("unverwechselbar-4711", page)  # Passwörter nie im HTML
                 before = app_module.connections.values(app_module.connections.load(path))
                 # ungültig
                 response = client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "ftp://x"})
@@ -1705,7 +1707,7 @@ class ConnectionsPageTests(unittest.TestCase):
                 self.assertNotIn("IMAP2_HOST", app_module.connections.values(app_module.connections.load(path)))
                 missing = [{"orig": "1", "host": "x.example", "username": "", "password": ""}]
                 self.assertEqual(client.post("/api/verbindungen/postfaecher", json={"mailboxes": missing}).status_code, 422)
-                app_module.connections.update(path, {"AI_BASE_URL": before["AI_BASE_URL"]})
+                app_module.connections.update(path, {"AI_BASE_URL": before["AI_BASE_URL"], "IMAP_PASSWORD": original_password})
                 client.cookies.clear()
 
     def test_cleanup_endpoint_uses_updater(self):
