@@ -2826,6 +2826,43 @@ async def save_calendar_selection(request: Request):
 
 BACKUP_PAGE_SIZE = 100
 BACKUP_STATUSES = ("gelöscht", "geändert", "neu", "alle")
+HISTORY_GROUPINGS = ("tag", "woche", "monat")
+
+
+def _history_groups(points: list[dict[str, Any]], grouping: str) -> list[dict[str, Any]]:
+    """Änderungspunkte (neueste zuerst) nach Tag, Kalenderwoche oder Monat bündeln.
+
+    Ein Klick auf einen Zeitraum zeigt den Stand vor dessen erster Änderung;
+    die erste Sicherung überhaupt steht für sich (es gibt keinen Stand davor).
+    """
+    tz = ZoneInfo(settings.caldav_timezone)
+    groups: list[dict[str, Any]] = []
+    for point in points:
+        if point["before_id"] is None:
+            groups.append({"key": "erste", "first": True, "label": formatting.timestamp(point["taken_at"], settings.caldav_timezone),
+                           "before_id": None, "deleted": 0, "changed": 0, "added": 0, "runs": 1})
+            continue
+        day = datetime.fromisoformat(str(point["taken_at"]).replace("Z", "+00:00")).astimezone(tz).date()
+        if grouping == "tag":
+            key, label = day.isoformat(), formatting.event_time(day.isoformat(), settings.caldav_timezone)
+            period = _("am {date}", date=label)
+        elif grouping == "monat":
+            key, label = f"{day:%Y-%m}", formatting.month_label(day)
+            period = _("im {month}", month=label)
+        else:
+            monday = day - timedelta(days=day.weekday())
+            key, label = monday.isoformat(), formatting.week_label(monday)
+            period = _("in {week}", week=label)
+        if not groups or groups[-1]["key"] != key:
+            groups.append({"key": key, "first": False, "label": label, "period": period,
+                           "deleted": 0, "changed": 0, "added": 0, "runs": 0})
+        group = groups[-1]
+        group["deleted"] += point["deleted"]
+        group["changed"] += point["changed"]
+        group["added"] += point["added"]
+        group["runs"] += 1
+        group["before_id"] = point["before_id"]  # Punkte sind neueste zuerst → zuletzt = älteste
+    return groups
 _BACKUP_FILTERS = ("stand", "q", "kalender", "status", "zeitraum")
 
 
@@ -2883,6 +2920,7 @@ async def calendar_backup_search(
     zeitraum: str = Query(default="kommend", max_length=20),
     seite: int = Query(default=1, ge=1, le=1000),
     teil: str = Query(default="", max_length=10),
+    verlauf: str = Query(default="", max_length=10),
     nur_aenderungen: str | None = None,
     restored: str | None = None,
     problem: str | None = None,
@@ -2927,13 +2965,16 @@ async def calendar_backup_search(
         return "/sicherungen/kalender" + (f"?{query}" if query else "")
 
     points = calendar_backup.change_points(snapshots)
+    grouping = verlauf if verlauf in HISTORY_GROUPINGS else request.cookies.get("verlauf", "")
+    grouping = grouping if grouping in HISTORY_GROUPINGS else "woche"
+    history = _history_groups(points, grouping)
     selected_point = next(
-        (point for point in points if selected and point["before_id"] == selected["id"]), None
+        (group for group in history if selected and group["before_id"] == selected["id"]), None
     )
     name = {"liste": "_calendar_backup_results.html", "mehr": "_calendar_backup_more.html"}.get(
         teil, "calendar-backup.html"
     )
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request=request,
         name=name,
         context={
@@ -2942,6 +2983,8 @@ async def calendar_backup_search(
             "is_newest": is_newest,
             "selected_point": selected_point,
             "points": points,
+            "history": history,
+            "grouping": grouping,
             "counts": counts,
             "chosen": chosen,
             "period": period,
@@ -2961,6 +3004,9 @@ async def calendar_backup_search(
             "caldav_configured": _caldav_configured(),
         },
     )
+    if verlauf in HISTORY_GROUPINGS:  # Wahl pro Gerät merken
+        response.set_cookie("verlauf", verlauf, max_age=31536000, samesite="lax")
+    return response
 
 
 @app.post("/sicherungen/kalender/eintrag/{presence_id}/wiederherstellen")

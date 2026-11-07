@@ -7,7 +7,7 @@ import time
 import unittest
 import unittest.mock
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault("IMAP_HOST", "127.0.0.1")
@@ -1347,6 +1347,40 @@ class CalendarBackupPageTests(unittest.TestCase):
                     self.assertNotIn("Martinszug", more)
                     self.assertNotIn("seite=3", more)
         Path(store).unlink(missing_ok=True)
+
+    def test_history_grouped_by_day_week_month(self):
+        def point(pid, when, before, deleted=0, changed=0, added=0):
+            return {"id": pid, "taken_at": when, "before_id": before, "deleted": deleted, "changed": changed, "added": added}
+        points = [  # neueste zuerst, wie change_points
+            point(9, "2026-11-10T09:00:00+00:00", 8, deleted=1),           # Di., KW 46
+            point(7, "2026-11-08T18:00:00+00:00", 6, changed=2),           # So., KW 45
+            point(5, "2026-11-08T08:00:00+00:00", 4, added=1),             # So., KW 45
+            point(3, "2026-11-02T08:00:00+00:00", 2, deleted=1),           # Mo., KW 45
+            point(1, "2026-10-20T08:00:00+00:00", None, added=50),         # erste Sicherung
+        ]
+        weeks = app_module._history_groups(points, "woche")
+        self.assertEqual([g["label"] for g in weeks], [
+            "KW 46 · 9.–15. Nov. 2026", "KW 45 · 2.–8. Nov. 2026", "Di., 20. Okt. 2026, 10:00"])
+        self.assertEqual((weeks[1]["deleted"], weeks[1]["changed"], weeks[1]["added"], weeks[1]["before_id"]), (1, 2, 1, 2))
+        self.assertTrue(weeks[2]["first"])
+        days = app_module._history_groups(points, "tag")
+        self.assertEqual([g["before_id"] for g in days], [8, 4, 2, None])
+        months = app_module._history_groups(points, "monat")
+        self.assertEqual([g["label"] for g in months], ["November 2026", "Di., 20. Okt. 2026, 10:00"])
+        self.assertEqual(months[0]["before_id"], 2)
+        self.assertEqual(app_module.formatting.week_label(date(2026, 12, 28)), "KW 53 · 28. Dez. 2026 – 3. Jan. 2027")
+        self.assertEqual(app_module.formatting.week_label(date(2026, 10, 26)), "KW 44 · 26. Okt. – 1. Nov. 2026")
+
+    def test_history_grouping_choice_is_remembered(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client:
+                self._seed()
+                page = client.get("/sicherungen/kalender").text
+                self.assertRegex(page, r'verlauf=woche"\s*aria-current="true"')  # Standard: Woche
+                response = client.get("/sicherungen/kalender?verlauf=monat")
+                self.assertEqual(response.cookies.get("verlauf"), "monat")
+                self.assertRegex(client.get("/sicherungen/kalender").text, r'verlauf=monat"\s*aria-current="true"')
+                client.cookies.clear()
 
     def test_calendar_selection_defaults_to_all_and_can_exclude(self):
         with patch.object(app_module.mail, "poll_mailbox"):

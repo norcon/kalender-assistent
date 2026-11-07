@@ -4,6 +4,14 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.21.0 – 2026-11-07
+
+- Kalender-Sicherung: Der Änderungsverlauf fasst die Änderungen jetzt nach
+  Zeitraum zusammen statt nach einzelnem Sicherungslauf. Umschalter
+  **Tag / Woche / Monat** (Standard: Woche, z. B. „KW 45 · 2.–8. Nov. 2026“);
+  die Wahl merkt sich jedes Gerät. Ein Klick zeigt den Stand vor der ersten
+  Änderung im Zeitraum.
+
 ## 0.20.1 – 2026-11-07
 
 - Kalender-Sicherung durchsuchen: neuer Reiter **Neu** – Termine, die seit

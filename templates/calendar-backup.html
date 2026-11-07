@@ -17,31 +17,36 @@
     <section><p>{{ _("Noch keine Kalendersicherung vorhanden. Sie wird kurz nach dem Start automatisch erstellt oder über Sicherungen → Jetzt sichern.") }} <a href="/sicherungen">{{ _("Zu den Sicherungen") }}</a></p></section>
   {% else %}
     <section class="change-history" aria-labelledby="history-title">
-      <h2 id="history-title">{{ info(_("Die Kalender werden regelmäßig gesichert. Hier stehen nur die Sicherungen, bei denen sich etwas geändert hat. Ein Klick zeigt den Stand direkt davor – dort findest du gelöschte oder geänderte Termine und kannst sie einzeln wiederherstellen."), _("Änderungsverlauf")) }} {{ _("Änderungsverlauf") }}</h2>
-      {% macro point_item(point) %}
+      <h2 id="history-title">{{ info(_("Die Kalender werden regelmäßig gesichert. Hier stehen die Änderungen zusammengefasst nach Tag, Woche oder Monat. Ein Klick zeigt den Stand vor der ersten Änderung im Zeitraum – dort findest du gelöschte, geänderte und neue Termine und kannst gelöschte oder geänderte einzeln wiederherstellen."), _("Änderungsverlauf")) }} {{ _("Änderungsverlauf") }}</h2>
+      <div class="segmented history-grouping" role="group" aria-label="{{ _("Gruppieren nach") }}">
+        {% for key, label in [("tag", _("Tag")), ("woche", _("Woche")), ("monat", _("Monat"))] %}
+          <a class="segment" href="{{ link(verlauf=key) }}"{% if grouping == key %} aria-current="true"{% endif %}>{{ label }}</a>
+        {% endfor %}
+      </div>
+      {% macro group_item(group) %}
         <li>
-          {% if point.before_id %}
-          <a href="{{ link(stand=point.before_id, status=None) }}"{% if selected_point and selected_point.id == point.id %} aria-current="true"{% endif %}>
+          {% if group.before_id %}
+          <a href="{{ link(stand=group.before_id, status=None) }}"{% if selected_point and selected_point.key == group.key %} aria-current="true"{% endif %}>
           {% else %}<span class="first-backup">{% endif %}
-            <span class="when">{{ point.taken_at|timestamp }}</span>
+            <span class="when">{{ group.label }}</span>
             <span class="counts">
-              {% if not point.before_id %}<span>{{ _("Erste Sicherung") }}</span>{% else %}
-              {% if point.deleted %}<span class="count-deleted">{{ _("{count} gelöscht", count=point.deleted) }}</span>{% endif %}
-              {% if point.changed %}<span class="count-changed">{{ _("{count} geändert", count=point.changed) }}</span>{% endif %}
-              {% if point.added %}<span class="count-added">{{ _("{count} neu", count=point.added) }}</span>{% endif %}
+              {% if group.first %}<span>{{ _("Erste Sicherung") }}</span>{% else %}
+              {% if group.deleted %}<span class="count-deleted">{{ _("{count} gelöscht", count=group.deleted) }}</span>{% endif %}
+              {% if group.changed %}<span class="count-changed">{{ _("{count} geändert", count=group.changed) }}</span>{% endif %}
+              {% if group.added %}<span class="count-added">{{ _("{count} neu", count=group.added) }}</span>{% endif %}
               {% endif %}
             </span>
-          {% if point.before_id %}</a>{% else %}</span>{% endif %}
+          {% if group.before_id %}</a>{% else %}</span>{% endif %}
         </li>
       {% endmacro %}
       <ol class="history-list">
         <li><a href="{{ link(stand=None, status=None) }}"{% if is_newest %} aria-current="true"{% endif %}><span class="when">{{ _("Aktueller Stand") }}</span><span class="counts"><span>{{ _("gesichert {age}", age=snapshots[0].taken_at|relative_time) }}</span></span></a></li>
-        {% for point in points[:5] %}{{ point_item(point) }}{% endfor %}
+        {% for group in history[:6] %}{{ group_item(group) }}{% endfor %}
       </ol>
-      {% if points|length > 5 %}
-        <details class="history-more"{% if selected_point and selected_point in points[5:] %} open{% endif %}>
-          <summary>{{ _("Ältere Änderungen ({count})", count=points|length - 5) }}</summary>
-          <ol class="history-list">{% for point in points[5:] %}{{ point_item(point) }}{% endfor %}</ol>
+      {% if history|length > 6 %}
+        <details class="history-more"{% if selected_point and selected_point in history[6:] %} open{% endif %}>
+          <summary>{{ _("Ältere Änderungen ({count})", count=history|length - 6) }}</summary>
+          <ol class="history-list">{% for group in history[6:] %}{{ group_item(group) }}{% endfor %}</ol>
         </details>
       {% endif %}
       {% if not points %}<p class="meta">{{ _("Seit Beginn der Sicherung hat sich nichts geändert.") }}</p>{% endif %}
@@ -49,7 +54,7 @@
 
     {% if not is_newest %}
       <p class="stand-banner" role="status">
-        <span>{% if selected_point %}{{ _("Stand vor den Änderungen vom {date}, verglichen mit heute.", date=selected_point.taken_at|timestamp) }}{% else %}{{ _("Stand vom {date}, verglichen mit heute.", date=selected.taken_at|timestamp) }}{% endif %}</span>
+        <span>{% if selected_point %}{{ _("Stand vor den Änderungen {period}, verglichen mit heute.", period=selected_point.period) }}{% else %}{{ _("Stand vom {date}, verglichen mit heute.", date=selected.taken_at|timestamp) }}{% endif %}</span>
         <a href="{{ link(stand=None, status=None) }}">{{ _("Zum aktuellen Stand") }}</a>
       </p>
     {% endif %}

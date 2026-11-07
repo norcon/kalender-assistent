@@ -603,6 +603,8 @@ main.setup { max-width: 46rem; }
 /* ---------- Kalender-Sicherung durchsuchen ---------- */
 html.js .no-js-only { display: none; }
 .change-history h2 { display: flex; align-items: center; gap: .3rem; }
+.history-grouping { margin: 0 0 .7rem; }
+.history-grouping .segment { padding: .25rem .8rem; min-height: 2rem; font-size: .9rem; }
 .history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
 .history-list a, .history-list .first-backup { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .2rem .8rem; padding: .5rem .7rem; border-radius: .4rem; border: 1px solid var(--border-subtle); color: var(--text); text-decoration: none; min-height: 2.5rem; }
 .history-list a:hover { background: var(--neutral-soft); }

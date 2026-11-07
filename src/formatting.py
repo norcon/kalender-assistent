@@ -188,6 +188,23 @@ def month_label(value: date) -> str:
     return f"{names[value.month - 1]} {value.year}"
 
 
+def week_label(monday: date) -> str:
+    """„KW 45 · 2.–8. Nov. 2026“ (ISO-Kalenderwoche, Montag bis Sonntag)."""
+    sunday = monday + timedelta(days=6)
+    week = monday.isocalendar().week
+    if _english():
+        if monday.month == sunday.month:
+            span = f"{monday.day}–{sunday.day} {MONTHS_EN[sunday.month - 1]} {sunday.year}"
+        else:
+            span = f"{_date_text(monday, with_weekday=False, with_year=monday.year != sunday.year)} – {_date_text(sunday, with_weekday=False)}"
+        return f"Week {week} · {span}"
+    if monday.month == sunday.month:
+        span = f"{monday.day}.–{sunday.day}. {MONTHS[sunday.month - 1]} {sunday.year}"
+    else:
+        span = f"{_date_text(monday, with_weekday=False, with_year=monday.year != sunday.year)} – {_date_text(sunday, with_weekday=False)}"
+    return f"KW {week} · {span}"
+
+
 def day_label(value: date) -> str:
     if _english():
         return f"{WEEKDAYS_EN[value.weekday()]} {value.day}"
