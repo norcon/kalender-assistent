@@ -173,6 +173,35 @@ def event_range(start: Any, end: Any, timezone_name: str) -> str:
     return f"{start_text} – {event_time(end, timezone_name)}"
 
 
+MONTH_NAMES = (
+    "Januar", "Februar", "März", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember",
+)
+MONTH_NAMES_EN = (
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+)
+
+
+def month_label(value: date) -> str:
+    names = MONTH_NAMES_EN if _english() else MONTH_NAMES
+    return f"{names[value.month - 1]} {value.year}"
+
+
+def day_label(value: date) -> str:
+    if _english():
+        return f"{WEEKDAYS_EN[value.weekday()]} {value.day}"
+    return f"{WEEKDAYS[value.weekday()]} {value.day}."
+
+
+def clock_text(value: Any, timezone_name: str) -> str:
+    """Nur die Uhrzeit (lokal) – oder „ganztägig“."""
+    parsed = parse_event_value(value, timezone_name)
+    if parsed is None or parsed[1] is None:
+        return _("ganztägig")
+    return f"{parsed[1]:%H:%M}"
+
+
 def timestamp(value: Any, timezone_name: str) -> str:
     """Zeitpunkt (z. B. Empfang, Verlauf) in lokaler Zeit."""
     if not value:

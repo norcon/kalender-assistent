@@ -101,6 +101,40 @@ class CalendarBackupTests(unittest.TestCase):
         version = calendar_backup.get_version(self.store, martin["id"])
         self.assertIn("SUMMARY:St. Martinszug\r\n", version["ics"])
 
+    def test_period_status_counts_and_change_points(self):
+        t0 = datetime(2026, 11, 4, 10, tzinfo=timezone.utc)
+        first = self.snapshot(t0)
+        del self.cloud.calendars["familie"]["/c/f/b.ics"]
+        second = self.snapshot(t0 + timedelta(hours=1))
+        self.snapshot(t0 + timedelta(hours=2))  # unverändert
+        sid = first["snapshot_id"]
+        counts = calendar_backup.count_by_status(self.store, sid)
+        self.assertEqual((counts["gelöscht"], counts["alle"]), (1, 3))
+        deleted = calendar_backup.search(self.store, sid, status="gelöscht")
+        self.assertEqual([row["summary"] for row in deleted], ["Elternabend"])
+        all_rows = calendar_backup.search(self.store, sid, period="kommend", today=date(2000, 1, 1))
+        self.assertEqual(len(all_rows), 3)
+        # „Training“ ist eine Serie ohne Ende und bleibt deshalb „kommend“.
+        self.assertEqual([r["summary"] for r in calendar_backup.search(self.store, sid, period="kommend", today=date(2100, 1, 1))], ["Training"])
+        self.assertEqual(len(calendar_backup.search(self.store, sid, period="vergangen", today=date(2100, 1, 1))), 2)
+        page = calendar_backup.search(self.store, sid, limit=2, offset=2)
+        self.assertEqual(len(page), 1)
+        points = calendar_backup.change_points(calendar_backup.list_snapshots(self.store))
+        self.assertEqual([p["id"] for p in points], [second["snapshot_id"], sid])
+        self.assertEqual(points[0]["before_id"], sid)
+        self.assertIsNone(points[1]["before_id"])
+
+    def test_running_series_counts_as_upcoming(self):
+        familie = self.cloud.calendars["familie"]
+        familie["/c/f/s.ics"] = ("1", "BEGIN:VEVENT\r\nUID:s\r\nSUMMARY:Turnen\r\nDTSTART:20250101T160000Z\r\nRRULE:FREQ=WEEKLY\r\nEND:VEVENT\r\n")
+        familie["/c/f/e.ics"] = ("1", "BEGIN:VEVENT\r\nUID:e\r\nSUMMARY:Alt\r\nDTSTART:20250101T160000Z\r\nRRULE:FREQ=WEEKLY;UNTIL=20250301T000000Z\r\nEND:VEVENT\r\n")
+        sid = self.snapshot(datetime(2026, 11, 4, tzinfo=timezone.utc))["snapshot_id"]
+        upcoming = {row["summary"] for row in calendar_backup.search(self.store, sid, period="kommend", today=date(2026, 11, 7))}
+        self.assertIn("Turnen", upcoming)
+        self.assertNotIn("Alt", upcoming)
+        ordered = [row["summary"] for row in calendar_backup.search(self.store, sid, period="kommend", today=date(2026, 11, 7))]
+        self.assertEqual(ordered[-1], "Turnen")  # laufende Serie nach den datierten Terminen
+
     def test_failed_calendar_is_not_treated_as_deleted(self):
         t0 = datetime(2026, 11, 4, 10, tzinfo=timezone.utc)
         self.snapshot(t0)

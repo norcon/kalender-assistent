@@ -1226,13 +1226,16 @@ class CalendarBackupPageTests(unittest.TestCase):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
                 first = self._seed()
-                latest = client.get("/sicherungen/kalender").text
-                self.assertIn("0 Termin(e) im Stand", latest)
-                page = client.get(f"/sicherungen/kalender?stand={first}&nur_aenderungen=1")
+                latest = client.get("/sicherungen/kalender?zeitraum=alle").text
+                self.assertIn("0 Termine", latest)
+                self.assertIn(f'href="/sicherungen/kalender?stand={first}&amp;zeitraum=alle"', latest)  # Änderungsverlauf
+                page = client.get(f"/sicherungen/kalender?stand={first}&zeitraum=alle")
                 self.assertEqual(page.status_code, 200)
                 self.assertIn("Martinszug", page.text)
-                self.assertIn("gelöscht", page.text)
-                self.assertIn("Fr., 13. Nov. 2026, 17:00 Uhr", page.text)
+                self.assertIn("status-gelöscht", page.text)
+                self.assertIn("November 2026", page.text)
+                self.assertIn("Fr. 13.", page.text)
+                self.assertIn("17:00", page.text)
                 presence_id = int(re.search(r"/eintrag/(\d+)/wiederherstellen", page.text).group(1))
 
                 configured = replace(app_module.settings, caldav_username="t@example.org", caldav_app_password="pw")
@@ -1254,7 +1257,7 @@ class CalendarBackupPageTests(unittest.TestCase):
                 self.assertEqual(args[1:3], ("https://p1.example/c/fam-neu/", "a.ics"))
                 self.assertIn("SUMMARY:Martinszug", args[3])
 
-    def test_unchanged_events_also_offer_restore_with_overwrite(self):
+    def test_unchanged_events_have_no_restore_button(self):
         from src import calendar_backup
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
@@ -1267,11 +1270,75 @@ class CalendarBackupPageTests(unittest.TestCase):
                         lambda u: {h: e for h, (e, _) in cloud.items()},
                         lambda u, hs: {h: cloud[h] for h in hs},
                     )
-                page = client.get("/sicherungen/kalender").text
-                self.assertIn("status-unverändert", page)
-                self.assertEqual(page.count(">Wiederherstellen</button>"), 1)
-                self.assertIn("„Repair Café“ im Kalender „Alex“ mit dem Stand aus dieser Sicherung überschreiben?", page)
+                page = client.get("/sicherungen/kalender?zeitraum=alle").text
+                self.assertIn("Repair Café", page)
+                self.assertNotIn("status-unverändert", page)
+                self.assertNotIn("Wiederherstellen</button>", page)
+                self.assertNotIn('class="tabs"', page)  # neuester Stand: keine Reiter
                 Path(store).unlink(missing_ok=True)
+
+    def test_history_tabs_diff_live_parts_and_paging(self):
+        from src import calendar_backup
+        from datetime import timedelta as _td
+        store = app_module.settings.calendar_store_path
+        Path(store).unlink(missing_ok=True)
+
+        def event(uid, title, start, location=""):
+            extra = f"LOCATION:{location}\r\n" if location else ""
+            return f"BEGIN:VEVENT\r\nUID:{uid}\r\nSUMMARY:{title}\r\nDTSTART:{start}\r\n{extra}END:VEVENT\r\n"
+
+        cloud = {
+            "/c/a.ics": ('"1"', event("a", "Martinszug", "20261113T160000Z")),
+            "/c/b.ics": ('"1"', event("b", "Elternabend", "20261120T183000Z", "Raum 12")),
+            "/c/c.ics": ('"1"', event("c", "Sommerfest", "20260601T100000Z")),
+        }
+        calendars = [{"name": "Familie", "url": "u"}]
+        t0 = datetime(2026, 11, 4, tzinfo=timezone.utc)
+        snap = lambda when: calendar_backup.take_snapshot(store, calendars, lambda u: {h: e for h, (e, _) in cloud.items()}, lambda u, hs: {h: cloud[h] for h in hs}, now=when)
+        with self.assertLogs("src.calendar_backup", level="INFO"):
+            first = snap(t0)["snapshot_id"]
+            snap(t0 + _td(hours=1))  # ohne Änderungen
+            del cloud["/c/a.ics"]
+            cloud["/c/b.ics"] = ('"2"', event("b", "Elternabend", "20261120T190000Z", "Aula"))
+            snap(t0 + _td(hours=2))
+        before = first + 1  # Stand direkt vor der Änderung
+        today = datetime(2026, 11, 7, 12, tzinfo=timezone.utc)
+        with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "datetime", wraps=datetime) as clock:
+            clock.now.side_effect = lambda tz=None: today.astimezone(tz) if tz else today
+            with TestClient(app_module.app) as client:
+                newest = client.get("/sicherungen/kalender").text
+                self.assertIn(f"stand={before}", newest)
+                self.assertIn("1 gelöscht", newest)
+                self.assertIn("1 geändert", newest)
+                self.assertIn("Erste Sicherung", newest)
+                self.assertNotIn("Sommerfest", newest)  # vergangen, Standard „Kommende“
+                self.assertIn("Sommerfest", client.get("/sicherungen/kalender?zeitraum=vergangen").text)
+
+                page = client.get(f"/sicherungen/kalender?stand={before}").text
+                self.assertIn('aria-current="true"', page)
+                self.assertIn("Stand vor den Änderungen", page)
+                self.assertRegex(page, r'tab-gelöscht" data-live href="[^"]*"\s*aria-current="true">Gelöscht <span class="chip-count">1')
+                self.assertIn("Martinszug", page)
+                self.assertNotIn("Elternabend", page.split('id="backup-list"')[1])
+
+                changed = client.get(f"/sicherungen/kalender?stand={before}&status=geändert").text
+                listing = changed.split('id="backup-list"')[1]
+                self.assertIn("<mark>Raum 12</mark>", listing)
+                self.assertIn("<mark>Aula</mark>", listing)
+                self.assertEqual(listing.count("Wiederherstellen</button>"), 1)
+
+                part = client.get(f"/sicherungen/kalender?stand={before}&status=alle&teil=liste").text
+                self.assertNotIn("<html", part)
+                self.assertIn('id="backup-list"', part)
+                with patch.object(app_module, "BACKUP_PAGE_SIZE", 1):
+                    first_page = client.get(f"/sicherungen/kalender?stand={before}&status=alle&teil=liste").text
+                    self.assertIn("seite=2", first_page)
+                    self.assertIn("Martinszug", first_page)
+                    more = client.get(f"/sicherungen/kalender?stand={before}&status=alle&seite=2&teil=mehr").text
+                    self.assertIn("Elternabend", more)
+                    self.assertNotIn("Martinszug", more)
+                    self.assertNotIn("seite=3", more)
+        Path(store).unlink(missing_ok=True)
 
     def test_calendar_selection_defaults_to_all_and_can_exclude(self):
         with patch.object(app_module.mail, "poll_mailbox"):

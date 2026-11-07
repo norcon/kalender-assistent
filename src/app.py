@@ -9,6 +9,7 @@ import threading
 from collections import Counter, deque
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from typing import Any
 from functools import partial
 import time
 import zoneinfo
@@ -2823,44 +2824,135 @@ async def save_calendar_selection(request: Request):
     return RedirectResponse("/sicherungen?saved=calendars", status_code=303)
 
 
+BACKUP_PAGE_SIZE = 100
+_BACKUP_FILTERS = ("stand", "q", "kalender", "status", "zeitraum")
+
+
+def _backup_groups(items: list[dict[str, Any]], today: date) -> list[dict[str, Any]]:
+    """Termine nach Monat und Tag gruppieren; laufende Serien zuerst für sich."""
+    tz = settings.caldav_timezone
+    colors = calendar_backup.calendar_colors(settings.calendar_store_path)
+    groups: list[dict[str, Any]] = []
+    for item in items:
+        parsed = formatting.parse_event_value(item["dtstart"], tz)
+        day = parsed[0] if parsed else None
+        item = {
+            **item,
+            "color": colors.get(item["calendar"]),
+            "time": formatting.clock_text(item["dtstart"], tz),
+            "when": formatting.event_range(item["dtstart"], item.get("dtend"), tz),
+        }
+        if item["status"] == "geändert":
+            item["current_when"] = formatting.event_range(item["current_dtstart"], item.get("current_dtend"), tz)
+            item["diff"] = {
+                "summary": (item["summary"] or "") != (item["current_summary"] or ""),
+                "when": item["when"] != item["current_when"],
+                "location": (item["location"] or "") != (item["current_location"] or ""),
+            }
+        if item["upcoming"] and item["recurring"] and day is not None and day < today:
+            key, label, past = "serien", _("Laufende Serien"), False
+            day_key, day_text = "serien", ""
+            weekday = formatting.day_label(day).split(" ")[0]
+            item["time"] = weekday if item["time"] == _("ganztägig") else f"{weekday} {item['time']}"
+            item["series_since"] = formatting.event_time(day.isoformat(), tz)
+        elif day is None:
+            key, label, past = "ohne-datum", _("Ohne Datum"), not item["upcoming"]
+            day_key, day_text = "ohne-datum", ""
+        else:
+            past = not item["upcoming"]
+            key = f"{'v' if past else 'k'}{day:%Y-%m}"
+            label = formatting.month_label(day)
+            day_key, day_text = f"{key}-{day:%d}", formatting.day_label(day)
+        if not groups or groups[-1]["key"] != key:
+            groups.append({"key": key, "label": label, "past": past, "days": []})
+        days = groups[-1]["days"]
+        if not days or days[-1]["key"] != day_key:
+            days.append({"key": day_key, "label": day_text, "today": day == today, "entries": []})
+        days[-1]["entries"].append(item)
+    return groups
+
+
 @app.get("/sicherungen/kalender", response_class=HTMLResponse)
 async def calendar_backup_search(
     request: Request,
     stand: int | None = None,
     q: str = Query(default="", max_length=200),
     kalender: str = Query(default="", max_length=200),
+    status: str = Query(default="", max_length=20),
+    zeitraum: str = Query(default="kommend", max_length=20),
+    seite: int = Query(default=1, ge=1, le=1000),
+    teil: str = Query(default="", max_length=10),
     nur_aenderungen: str | None = None,
     restored: str | None = None,
     problem: str | None = None,
 ):
     store = settings.calendar_store_path
     snapshots = calendar_backup.list_snapshots(store)
-    selected = next(
-        (item for item in snapshots if item["id"] == stand),
-        snapshots[0] if snapshots else None,
+    newest = snapshots[0] if snapshots else None
+    selected = next((item for item in snapshots if item["id"] == stand), newest)
+    is_newest = selected is None or newest is None or selected["id"] == newest["id"]
+    period = zeitraum if zeitraum in calendar_backup.PERIODS else "kommend"
+    today = datetime.now(ZoneInfo(settings.caldav_timezone)).date()
+    filters = {"text": q, "calendar": kalender, "period": period, "today": today}
+    counts = (
+        await asyncio.to_thread(calendar_backup.count_by_status, store, int(selected["id"]), **filters)
+        if selected else {"gelöscht": 0, "geändert": 0, "unverändert": 0, "alle": 0}
     )
-    results = (
-        calendar_backup.search(
-            store,
-            int(selected["id"]),
-            text=q,
-            calendar=kalender,
-            only_changed=bool(nur_aenderungen),
+    if is_newest:
+        chosen = "alle"  # im neuesten Stand ist nichts gelöscht oder geändert
+    elif status in ("gelöscht", "geändert", "alle"):
+        chosen = status
+    else:  # Standard: dorthin, wo es etwas zu sehen gibt
+        chosen = next((key for key in ("gelöscht", "geändert") if counts[key]), "alle")
+    rows = (
+        await asyncio.to_thread(
+            calendar_backup.search, store, int(selected["id"]),
+            status="" if chosen == "alle" else chosen,
+            limit=BACKUP_PAGE_SIZE + 1, offset=(seite - 1) * BACKUP_PAGE_SIZE, **filters,
         )
-        if selected
-        else []
+        if selected else []
+    )
+    has_more = len(rows) > BACKUP_PAGE_SIZE
+    state = {
+        "stand": "" if is_newest or not selected else str(selected["id"]),
+        "q": q.strip(), "kalender": kalender,
+        "status": "" if is_newest or status not in ("gelöscht", "geändert", "alle") else status,
+        "zeitraum": "" if period == "kommend" else period,
+    }
+
+    def link(**changes: Any) -> str:
+        merged = {**state, **{key: "" if value is None else str(value) for key, value in changes.items()}}
+        query = urlencode({key: value for key, value in merged.items() if value})
+        return "/sicherungen/kalender" + (f"?{query}" if query else "")
+
+    points = calendar_backup.change_points(snapshots)
+    selected_point = next(
+        (point for point in points if selected and point["before_id"] == selected["id"]), None
+    )
+    name = {"liste": "_calendar_backup_results.html", "mehr": "_calendar_backup_more.html"}.get(
+        teil, "calendar-backup.html"
     )
     return templates.TemplateResponse(
         request=request,
-        name="calendar-backup.html",
+        name=name,
         context={
             "snapshots": snapshots,
             "selected": selected,
-            "results": results,
+            "is_newest": is_newest,
+            "selected_point": selected_point,
+            "points": points,
+            "counts": counts,
+            "chosen": chosen,
+            "period": period,
+            "groups": _backup_groups(rows[:BACKUP_PAGE_SIZE], today),
+            "has_more": has_more,
+            "next_page": seite + 1,
+            "page": seite,
+            "link": link,
             "q": q,
             "kalender": kalender,
-            "nur_aenderungen": bool(nur_aenderungen),
             "calendars": calendar_backup.known_calendars(store),
+            "calendar_colors": calendar_backup.calendar_colors(store),
             "message": (
                 _("„{title}“ wurde in iCloud wiederhergestellt.", title=restored) if restored else None
             ),
@@ -2880,7 +2972,7 @@ async def restore_calendar_event(request: Request, presence_id: int):
     filters = {
         key: values[-1]
         for key, values in parse_qs(referer.query).items()
-        if key in {"stand", "q", "kalender", "nur_aenderungen"}
+        if key in set(_BACKUP_FILTERS)
     }
 
     def with_param(key: str, value: str) -> str:

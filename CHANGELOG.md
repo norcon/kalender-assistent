@@ -4,6 +4,24 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.20.0 – 2026-11-07
+
+„Kalender-Sicherung durchsuchen“ neu gestaltet:
+
+- **Änderungsverlauf** statt einer langen Auswahlliste: nur Sicherungen, bei
+  denen sich etwas geändert hat („1 gelöscht · 2 geändert · 1 neu“). Ein Klick
+  zeigt den Stand direkt davor.
+- **Reiter** Gelöscht / Geändert / Alle mit Anzahl; beim Öffnen eines älteren
+  Stands startet die Seite dort, wo es etwas zu sehen gibt.
+- **Vorher/Nachher** bei geänderten Terminen, geänderte Angaben hervorgehoben.
+- **Wiederherstellen** nur noch bei gelöschten und geänderten Terminen.
+- Liste **nach Monat und Tag gruppiert**, ab heute aufsteigend; laufende
+  Serien stehen gesammelt dahinter, damit sie die nächsten Termine nicht
+  verdrängen. „Weitere laden“ statt fester Grenze von 200.
+- **Live-Filter**: Suche, Zeitraum (Kommende / Vergangene / Alle) und
+  farbige Kalender-Chips wirken sofort, ohne Neuladen.
+- Erklärungen kürzer, Details im Info-Symbol.
+
 ## 0.19.2 – 2026-11-07
 
 - Bilder in Mails werden vor dem Senden an die KI in ein Format gebracht,

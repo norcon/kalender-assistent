@@ -1,0 +1,42 @@
+{%- set ns = namespace(past_shown=false) -%}
+{% for group in groups %}
+  {% if group.past and period == "alle" and not ns.past_shown %}{% set ns.past_shown = true %}<p class="group-divider" data-divider>{{ _("Vergangene Termine") }}</p>{% endif %}
+  <section class="month-group" data-key="{{ group.key }}">
+    <h2 class="month-label">{{ group.label }}</h2>
+    {% for day in group.days %}
+      <div class="day-group{% if day.today %} is-today{% endif %}" data-key="{{ day.key }}">
+        {% if day.label %}<h3 class="day-label">{{ day.label }}{% if day.today %} <span class="today-badge">{{ _("Heute") }}</span>{% endif %}</h3>{% endif %}
+        <ul class="day-items">
+          {% for item in day.entries %}
+            <li class="backup-row status-row-{{ item.status }}">
+              <span class="row-time">{{ item.time }}</span>
+              <span class="cal-dot" aria-hidden="true" style="--cal-color: {{ item.color or 'var(--dot-off)' }}"></span>
+              <div class="row-main">
+                <p class="row-title">
+                  {% if item.status == "geändert" and item.diff.summary %}<mark>{{ item.summary }}</mark>{% else %}{{ item.summary }}{% endif %}
+                  {% if item.status != "unverändert" %}<span class="status status-{{ item.status }}">{{ _(item.status) }}</span>{% endif %}
+                </p>
+                <p class="row-meta">{{ item.calendar }}{% if item.series_since %} · {{ _("Serie seit {date}", date=item.series_since) }}{% elif item.recurring %} · {{ _("Serie") }}{% endif %}{% if item.location %} · {{ item.location }}{% endif %}</p>
+                {% if item.status == "geändert" %}
+                  <dl class="row-diff">
+                    <dt>{{ _("Sicherung") }}</dt>
+                    <dd>{% if item.diff.summary %}<mark>{{ item.summary }}</mark> · {% endif %}{% if item.diff.when %}<mark>{{ item.when }}</mark>{% else %}{{ item.when }}{% endif %}{% if item.location or item.diff.location %} · {% if item.diff.location %}<mark>{{ item.location or "–" }}</mark>{% else %}{{ item.location }}{% endif %}{% endif %}</dd>
+                    <dt>{{ _("Heute") }}</dt>
+                    <dd>{% if item.diff.summary %}<mark>{{ item.current_summary }}</mark> · {% endif %}{% if item.diff.when %}<mark>{{ item.current_when }}</mark>{% else %}{{ item.current_when }}{% endif %}{% if item.current_location or item.diff.location %} · {% if item.diff.location %}<mark>{{ item.current_location or "–" }}</mark>{% else %}{{ item.current_location }}{% endif %}{% endif %}</dd>
+                  </dl>
+                {% endif %}
+              </div>
+              {% if item.status != "unverändert" %}
+                <form method="post" action="/sicherungen/kalender/eintrag/{{ item.id }}/wiederherstellen" class="row-action" data-confirm="{% if item.status == 'gelöscht' %}{{ _("„{title}“ im Kalender „{calendar}“ wieder anlegen?", title=item.summary, calendar=item.calendar) }}{% else %}{{ _("„{title}“ im Kalender „{calendar}“ mit dem Stand aus dieser Sicherung überschreiben?", title=item.summary, calendar=item.calendar) }}{% endif %}">
+                  <button type="submit" class="small secondary" {% if not caldav_configured %}disabled{% endif %}>{{ _("Wiederherstellen") }}</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+  </section>
+{% else %}
+  <p class="meta empty">{% if chosen == "gelöscht" %}{{ _("Keine gelöschten Termine in dieser Auswahl.") }}{% elif chosen == "geändert" %}{{ _("Keine geänderten Termine in dieser Auswahl.") }}{% else %}{{ _("Keine Termine gefunden.") }}{% endif %}</p>
+{% endfor %}

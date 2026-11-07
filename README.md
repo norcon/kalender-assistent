@@ -346,11 +346,14 @@ einer Sicherung nicht erreichbar, bleibt sein letzter Stand unverändert und die
 Sicherung wird als „unvollständig“ markiert.
 
 Unter **Termine durchsuchen und wiederherstellen** (`/sicherungen/kalender`)
-lässt sich jeder gesicherte Stand nach Titel, Ort und Kalender durchsuchen. Der
-Status zeigt, ob ein Termin seitdem gelöscht oder geändert wurde.
-**Wiederherstellen** steht bei jedem Termin zur Verfügung und schreibt den
-gesicherten Stand in den ursprünglichen Kalender: Fehlt der Termin in iCloud,
-wird er neu angelegt, ansonsten mit dem Stand aus der Sicherung überschrieben.
+zeigt der **Änderungsverlauf** nur die Sicherungen, bei denen sich etwas
+geändert hat („1 gelöscht · 2 geändert“). Ein Klick öffnet den Stand direkt
+davor; Reiter zeigen, was seitdem gelöscht oder geändert wurde – geänderte
+Termine mit Vorher/Nachher. Suche, Zeitraum (kommende/vergangene) und Kalender
+filtern sofort, die Liste ist nach Monat und Tag gruppiert.
+**Wiederherstellen** schreibt den gesicherten Stand in den ursprünglichen
+Kalender: Fehlt der Termin in iCloud, wird er neu angelegt, ansonsten mit dem
+Stand aus der Sicherung überschrieben.
 
 Wiederherstellen ohne Oberfläche (z. B. wenn der Dienst nicht startet):
 

@@ -403,24 +403,34 @@ def storage_info(store_path: str) -> dict[str, int]:
     return {"bytes": size, "versions": versions}
 
 
-def search(
-    store_path: str,
-    snapshot_id: int,
-    *,
-    text: str = "",
-    calendar: str = "",
-    only_changed: bool = False,
-    limit: int = 200,
-) -> list[dict[str, Any]]:
-    """Termine im Stand einer Sicherung, verglichen mit dem neuesten Stand.
+STATUS_SQL = (
+    "CASE WHEN c.id IS NULL THEN 'gelöscht' "
+    "WHEN c.version_hash = p.version_hash THEN 'unverändert' ELSE 'geändert' END"
+)
+PERIODS = ("kommend", "vergangen", "alle")
+_FROM_SQL = """
+    FROM presence p
+    JOIN event_versions v ON v.hash = p.version_hash
+    LEFT JOIN presence c
+        ON c.calendar = p.calendar AND c.href = p.href AND c.valid_to IS NULL
+    LEFT JOIN event_versions cv ON cv.hash = c.version_hash
+"""
+# Kommend: beginnt heute oder später – oder ist eine Serie, die noch läuft.
+_UPCOMING_SQL = (
+    "(substr(v.dtstart, 1, 10) >= :today OR (v.recurring = 1 AND ("
+    "v.rrule IS NULL OR instr(v.rrule, 'UNTIL=') = 0 OR "
+    "substr(v.rrule, instr(v.rrule, 'UNTIL=') + 6, 8) >= :today_compact)))"
+)
 
-    status: unverändert / geändert / gelöscht (bezogen auf die neueste Sicherung).
-    """
+
+def _conditions(
+    snapshot_id: int, text: str, calendar: str, period: str, today: date | None
+) -> tuple[list[str], dict[str, Any]]:
     conditions = [
         "p.valid_from <= :snapshot",
         "(p.valid_to IS NULL OR p.valid_to > :snapshot)",
     ]
-    params: dict[str, Any] = {"snapshot": snapshot_id, "limit": limit}
+    params: dict[str, Any] = {"snapshot": snapshot_id}
     if text.strip():
         conditions.append(
             "(v.summary LIKE :text ESCAPE '\\' OR v.location LIKE :text ESCAPE '\\')"
@@ -430,27 +440,97 @@ def search(
     if calendar:
         conditions.append("p.calendar = :calendar")
         params["calendar"] = calendar
-    status_sql = (
-        "CASE WHEN c.id IS NULL THEN 'gelöscht' "
-        "WHEN c.version_hash = p.version_hash THEN 'unverändert' ELSE 'geändert' END"
-    )
+    if period in ("kommend", "vergangen"):
+        today = today or date.today()
+        params.update(today=today.isoformat(), today_compact=today.strftime("%Y%m%d"))
+        conditions.append(_UPCOMING_SQL if period == "kommend" else f"NOT {_UPCOMING_SQL}")
+    return conditions, params
+
+
+def search(
+    store_path: str,
+    snapshot_id: int,
+    *,
+    text: str = "",
+    calendar: str = "",
+    only_changed: bool = False,
+    status: str = "",
+    period: str = "alle",
+    today: date | None = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Termine im Stand einer Sicherung, verglichen mit dem neuesten Stand.
+
+    status: unverändert / geändert / gelöscht (bezogen auf die neueste Sicherung).
+    Reihenfolge: kommende Termine aufsteigend, danach vergangene absteigend.
+    """
+    conditions, params = _conditions(snapshot_id, text, calendar, period, today)
+    params.update(limit=limit, offset=offset, today=params.get("today", (today or date.today()).isoformat()))
+    params.setdefault("today_compact", (today or date.today()).strftime("%Y%m%d"))
     if only_changed:
         conditions.append("(c.id IS NULL OR c.version_hash != p.version_hash)")
+    if status == "gelöscht":
+        conditions.append("c.id IS NULL")
+    elif status == "geändert":
+        conditions.append("c.id IS NOT NULL AND c.version_hash != p.version_hash")
     query = f"""
-        SELECT p.id, p.calendar, p.href, v.summary, v.dtstart, v.location, v.recurring,
-               {status_sql} AS status,
-               cv.summary AS current_summary, cv.dtstart AS current_dtstart
-        FROM presence p
-        JOIN event_versions v ON v.hash = p.version_hash
-        LEFT JOIN presence c
-            ON c.calendar = p.calendar AND c.href = p.href AND c.valid_to IS NULL
-        LEFT JOIN event_versions cv ON cv.hash = c.version_hash
+        SELECT p.id, p.calendar, p.href, v.summary, v.dtstart, v.dtend, v.location, v.recurring,
+               {STATUS_SQL} AS status, {_UPCOMING_SQL} AS upcoming,
+               cv.summary AS current_summary, cv.dtstart AS current_dtstart,
+               cv.dtend AS current_dtend, cv.location AS current_location
+        {_FROM_SQL}
         WHERE {' AND '.join(conditions)}
-        ORDER BY v.dtstart DESC, v.summary
-        LIMIT :limit
+        ORDER BY upcoming DESC,
+                 -- laufende Serien (Beginn liegt zurück) nach den datierten Terminen
+                 CASE WHEN v.recurring = 1 AND substr(v.dtstart, 1, 10) < :today THEN 1 ELSE 0 END,
+                 CASE WHEN {_UPCOMING_SQL} THEN v.dtstart END ASC,
+                 v.dtstart DESC, v.summary
+        LIMIT :limit OFFSET :offset
     """
     with closing(connect(store_path)) as connection:
         return [dict(row) for row in connection.execute(query, params)]
+
+
+def count_by_status(
+    store_path: str,
+    snapshot_id: int,
+    *,
+    text: str = "",
+    calendar: str = "",
+    period: str = "alle",
+    today: date | None = None,
+) -> dict[str, int]:
+    """Anzahl je Status (gelöscht/geändert/unverändert) plus „alle“."""
+    conditions, params = _conditions(snapshot_id, text, calendar, period, today)
+    query = f"""
+        SELECT {STATUS_SQL} AS status, COUNT(*) AS n
+        {_FROM_SQL}
+        WHERE {' AND '.join(conditions)}
+        GROUP BY status
+    """
+    counts = {"gelöscht": 0, "geändert": 0, "unverändert": 0}
+    with closing(connect(store_path)) as connection:
+        for row in connection.execute(query, params):
+            counts[row["status"]] = row["n"]
+    counts["alle"] = sum(counts.values())
+    return counts
+
+
+def change_points(snapshots: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sicherungen mit Änderungen (neueste zuerst) samt dem Stand direkt davor.
+
+    Zwischen zwei Änderungen ist der Kalender gleich – diese Punkte decken
+    also alle unterschiedlichen Stände ab. snapshots: wie list_snapshots.
+    """
+    points = []
+    for index, item in enumerate(snapshots):
+        if not (item["added"] or item["changed"] or item["deleted"]):
+            continue
+        before = snapshots[index + 1] if index + 1 < len(snapshots) else None
+        points.append({**item, "before_id": before["id"] if before else None,
+                       "before_taken_at": before["taken_at"] if before else None})
+    return points
 
 
 def get_version(store_path: str, presence_id: int) -> dict[str, Any] | None:
