@@ -42,7 +42,10 @@ section h2 { font-size: 1.7rem; margin: 0 0 8px; }
 section > .wrap > p.sub { color: var(--text-2); margin: 0 0 24px; max-width: 46rem; }
 .steps { counter-reset: step; list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
 .steps li { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
-.steps li::before { counter-increment: step; content: counter(step); display: inline-flex; width: 30px; height: 30px; border-radius: 50%; align-items: center; justify-content: center; background: var(--primary); color: var(--on-primary); font-weight: 700; margin-bottom: 8px; }
+.steps li::before { counter-increment: step; content: counter(step); display: flex; width: 30px; height: 30px; border-radius: 50%; align-items: center; justify-content: center; background: var(--primary); color: var(--on-primary); font-weight: 700; margin-bottom: 12px; }
+.steps li strong { display: block; margin-bottom: 4px; font-size: 1.05rem; }
+.steps li { color: var(--text-2); }
+.steps li strong { color: var(--text); }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
 .card h3 { margin: 0 0 6px; font-size: 1.05rem; }
