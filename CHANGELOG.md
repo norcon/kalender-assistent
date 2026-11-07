@@ -4,6 +4,12 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.19.1 – 2026-11-07
+
+- Das Symbol neben dem Namen oben links ist jetzt das eigene App-Icon. Das
+  bisherige Kalendersymbol stammte aus der Icon-Bibliothek Feather Icons;
+  damit ist alles im Projekt selbst gezeichnet.
+
 ## 0.19.0 – 2026-11-07
 
 - Einrichtungsassistent: Neuer Knopf „Überspringen“. Die App startet dann
