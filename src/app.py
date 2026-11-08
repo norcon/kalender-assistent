@@ -3029,6 +3029,11 @@ def _render_settings_page(
     )
 
 
+MIN_ROLLBACK_VERSION = (0, 28, 0)
+ROLLBACK_LIMIT_TEXT = ("Versionen vor 0.28.0 sind nicht wählbar: Sie lesen die Zugangsdaten nur aus .env, "
+                       "die liegen inzwischen verschlüsselt in der App.")
+
+
 class UpdateRequest(BaseModel):
     version: str = Field(max_length=20)
     restore_data: bool = False
@@ -3039,7 +3044,8 @@ def _update_context() -> dict[str, object]:
     available = None if settings.demo_mode or not settings.update_check else updates.releases(settings.update_repository)
     state = None if settings.demo_mode else updates.updater_status(settings.updater_url)
     newer = [r for r in (available or []) if current and r["key"] > current]
-    older = [r for r in (available or []) if current and r["key"] < current]
+    # Versionen vor 0.28.0 lesen Zugangsdaten nur aus .env (inzwischen aufgeräumt).
+    older = [r for r in (available or []) if current and MIN_ROLLBACK_VERSION <= r["key"] < current]
     last_backup = (state or {}).get("backup") if (state or {}).get("state") in ("done",) else None
     return {
         "current": version.VERSION,
@@ -3051,6 +3057,7 @@ def _update_context() -> dict[str, object]:
         "update_repository": settings.update_repository,
         "update_check": settings.update_check and not settings.demo_mode,
         "restore_candidate": last_backup,
+        "rollback_limit": _(ROLLBACK_LIMIT_TEXT),
     }
 
 
@@ -3076,6 +3083,8 @@ async def start_update(request: UpdateRequest):
         raise HTTPException(status_code=422, detail=_("Diese Version ist nicht verfügbar."))
     if request.version == version.VERSION:
         raise HTTPException(status_code=409, detail=_("Diese Version läuft bereits."))
+    if target < MIN_ROLLBACK_VERSION:
+        raise HTTPException(status_code=409, detail=_(ROLLBACK_LIMIT_TEXT))
     state = await asyncio.to_thread(updates.updater_status, settings.updater_url)
     if state is None:
         raise HTTPException(status_code=503, detail=_("Der Updater ist nicht eingerichtet. Anleitung siehe unten."))

@@ -43,6 +43,7 @@
           <label class="checkbox"><input type="checkbox" id="rollback-restore" {% if not restore_candidate %}disabled{% endif %}>
             {% if restore_candidate %}{{ _("Auch die Datenbank auf den Stand vor dem letzten Update zurücksetzen ({name})", name=restore_candidate) }}{% else %}{{ _("Datenbank zurücksetzen (keine Sicherung vom letzten Update vorhanden)") }}{% endif %}</label>
           <p class="meta">{{ _("Ohne Haken behält die App die aktuellen Daten. Mit Haken gehen alle Vorschläge und Änderungen seit dem letzten Update verloren.") }}</p>
+          <p class="meta">{{ rollback_limit }} {{ _("Die gespeicherten Verbindungen bleiben beim Zurücksetzen der Datenbank erhalten.") }}</p>
           <button type="button" class="secondary update-button" data-rollback="1" {% if not updater or state == "running" %}disabled{% endif %}
                   data-confirm="{{ _("Zur gewählten Version wechseln? Vorher wird automatisch eine Vollsicherung angelegt.") }}">{{ _("Zu dieser Version wechseln") }}</button>
         </div>

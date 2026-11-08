@@ -21,10 +21,12 @@ import logging
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import threading
 import time
 import urllib.request
+from contextlib import closing
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -125,6 +127,29 @@ CLEANUP_KEY_PATTERN = re.compile(
     r"|SMTP_(HOST|PORT|SECURITY|USERNAME|PASSWORD|FROM)|NOTIFY_EMAIL_TO)"
 )
 MIGRATED_MARKER = "KALENDER_VERBINDUNGEN"  # =app: Zugangsdaten liegen verschlüsselt in der App
+# Ältere Versionen lesen Zugangsdaten nur aus .env – nach dem Aufräumen liefen
+# sie ohne Postfach, KI und Kalender.
+MIN_VERSION_AFTER_MIGRATION = (0, 28, 0)
+KEEP_STATE = ("connections_v1",)  # überdauert eine Datenbank-Wiederherstellung
+
+
+def _carry_over_state(current: Path, restored: Path) -> None:
+    """Gespeicherte Verbindungen aus der aktuellen Datenbank in die Sicherung übernehmen."""
+    if not current.is_file():
+        return
+    marks = ",".join("?" * len(KEEP_STATE))
+    try:
+        with closing(sqlite3.connect(current, timeout=30)) as source:
+            rows = source.execute(f"SELECT key, value FROM service_state WHERE key IN ({marks})", KEEP_STATE).fetchall()
+    except sqlite3.Error:
+        return
+    if not rows:
+        return
+    with closing(sqlite3.connect(restored, timeout=30)) as target:
+        target.execute("CREATE TABLE IF NOT EXISTS service_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        target.executemany("INSERT INTO service_state(key, value) VALUES (?, ?) "
+                           "ON CONFLICT(key) DO UPDATE SET value = excluded.value", rows)
+        target.commit()
 
 
 # ---------- Ablauf ----------
@@ -220,6 +245,7 @@ class Updater:
         owner = self.data_file.parent.stat()
         temporary = self.data_file.with_name(self.data_file.name + ".restore-tmp")
         shutil.copy2(source, temporary)
+        _carry_over_state(self.data_file, temporary)
         for suffix in ("-wal", "-shm"):
             Path(str(self.data_file) + suffix).unlink(missing_ok=True)
         temporary.replace(self.data_file)
@@ -247,6 +273,10 @@ class Updater:
             return False, "Ungültige Versionsnummer."
         if previous and not VERSION_PATTERN.match(previous):
             return False, "Ungültige bisherige Versionsnummer."
+        if (read_env_value(self.env_file, MIGRATED_MARKER) == "app"
+                and tuple(int(part) for part in version.split(".")) < MIN_VERSION_AFTER_MIGRATION):
+            return False, ("Versionen vor 0.28.0 lesen die Zugangsdaten nur aus .env; "
+                           "die liegen inzwischen verschlüsselt in der App.")
         for name in (backup, restore):
             if name is not None and not BACKUP_NAME_PATTERN.match(str(name)):
                 return False, "Ungültiger Sicherungsname."

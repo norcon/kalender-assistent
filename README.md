@@ -207,7 +207,8 @@ wird ein iCloud-Termin geändert beziehungsweise gelöscht. Nicht eindeutig
 zuordenbare Folge-Mails kannst du manuell einem vorhandenen Vorschlag zuordnen;
 auch danach ist eine separate Bestätigung erforderlich. Ein Verlauf zeigt
 Erkennung, Änderungen, Übertragungen und Bestätigungen.
-Da die Oberfläche keinen Login hat, werden Aktionen im Verlauf als
+Da alle denselben Zugang nutzen (ohne Anmeldung oder mit dem gemeinsamen
+`APP_PASSWORD`), werden Aktionen im Verlauf als
 **Gemeinsamer Zugang (Person nicht feststellbar)** gekennzeichnet.
 
 Der Button **iCloud-Verbindung testen** auf der Seite **Einstellungen** fragt per CalDAV nur die sichtbaren
@@ -230,18 +231,19 @@ Zeitangaben ohne explizite Zeitzone werden standardmäßig als lokale Zeit in
 werden als ganztägige Termine übertragen. Beim Export ganztägiger Termine wird
 das angezeigte Enddatum als letzter eingeschlossener Tag behandelt.
 
-Für den Test
-`CALDAV_USERNAME` und `CALDAV_APP_PASSWORD` in der lokalen `.env` setzen.
-Das App-spezifische Passwort in den Apple-Account-Sicherheitseinstellungen
-erstellen, nicht in den Chat einfügen. Nach Änderungen an `.env` den Dienst
-mit `docker compose up -d` neu starten.
+Die Zugangsdaten für den Kalender trägst du im Einrichtungsassistenten oder
+unter **Einstellungen → Verbindungen** ein (alternativ `CALDAV_USERNAME` und
+`CALDAV_APP_PASSWORD` in `.env`, dann `docker compose up -d`). Das
+App-spezifische Passwort in den Apple-Account-Sicherheitseinstellungen
+erstellen und nirgends sonst weitergeben.
 
 Die Datenbank wird per lokalem Bind-Mount direkt im Projektordner unter
 `./data/` gespeichert und bleibt bei `docker compose down` erhalten. Der
 Container läuft als UID `100` und GID `101`; das Datenverzeichnis muss für
 diesen Benutzer beschreibbar sein. `./data/` ist von Git ausgeschlossen.
-`.env` enthält Zugangsdaten, gehört nicht in Git und sollte nur für den
-Administrator lesbar sein.
+`data/secret.key` ist der Schlüssel zu den gespeicherten Zugangsdaten: nur für
+den Administrator lesbar halten, zusammen mit `data/` sichern und nie in Git
+ablegen. Dasselbe gilt für `.env`, solange dort noch Zugangsdaten stehen.
 
 ## Darstellung und App-Icon
 
@@ -295,9 +297,8 @@ Unter **Einstellungen** (`/einstellungen`) lassen sich Verhaltensparameter
 ohne Neustart ändern: Abrufintervall, IMAP-Ordner, Rückblick beim ersten Abruf,
 maximale E-Mail-Größe, KI-Modell und -Zeitlimit, Standarddauer für Termine ohne
 Endzeit, Schwelle für unsichere Vorschläge, Zeitzone und iCloud-Zeitlimit.
-Die Werte werden in der Datenbank gespeichert und überschreiben die
-Werte aus `.env`; **Alles auf .env-Werte zurücksetzen** entfernt alle
-Anpassungen.
+Die Werte werden in der Datenbank gespeichert und haben Vorrang vor den
+Werten aus `.env`.
 
 ### Verbindungen
 
@@ -337,15 +338,15 @@ Protokolleinträge bleiben deutsch.
 Beispieldaten und ohne Verbindung zu Postfach, KI oder iCloud – zum
 Ausprobieren und für Screenshots. Übertragen wird nur simuliert.
 
-Server-Adressen und Zugangsdaten (IMAP, KI-Server, iCloud) sind bewusst nur in
-`.env` änderbar und werden auf der Seite nur angezeigt (Passwörter nicht). Da
-die Oberfläche keinen Login hat, könnte sonst jemand im Netz z. B. alle E-Mails
-an einen fremden KI-Server umleiten.
+Ohne `APP_PASSWORD` werden die Verbindungen nur angezeigt (Passwörter nie).
+Sonst könnte jemand im Netz z. B. alle E-Mails an einen fremden KI-Server
+umleiten.
 
 ## Mehrere Postfächer
 
 Weitere Postfächer – oder weitere Ordner desselben Postfachs – legst du unter
-**Einstellungen → Verbindungen** an oder trägst sie in `.env` ein als `IMAP2_*` bis `IMAP9_*` ein (gleiche Felder wie das erste:
+**Einstellungen → Verbindungen** an oder trägst sie in `.env` als `IMAP2_*` bis
+`IMAP9_*` ein (gleiche Felder wie das erste:
 `HOST`, `PORT`, `USERNAME`, `PASSWORD`, `FOLDER`, optional `NAME`). Jedes
 Postfach wird einzeln abgerufen und hat eine eigene Sofort-Erkennung; ist eines
 gestört, laufen die anderen weiter.
@@ -353,7 +354,8 @@ gestört, laufen die anderen weiter.
 ## Andere Kalender-Server
 
 Statt iCloud funktioniert jeder Kalender-Server mit CalDAV-Standard. Im
-Einrichtungsassistenten gibt es eine Auswahl, sonst in `.env`:
+Einrichtungsassistenten gibt es eine Auswahl, später unter **Einstellungen →
+Verbindungen** oder in `.env`:
 
 | Anbieter | `CALDAV_URL` | Hinweis |
 |---|---|---|
@@ -373,10 +375,11 @@ wird nicht unterstützt (verlangt eine OAuth-Anmeldung).
 Die App meldet neue Vorschläge, länger andauernde Störungen (Postfach,
 KI-Server, iCloud – samt Entwarnung), auffällig viele gelöschte Kalendertermine
 und neue Versionen. Welche Ereignisse, legst du unter **Einstellungen →
-Benachrichtigungen** fest; dort steht auch „Test senden“. Die Kanäle kommen aus
-`.env` – jeder eingetragene wird genutzt:
+Benachrichtigungen** fest; dort steht auch „Test senden“. Die Kanäle richtest
+du unter **Einstellungen → Verbindungen** ein oder trägst sie in `.env` ein –
+jeder eingetragene wird genutzt:
 
-| Kanal | Einträge in `.env` |
+| Kanal | Felder bzw. Einträge in `.env` |
 |---|---|
 | [ntfy](https://ntfy.sh) | `NTFY_URL=https://ntfy.sh/mein-geheimes-thema`, optional `NTFY_TOKEN` |
 | [Pushover](https://pushover.net) | `PUSHOVER_TOKEN`, `PUSHOVER_USER` |
@@ -438,6 +441,11 @@ rm -f data/calendar-assistant.sqlite3-wal data/calendar-assistant.sqlite3-shm
 sudo chown 100:101 data/calendar-assistant.sqlite3
 docker compose start
 ```
+
+Anders als über die Seite **Sicherungen** kommen die Verbindungen dabei aus
+der Sicherung. Stammt sie von vor 0.28.0, enthält sie keine; dann die
+Zugangsdaten aus `backups/env-vor-aufraeumen-…/.env` wieder in `.env`
+eintragen und `docker compose up -d` ausführen.
 
 `./backups/` liegt auf derselben Festplatte wie die Datenbank. Gegen einen
 Plattendefekt hilft das nur, wenn der Ordner zusätzlich extern gesichert wird.

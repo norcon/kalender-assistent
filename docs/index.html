@@ -192,7 +192,7 @@ docker compose up -d</code></pre>
       <p>Alles Wichtige liegt in zwei Ordnern neben <code>compose.yaml</code>:</p>
       <table>
         <tr><th>Ordner</th><th>Inhalt</th></tr>
-        <tr><td><code>data/</code></td><td>Datenbank mit Vorschlägen, Regeln, Verlauf und Einstellungen</td></tr>
+        <tr><td><code>data/</code></td><td>Datenbank mit Vorschlägen, Regeln, Verlauf, Einstellungen und verschlüsselten Zugangsdaten – samt Schlüssel <code>secret.key</code>, ohne den sie nicht lesbar sind</td></tr>
         <tr><td><code>backups/</code></td><td>tägliche Datenbank-Sicherungen und die versionierte Sicherung der iCloud-Kalender</td></tr>
       </table>
       <p>Kopiere beide Ordner und deine <code>.env</code> regelmäßig auf ein zweites Gerät, z. B. ein NAS – die eingebauten Sicherungen liegen auf derselben Festplatte.</p>

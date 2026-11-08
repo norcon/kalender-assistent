@@ -4,6 +4,19 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.28.3 – 2026-11-08
+
+- **Verbindungen bleiben erhalten:** Beim Wiederherstellen einer
+  Datenbank-Sicherung (Seite Sicherungen oder „Datenbank zurücksetzen“ beim
+  Versionswechsel) bleiben die gespeicherten Zugangsdaten auf dem aktuellen
+  Stand. Bisher brachte eine ältere Sicherung alte – oder vor 0.28 gar keine –
+  Zugangsdaten zurück.
+- **Rückkehr erst ab 0.28.0:** Ältere Versionen lesen Zugangsdaten nur aus
+  `.env`, die inzwischen aufgeräumt ist; sie werden nicht mehr angeboten, und
+  der Updater lehnt sie ab.
+- Doku (README, SECURITY.md, Webseite) an die verschlüsselt gespeicherten
+  Verbindungen angepasst; Hinweis auf `data/secret.key` bei der Sicherung.
+
 ## 0.28.2 – 2026-11-08
 
 - Knopf „Alles auf .env-Werte zurücksetzen“ auf der Einstellungsseite

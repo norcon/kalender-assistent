@@ -122,6 +122,37 @@ class UpdaterTests(unittest.TestCase):
         self.assertEqual(docker.calls[:2], [["pull", "kalender-assistent"], ["stop", "kalender-assistent"]])
         self.assertEqual((self.project / "data" / "calendar-assistant.sqlite3").read_text(), "alt")
 
+    def test_rollback_before_0_28_refused_after_migration(self):
+        env = self.project / ".env"
+        env.write_text("KALENDER_VERSION=0.28.1\nKALENDER_VERBINDUNGEN=app\n")
+        docker = FakeDocker(self.project)
+        ok, message = self.make(docker).start({"version": "0.27.0", "previous": "0.28.1"})
+        self.assertFalse(ok)
+        self.assertIn("0.28.0", message)
+        self.assertEqual(docker.calls, [])
+        instance = self.make(docker)
+        self.assertTrue(instance.start({"version": "0.28.0", "previous": "0.28.1"})[0])
+        self.assertEqual(self.wait(instance)["state"], "done")
+
+    def test_database_restore_keeps_current_connections(self):
+        import sqlite3
+        current = self.project / "data" / "calendar-assistant.sqlite3"
+        old = self.project / "backups" / "calendar-assistant-2026-11-06_200000.sqlite3"
+        current.unlink()
+        old.unlink()
+        (self.project / "data" / "calendar-assistant.sqlite3-wal").unlink()
+        for path, rows in ((current, [("connections_v1", "neu-verschluesselt"), ("other", "neu")]),
+                           (old, [("other", "alt")])):
+            with sqlite3.connect(path) as connection:
+                connection.execute("CREATE TABLE service_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+                connection.executemany("INSERT INTO service_state VALUES (?, ?)", rows)
+            connection.close()
+        self.make(FakeDocker(self.project))._restore_database(old.name)
+        with sqlite3.connect(current) as connection:
+            state = dict(connection.execute("SELECT key, value FROM service_state"))
+        connection.close()
+        self.assertEqual(state, {"connections_v1": "neu-verschluesselt", "other": "alt"})
+
     def test_env_cleanup_only_matching_allowed_keys(self):
         import hashlib
         env = self.project / ".env"

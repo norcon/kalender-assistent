@@ -1168,6 +1168,7 @@ class ReleaseCacheTests(unittest.TestCase):
 class UpdatePageTests(unittest.TestCase):
     RELEASES = [
         {"version": "9.0.0", "key": (9, 0, 0), "published": "2099-01-01T00:00:00Z", "notes": "Neu: alles"},
+        {"version": "0.28.0", "key": (0, 28, 0), "published": "2026-11-07T00:00:00Z", "notes": ""},
         {"version": "0.1.0", "key": (0, 1, 0), "published": "2020-01-01T00:00:00Z", "notes": ""},
     ]
 
@@ -1194,10 +1195,14 @@ class UpdatePageTests(unittest.TestCase):
                      patch.object(app_module.updates, "backup_calendar_store") as store_backup:
                     page = client.get("/sicherungen/update-fragment").text
                     self.assertIn("calendar-assistant-2026-01-01_000000.sqlite3", page)
-                    response = client.post("/api/update", json={"version": "0.1.0", "restore_data": True})
+                    self.assertIn('<option value="0.28.0">', page)
+                    self.assertNotIn('<option value="0.1.0">', page)  # liest Zugangsdaten nur aus .env
+                    self.assertEqual(client.post("/api/update", json={"version": "0.1.0"}).status_code, 409)
+                    start.assert_not_called()
+                    response = client.post("/api/update", json={"version": "0.28.0", "restore_data": True})
                     self.assertEqual(response.status_code, 202, response.text)
                 payload = start.call_args.args[1]
-                self.assertEqual(payload["version"], "0.1.0")
+                self.assertEqual(payload["version"], "0.28.0")
                 self.assertEqual(payload["previous"], app_module.version.VERSION)
                 self.assertEqual(payload["restore_backup"], "calendar-assistant-2026-01-01_000000.sqlite3")
                 self.assertTrue((Path(app_module.settings.backup_dir) / payload["backup"]).exists())

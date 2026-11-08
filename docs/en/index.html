@@ -193,7 +193,7 @@ docker compose up -d</code></pre>
       <p>Everything important lives in two folders next to <code>compose.yaml</code>:</p>
       <table>
         <tr><th>Folder</th><th>Contents</th></tr>
-        <tr><td><code>data/</code></td><td>database with suggestions, rules, history and settings</td></tr>
+        <tr><td><code>data/</code></td><td>database with suggestions, rules, history, settings and encrypted credentials – including the key <code>secret.key</code>, without which they cannot be read</td></tr>
         <tr><td><code>backups/</code></td><td>daily database backups and the versioned backup of your iCloud calendars</td></tr>
       </table>
       <p>Copy both folders and your <code>.env</code> to a second device regularly, e.g. a NAS – the built-in backups live on the same disk.</p>

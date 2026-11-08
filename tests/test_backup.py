@@ -30,6 +30,17 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(value, "4")
         self.assertFalse(list(Path(self.backup_dir).glob("*.tmp")))
 
+    def test_restore_keeps_current_connections(self):
+        db.set_service_state(self.database_path, connections_v1="alt", other="alt")
+        with self.assertLogs("src.backup", level="INFO"):
+            name = Path(backup.create_backup(self.database_path, self.backup_dir, 14)).name
+        db.set_service_state(self.database_path, connections_v1="neu", other="neu")
+        with self.assertLogs("src.backup", level="INFO"):
+            backup.restore_backup(self.database_path, self.backup_dir, name)
+        state = db.get_service_state(self.database_path)
+        self.assertEqual(state["connections_v1"], "neu")
+        self.assertEqual(state["other"], "alt")
+
     def test_old_backups_are_pruned_but_newest_kept(self):
         start = datetime(2026, 10, 1, 3, 0, tzinfo=timezone.utc)
         with self.assertLogs("src.backup", level="INFO"):

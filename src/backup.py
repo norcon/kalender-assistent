@@ -138,11 +138,39 @@ def delete_backup(backup_dir: str, name: str) -> None:
     logger.info("Datenbanksicherung gelöscht: %s.", name)
 
 
+# Einträge in service_state, die eine Wiederherstellung überdauern: die
+# verschlüsselten Verbindungen (connections.STATE_KEY). Sonst brächte eine
+# ältere Sicherung alte – oder vor 0.28 gar keine – Zugangsdaten zurück, obwohl
+# sie längst aus .env entfernt sind.
+KEEP_STATE = ("connections_v1",)
+
+
+def _kept_state(connection: sqlite3.Connection) -> list[tuple[str, str]]:
+    marks = ",".join("?" * len(KEEP_STATE))
+    try:
+        return connection.execute(
+            f"SELECT key, value FROM service_state WHERE key IN ({marks})", KEEP_STATE
+        ).fetchall()
+    except sqlite3.OperationalError:  # Tabelle fehlt
+        return []
+
+
+def _put_back_state(connection: sqlite3.Connection, rows: list[tuple[str, str]]) -> None:
+    if not rows:
+        return
+    connection.execute("CREATE TABLE IF NOT EXISTS service_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    connection.executemany(
+        "INSERT INTO service_state(key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value", rows
+    )
+
+
 def restore_backup(database_path: str, backup_dir: str, name: str) -> None:
     """Spielt eine Sicherung in die laufende Datenbank zurück.
 
     Die SQLite-Backup-API ersetzt den Inhalt in einem Schritt. Der Zähler für
-    Änderungen wird danach erhöht, damit geöffnete Seiten neu laden.
+    Änderungen wird danach erhöht, damit geöffnete Seiten neu laden. Die
+    gespeicherten Verbindungen bleiben auf dem aktuellen Stand (KEEP_STATE).
     """
     source_path = backup_path(backup_dir, name)
     source = sqlite3.connect(f"file:{source_path}?mode=ro", uri=True, timeout=30)
@@ -155,7 +183,9 @@ def restore_backup(database_path: str, backup_dir: str, name: str) -> None:
             previous_version = destination.execute(
                 "SELECT version FROM suggestion_meta WHERE singleton = 1"
             ).fetchone()[0]
+            kept = _kept_state(destination)
             source.backup(destination)
+            _put_back_state(destination, kept)
             destination.execute(
                 "UPDATE suggestion_meta SET version = MAX(version, ?) + 1 "
                 "WHERE singleton = 1",
