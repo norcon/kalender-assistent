@@ -242,6 +242,24 @@ def validate_events(payload: Any, allowed_calendars: list[str] | tuple[str, ...]
     return validated
 
 
+# Server, die eine feste temperature ablehnen (z. B. Claude ab 4.7, OpenAI-
+# Reasoning-Modelle). Dort wird ohne den Wert gefragt.
+_NO_TEMPERATURE: set[tuple[str, str]] = set()
+
+
+def _post_chat(base_url: str, headers: dict[str, str], body: dict[str, Any], timeout: httpx.Timeout) -> httpx.Response:
+    """Chat-Anfrage mit temperature 0 (möglichst gleichbleibende Ergebnisse);
+    lehnt der Server den Wert ab, einmal ohne wiederholen und das merken."""
+    key = (base_url, str(body.get("model")))
+    if key not in _NO_TEMPERATURE:
+        response = httpx.post(f"{base_url}/chat/completions", headers=headers, json={**body, "temperature": 0}, timeout=timeout)
+        if not (response.status_code == 400 and "temperature" in response.text.lower()):
+            return response
+        _NO_TEMPERATURE.add(key)
+        logger.info("KI-Modell %s akzeptiert keine feste temperature; frage ohne.", body.get("model"))
+    return httpx.post(f"{base_url}/chat/completions", headers=headers, json=body, timeout=timeout)
+
+
 def extract_events(
     base_url: str,
     api_key: str,
@@ -291,23 +309,18 @@ def extract_events(
                     },
                 }
             )
-    try:
-        response = httpx.post(
-            f"{base_url}/chat/completions",
-            headers=headers,
-            json={
-                "model": model,
-                "temperature": 0,
-                "messages": [
-                    {"role": "system", "content": build_system_prompt(calendars, rejections)},
-                    {
-                        "role": "user",
-                        "content": content,
-                    },
-                ],
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": build_system_prompt(calendars, rejections)},
+            {
+                "role": "user",
+                "content": content,
             },
-            timeout=timeout,
-        )
+        ],
+    }
+    try:
+        response = _post_chat(base_url, headers, body, timeout)
         response.raise_for_status()
     except httpx.HTTPStatusError as error:
         if images and error.response.status_code in {400, 404, 415, 422}:

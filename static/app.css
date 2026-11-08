@@ -759,3 +759,4 @@ fieldset.channel { margin: .8rem 0; padding: .6rem .9rem .8rem; border: 1px soli
 fieldset.channel legend { font-weight: 600; padding: 0 .3rem; }
 fieldset.channel .help { margin: 0 0 .7rem; }
 .badge.ok { background: var(--success-soft); color: var(--success); }
+.setup-grid .ai-hint, .setup-grid .ai-cloud { grid-column: 1 / -1; margin: 0; }

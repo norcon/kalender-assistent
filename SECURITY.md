@@ -35,9 +35,11 @@ Was die App selbst absichert:
 - Schreibende Anfragen von fremden Webseiten werden abgewiesen (CSRF-Schutz).
 - Der Container läuft ohne Root-Rechte und mit `no-new-privileges`.
 
-**Datenschutz:** Mailtexte und Anhänge gehen an den KI-Server aus
-`AI_BASE_URL`. Mit einer lokalen KI (z. B. LM Studio, Ollama) bleibt alles im
-eigenen Netz; mit einem Cloud-Dienst verlassen die Mails dein Netz.
+**Datenschutz:** Mailtexte und Anhänge gehen an den eingestellten KI-Server.
+Mit einer lokalen KI (z. B. LM Studio, Ollama) bleibt alles im
+eigenen Netz; mit einem Cloud-Dienst (OpenAI, Claude, Gemini, Mistral …)
+verlassen die Mails dein Netz, und es gelten die Datenschutzbedingungen des
+Anbieters. Für Benachrichtigungen über fremde Server „Nur Anzahl“ wählen.
 
 **Update auf Knopfdruck (optional):** Der Zusatzdienst `updater` wird nur mit
 `docker compose --profile updater up -d` gestartet. Er bekommt Zugriff auf
@@ -91,7 +93,9 @@ press a button, and only to the configured target calendars. Cross-site write
 requests are rejected, and the container runs as a non-root user.
 
 **Privacy:** email text and attachments are sent to the AI server configured
-in `AI_BASE_URL`. With a local AI everything stays on your network.
+in `AI_BASE_URL`. With a local AI everything stays on your network; with a cloud
+service (OpenAI, Claude, Gemini, Mistral …) the emails leave your network and
+the provider's privacy terms apply.
 
 The optional `updater` service (enabled with `docker compose --profile updater
 up -d`) has access to the Docker socket, i.e. administrator rights on the

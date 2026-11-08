@@ -996,6 +996,7 @@ async def logout():
 templates.env.globals["login_required"] = lambda: bool(settings.app_password)
 templates.env.globals["service_name"] = i18n.service_name
 templates.env.globals["notify_channels"] = lambda: notify.channels(settings)
+templates.env.globals["ai_providers"] = setup_wizard.AI_PROVIDERS
 
 
 def _require_setup_mode() -> None:
@@ -3517,7 +3518,7 @@ async def calendar_backup_search(
 CONNECTION_SECTIONS: dict[str, list[tuple[str, str, str]]] = {
     "ki": [
         ("AI_BASE_URL", "Adresse", "url"),
-        ("AI_API_KEY", "API-Schlüssel (meist leer)", "secret"),
+        ("AI_API_KEY", "API-Schlüssel (bei Cloud-Diensten nötig, lokal meist leer)", "secret"),
     ],
     "kalender": [
         ("CALDAV_URL", "Adresse", "url"),
@@ -3611,6 +3612,7 @@ async def connections_page(request: Request):
         ],
         "unprotected_edit": editable and not settings.app_password,
         "active_channels": notify.channels(settings),
+        "ai_model": settings.ai_model,
         "mailbox_fields": MAILBOX_FIELDS,
         "mailboxes": _mailbox_rows(stored),
         "max_mailboxes": MAX_MAILBOXES,
@@ -3676,6 +3678,15 @@ def _changed(changes: dict[str, str | None], stored: dict[str, str], keys) -> bo
     return any((changes.get(key) or "") != (stored.get(key) or "") for key in keys)
 
 
+def _check_model(model: str, changes: dict[str, str | None], stored: dict[str, str]) -> None:
+    """Das gewählte Modell muss der (neue oder bisherige) KI-Server anbieten."""
+    base_url = changes.get("AI_BASE_URL") or stored.get("AI_BASE_URL") or settings.ai_base_url
+    api_key = changes.get("AI_API_KEY") if "AI_API_KEY" in changes else stored.get("AI_API_KEY", "")
+    models = setup_wizard.ai_models(base_url, api_key or "")
+    if model not in models:
+        raise setup_wizard.SetupError(_("Der KI-Server bietet das Modell „{model}“ nicht an.", model=model))
+
+
 def _test_section(section: str, changes: dict[str, str | None], stored: dict[str, str]) -> None:
     """Geänderte Verbindungen vor dem Speichern prüfen (SetupError bei Problemen)."""
     if section == "ki" and _changed(changes, stored, ("AI_BASE_URL", "AI_API_KEY")):
@@ -3725,19 +3736,55 @@ async def save_connections(section: str, request: Request):
     stored = _stored_connections()
     try:
         changes = _section_changes(section, payload, stored)
+        # Das Modell gehört zu den Einstellungen, wird aber hier mit gewählt,
+        # weil es zum Anbieter passen muss.
+        model = _clean_value("AI_MODEL", "text", payload.get("AI_MODEL")) if section == "ki" else ""
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    if not _changed(changes, stored, changes):
+    connection_changed = _changed(changes, stored, changes)
+    model_changed = bool(model) and model != settings.ai_model
+    if not connection_changed and not model_changed:
         return {"status": "unchanged"}
     try:
-        await asyncio.to_thread(_test_section, section, changes, stored)
+        if connection_changed:
+            await asyncio.to_thread(_test_section, section, changes, stored)
+        if model_changed:
+            await asyncio.to_thread(_check_model, model, changes, stored)
     except setup_wizard.SetupError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    if model_changed:
+        _store_settings({"ai_model": model})
+    if not connection_changed:
+        return {"status": "saved", "restarting": False}
     await asyncio.to_thread(connections.update, settings.database_path, changes)
     changed_keys = sorted(key for key in changes if (changes[key] or "") != (stored.get(key) or ""))
     logger.info("Verbindungen geändert (%s): %s. Die App startet neu.", section, ", ".join(changed_keys))
     _schedule_restart()
     return {"status": "saved", "restarting": True}
+
+
+@app.post("/api/verbindungen/ki/modelle")
+async def connection_models(request: Request):
+    """Modellliste für die Auswahl; leeres Schlüsselfeld = gespeicherter Schlüssel."""
+    editable, reason = _connections_editable()
+    if not editable:
+        raise HTTPException(status_code=403, detail=reason)
+    try:
+        payload = await request.json()
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=_("Ungültige Anfrage.")) from error
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=422, detail=_("Ungültige Anfrage."))
+    stored = _stored_connections()
+    try:
+        base_url = _clean_value("AI_BASE_URL", "url", payload.get("AI_BASE_URL")) or settings.ai_base_url
+        api_key = _clean_value("AI_API_KEY", "secret", payload.get("AI_API_KEY")) or stored.get("AI_API_KEY", "")
+        models = await asyncio.to_thread(setup_wizard.ai_models, base_url, api_key)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except setup_wizard.SetupError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {"models": models}
 
 
 @app.post("/api/verbindungen-aufraeumen")

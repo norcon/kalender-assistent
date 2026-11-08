@@ -65,6 +65,10 @@
     <form class="connection-form" data-section="{{ section }}" novalidate>
       <section id="{{ section }}" aria-labelledby="section-{{ section }}">
         <h2 id="section-{{ section }}">{{ {"ki": _("KI-Server"), "kalender": _("Kalender-Server"), "benachrichtigungen": _("Benachrichtigungen")}[section] }}</h2>
+        {% if section == "ki" %}
+          <p class="help">{{ _("Die KI liest die Mails und schlägt Termine vor – lokal (LM Studio, Ollama) oder über einen Cloud-Dienst (OpenAI, Claude, Gemini, Mistral, OpenRouter). Den Anbieter wählen, Schlüssel eintragen, Modelle laden und ein Modell auswählen.") }}</p>
+          <div class="setup-grid">{% with url_field="AI_BASE_URL", disabled=not editable %}{% include "_ai_provider.html" %}{% endwith %}</div>
+        {% endif %}
         {% if section == "kalender" %}<p class="help">{{ _("iCloud, Nextcloud, mailbox.org, Fastmail, Posteo oder ein anderer CalDAV-Server. Benutzer und Passwort leeren, um ohne Kalender zu arbeiten.") }}</p>{% endif %}
         {% if section == "benachrichtigungen" %}
           <p class="help">{{ _("Die App meldet neue Vorschläge, Störungen, viele gelöschte Termine und neue Versionen. Trage einen oder mehrere Kanäle ein – jeder vollständig eingetragene wird genutzt.") }}
@@ -85,6 +89,13 @@
             {% include "_connection_field.html" %}
           {% endfor %}
         </div>
+        {% endif %}
+        {% if section == "ki" %}
+          <div class="setup-grid">
+            <label class="wide">{{ _("Modell") }}<input name="AI_MODEL" value="{{ ai_model }}" list="ai-model-list" autocomplete="off"{% if not editable %} disabled{% endif %}><datalist id="ai-model-list"></datalist></label>
+          </div>
+          {% if editable %}<p><button type="button" class="secondary" id="load-models">{{ _("Modelle laden") }}</button> <span class="models-result" role="status" aria-live="polite"></span></p>{% endif %}
+          <p class="help">{{ _("Für Fotos und gescannte PDFs ein Modell mit Bilderkennung (Vision) wählen. Ein reiner Modellwechsel gilt sofort, ohne Neustart.") }}</p>
         {% endif %}
         {% include "_connection_actions.html" %}
       </section>

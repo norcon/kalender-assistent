@@ -1,0 +1,14 @@
+{#- KI-Anbieter mit Voreinstellungen. Erwartet `url_field` (Name des Adressfelds im selben Formular) und optional `disabled`. -#}
+<label>{{ _("Anbieter") }}
+  <select data-ai-provider data-url-field="{{ url_field }}"{% if disabled %} disabled{% endif %}>
+    <optgroup label="{{ _("Lokal – Mails bleiben im eigenen Netz") }}">
+      {% for key, name, url, local, hint in ai_providers if local %}<option value="{{ key }}" data-url="{{ url }}" data-local="1" data-hint="{{ _(hint) }}">{{ name }}</option>{% endfor %}
+    </optgroup>
+    <optgroup label="{{ _("Cloud – Mails gehen an den Anbieter") }}">
+      {% for key, name, url, local, hint in ai_providers if local is false %}<option value="{{ key }}" data-url="{{ url }}" data-local="0" data-hint="{{ _(hint) }}">{{ name }}</option>{% endfor %}
+    </optgroup>
+    {% for key, name, url, local, hint in ai_providers if local is none %}<option value="{{ key }}" data-url="{{ url }}" data-local="" data-hint="{{ _(hint) }}">{{ _(name) }}</option>{% endfor %}
+  </select>
+</label>
+<p class="help ai-hint wide"></p>
+<p class="notice compact ai-cloud wide" hidden>{{ _("Cloud-Dienst: Mailtexte und Anhänge gehen zur Auswertung an den Anbieter, und je Auswertung fallen kleine Kosten an. Die Bedingungen des Anbieters zur Datennutzung gelten. Mit einem lokalen Server bleibt alles im eigenen Netz.") }}</p>

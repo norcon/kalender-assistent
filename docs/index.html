@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kalender-Assistent – Termine aus Mails, geprüft in iCloud</title>
-  <meta name="description" content="Selbst gehosteter Assistent: liest ein IMAP-Postfach, erkennt Termine mit einer lokalen KI und überträgt sie nach Prüfung per Tipp in iCloud.">
+  <meta name="description" content="Selbst gehosteter Assistent: liest ein IMAP-Postfach, erkennt Termine mit einer KI – lokal oder aus der Cloud – und überträgt sie nach Prüfung per Tipp in iCloud.">
   <link rel="icon" href="img/icon.svg" type="image/svg+xml">
   <link rel="alternate" hreflang="en" href="en/">
   <link rel="stylesheet" href="style.css">
@@ -73,10 +73,10 @@
     <div class="wrap">
       <h2>Was ihn besonders macht</h2>
       <div class="grid">
-        <div class="card"><h3>Deine Daten bleiben bei dir</h3><p>Mit einer lokalen KI (z. B. LM Studio oder Ollama) verlässt keine Mail dein Netz. Gespeichert werden nur Vorschläge mit einem kurzen Zitat – nicht die Mails selbst.</p></div>
+        <div class="card"><h3>Deine Daten, deine Wahl</h3><p>Mit einer lokalen KI (LM Studio, Ollama) verlässt keine Mail dein Netz. Ohne eigene Hardware geht es auch mit OpenAI, Claude, Gemini oder Mistral. Gespeichert werden nur Vorschläge mit einem kurzen Zitat – nicht die Mails selbst.</p></div>
         <div class="card"><h3>Nur lesend, nur auf Knopfdruck</h3><p>Das Postfach wird nie verändert. In iCloud schreibt die App ausschließlich, wenn du tippst – und nur in die Kalender, die du freigegeben hast.</p></div>
         <div class="card"><h3>Ehrlich bei Unsicherheit</h3><p>Ist sich die KI nicht sicher, wird die Karte markiert. Angenommene Endzeiten sind als „angenommen“ gekennzeichnet.</p></div>
-        <div class="card"><h3>Ohne Cloud-Konto, ohne Abo</h3><p>Ein Docker-Container, eine Datei mit Einstellungen. Ausprobieren geht sogar ganz ohne Postfach im Demo-Modus.</p></div>
+        <div class="card"><h3>Ohne Abo</h3><p>Ein Docker-Container, eine Datei mit Einstellungen; eine Cloud-KI ist möglich, aber nicht nötig. Ausprobieren geht sogar ganz ohne Postfach im Demo-Modus.</p></div>
       </div>
     </div>
   </section>
@@ -109,7 +109,7 @@
       <ul>
         <li><strong>Docker</strong> mit Docker Compose – Anleitung: <a href="https://docs.docker.com/engine/install/">docs.docker.com/engine/install</a></li>
         <li>Ein <strong>Postfach mit IMAP-Zugang</strong>. Am besten eine eigene Adresse, an die du Termin-Mails weiterleitest, z. B. <code>termine@deine-domain.de</code>.</li>
-        <li>Eine <strong>KI mit OpenAI-kompatibler Schnittstelle</strong>, z. B. <a href="https://lmstudio.ai">LM Studio</a> oder <a href="https://ollama.com">Ollama</a>. Für Fotos und Scans ein Modell mit Bilderkennung (Vision).</li>
+        <li>Eine <strong>KI mit OpenAI-kompatibler Schnittstelle</strong>: lokal mit <a href="https://lmstudio.ai">LM Studio</a> oder <a href="https://ollama.com">Ollama</a>, oder ein Cloud-Dienst wie OpenAI, Anthropic Claude, Google Gemini, Mistral oder OpenRouter (API-Schlüssel nötig). Für Fotos und Scans ein Modell mit Bilderkennung (Vision).</li>
         <li>Für iCloud: ein <strong>app-spezifisches Passwort</strong> (Schritt 3).</li>
       </ul>
 
@@ -133,7 +133,7 @@ docker compose --profile updater up -d</code></pre>
       <ol>
         <li><strong>Sprache und Zeitzone</strong></li>
         <li><strong>Postfach</strong> – Server, Benutzer, Passwort; danach wählst du den Ordner aus der Liste.</li>
-        <li><strong>KI</strong> – Adresse des KI-Servers (LM Studio: <code>http://host.docker.internal:1234/v1</code>, Ollama: <code>http://host.docker.internal:11434/v1</code>), Modell aus der Liste wählen und mit einer Beispiel-Mail ausprobieren.</li>
+        <li><strong>KI</strong> – Anbieter wählen (LM Studio, Ollama, OpenAI, Claude, Gemini, Mistral, OpenRouter oder ein anderer Server); die Adresse wird vorbelegt. Bei Cloud-Diensten den API-Schlüssel eintragen, Modell aus der Liste wählen und mit einer Beispiel-Mail ausprobieren.</li>
         <li><strong>iCloud</strong> – Apple-ID und app-spezifisches Passwort; danach Zielkalender auswählen und je eine kurze Beschreibung für die KI eintragen.</li>
         <li><strong>Speichern und starten</strong> – die App startet mit den neuen Einstellungen neu.</li>
       </ol>
@@ -203,7 +203,7 @@ docker compose up -d</code></pre>
     <div class="wrap">
       <h2>Häufige Fragen</h2>
       <details><summary>Funktioniert es auch ohne iCloud?</summary><p>Getestet ist iCloud. Andere CalDAV-Server (z. B. Nextcloud) funktionieren wahrscheinlich, wenn du <code>CALDAV_URL</code> anpasst – Rückmeldungen sind willkommen. Ohne Kalender-Zugang zeigt die App die Vorschläge trotzdem an.</p></details>
-      <details><summary>Welche KI brauche ich?</summary><p>Jede Schnittstelle, die das OpenAI-Format „Chat Completions“ spricht. Lokal empfehlenswert ist ein aktuelles Modell mit Bilderkennung, damit auch Fotos von Elternbriefen und gescannte PDFs funktionieren. Wie lange eine Auswertung dauert, zeigt die Wartungs-Übersicht.</p></details>
+      <details><summary>Welche KI brauche ich?</summary><p>Jede Schnittstelle, die das OpenAI-Format „Chat Completions“ spricht – lokal oder in der Cloud. In jedem Fall empfehlenswert ist ein aktuelles Modell mit Bilderkennung, damit auch Fotos von Elternbriefen und gescannte PDFs funktionieren.</p><p><strong>Lokal</strong> (LM Studio, Ollama): Keine Mail verlässt dein Netz, keine laufenden Kosten – braucht aber einen Rechner mit genug Leistung, am besten mit Grafikkarte.</p><p><strong>Cloud</strong> (OpenAI, Anthropic Claude, Google Gemini, Mistral, OpenRouter): keine eigene Hardware, meist schneller; je Mail fallen kleine Kosten an, bei kleinen Modellen wie <code>claude-haiku-5-5</code>, „mini“- oder „Flash“-Modellen Bruchteile eines Cents. Dafür gehen Mailtexte und Anhänge an den Anbieter – kostenlose Kontingente erlauben oft die Nutzung zum Training.</p><p>Wie lange eine Auswertung dauert, zeigt die Wartungs-Übersicht.</p></details>
       <details><summary>Kann ich einen Cloud-Dienst als KI nutzen?</summary><p>Technisch ja (<code>AI_BASE_URL</code> und <code>AI_API_KEY</code>). Dann gehen Mailinhalte allerdings an diesen Dienst – bewusst entscheiden.</p></details>
       <details><summary>Was passiert mit Werbung und Paket-Mails?</summary><p>Die KI ist angewiesen, sie zu ignorieren. Was trotzdem durchrutscht, blendest du per Tipp für den ganzen Absender aus; Newsletter mit unsicherer Erkennung landen automatisch unter „Ausgeblendet“.</p></details>
       <details><summary>Wo sehe ich, ob alles läuft?</summary><p>Auf der Startseite im Systemstatus, unter <em>Protokoll</em> und in der <em>Wartungs-Übersicht</em>. Der Container meldet seinen Zustand außerdem an Docker (<code>docker compose ps</code> zeigt „healthy“).</p></details>

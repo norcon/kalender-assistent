@@ -60,12 +60,58 @@ def imap_test(host: str, port: int, username: str, password: str, folder: str) -
         raise SetupError(_("Der Postfach-Server ist nicht erreichbar ({error}). Adresse und Port prüfen.", error=type(error).__name__)) from error
 
 
-def ai_models(base_url: str, api_key: str) -> list[str]:
+# Voreinstellungen für bekannte KI-Anbieter (OpenAI-kompatible Schnittstelle).
+# (Schlüssel, Name, Adresse, lokal?, Hinweis) – None bei „lokal?“ = unbekannt.
+AI_PROVIDERS: list[tuple[str, str, str, bool | None, str]] = [
+    ("lmstudio", "LM Studio", "http://host.docker.internal:1234/v1", True,
+     "Läuft lokal auf deinem Rechner oder Server. In LM Studio den Server starten und ein Modell laden; "
+     "für Fotos und Scans ein Modell mit Bilderkennung (Vision). API-Schlüssel leer lassen."),
+    ("ollama", "Ollama", "http://host.docker.internal:11434/v1", True,
+     "Läuft lokal. Das Modell vorher mit „ollama pull“ laden, für Fotos und Scans ein Modell mit "
+     "Bilderkennung. API-Schlüssel leer lassen."),
+    ("openai", "OpenAI (ChatGPT)", "https://api.openai.com/v1", False,
+     "API-Schlüssel auf platform.openai.com unter „API keys“ anlegen (Guthaben nötig). Ein günstiges "
+     "Modell mit Bilderkennung genügt, z. B. eines der „mini“-Modelle."),
+    ("anthropic", "Anthropic (Claude)", "https://api.anthropic.com/v1", False,
+     "API-Schlüssel in der Claude Console (platform.claude.com) unter „API Keys“ anlegen. Günstig und "
+     "mit Bilderkennung: claude-haiku-5-5."),
+    ("gemini", "Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai", False,
+     "API-Schlüssel in Google AI Studio (aistudio.google.com) anlegen. Günstig und mit Bilderkennung: "
+     "ein Modell der „Flash“-Reihe. Achtung: Im kostenlosen Kontingent darf Google die Daten auswerten."),
+    ("mistral", "Mistral AI", "https://api.mistral.ai/v1", False,
+     "Anbieter aus der EU. API-Schlüssel unter console.mistral.ai anlegen; für Fotos und Scans ein "
+     "Modell mit Bilderkennung wählen, z. B. Mistral Small oder Medium."),
+    ("openrouter", "OpenRouter", "https://openrouter.ai/api/v1", False,
+     "Ein Schlüssel für Modelle vieler Anbieter (openrouter.ai), abgerechnet je Anfrage."),
+    ("other", "Anderer Server", "", None,
+     "Jeder Server mit OpenAI-kompatibler Schnittstelle, z. B. vLLM, LocalAI oder ein Proxy. "
+     "Die Adresse endet meist auf /v1."),
+]
+
+
+def _ai_headers(base_url: str, api_key: str) -> dict[str, str]:
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    if api_key and "api.anthropic.com" in base_url:
+        # Die Modellliste von Anthropic erwartet den nativen Schlüssel-Header.
+        headers.update({"x-api-key": api_key, "anthropic-version": "2023-06-01"})
+    return headers
+
+
+# Modelle, die keine Chat-Antworten liefern (OpenAI listet alles auf einmal).
+_NOT_CHAT = re.compile(r"embed|tts|whisper|dall-e|moderation|transcribe|realtime", re.IGNORECASE)
+
+
+def ai_models(base_url: str, api_key: str) -> list[str]:
+    headers = _ai_headers(base_url, api_key)
     try:
-        response = httpx.get(f"{base_url.rstrip('/')}/models", headers=headers, timeout=15)
+        params = {"limit": 1000} if "api.anthropic.com" in base_url else None
+        response = httpx.get(f"{base_url.rstrip('/')}/models", headers=headers, params=params, timeout=15)
         response.raise_for_status()
-        models = [str(item.get("id")) for item in response.json().get("data", []) if item.get("id")]
+        models = [
+            str(item.get("id")).removeprefix("models/")  # Gemini liefert „models/…“
+            for item in response.json().get("data", [])
+            if item.get("id") and not _NOT_CHAT.search(str(item.get("id")))
+        ]
     except (httpx.HTTPError, ValueError, AttributeError) as error:
         raise SetupError(_("Der KI-Server antwortet nicht wie erwartet ({error}). Adresse prüfen – sie endet meist auf /v1.", error=type(error).__name__)) from error
     if not models:

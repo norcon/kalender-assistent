@@ -1679,6 +1679,30 @@ class ConnectionsPageTests(unittest.TestCase):
                 self.assertIn('id="ereignisse"', settings_page)
                 self.assertIn("Ansehen", settings_page)
 
+    def test_ai_provider_presets_and_model_choice(self):
+        with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "_schedule_restart") as restart:
+            with TestClient(app_module.app) as client, \
+                    patch.object(app_module, "settings", replace(app_module.settings, connections_without_password=True)):
+                page = client.get("/einstellungen/verbindungen").text
+                self.assertIn('data-url="https://api.anthropic.com/v1"', page)
+                self.assertIn('name="AI_MODEL"', page)
+                with patch.object(app_module.setup_wizard, "ai_models", return_value=["neues-modell", "x"]) as models:
+                    self.assertEqual(client.post("/api/verbindungen/ki/modelle", json={"AI_BASE_URL": "https://api.openai.com/v1"}).json(),
+                                     {"models": ["neues-modell", "x"]})
+                    models.assert_called_once()
+                    current = {"AI_BASE_URL": app_module._stored_connections().get("AI_BASE_URL", "")}
+                    response = client.post("/api/verbindungen/ki", json={**current, "AI_MODEL": "gibt-es-nicht"})
+                    self.assertEqual(response.status_code, 422)
+                    self.assertIn("gibt-es-nicht", response.json()["detail"])
+                    # nur das Modell → gespeichert ohne Neustart
+                    with self.assertLogs("src.app", "INFO"):
+                        response = client.post("/api/verbindungen/ki", json={**current, "AI_MODEL": "neues-modell"})
+                    self.assertEqual(response.json(), {"status": "saved", "restarting": False})
+                    self.assertEqual(app_module.settings.ai_model, "neues-modell")
+                restart.assert_not_called()
+        db.reset_app_settings(app_module.settings.database_path)
+        app_module._reload_settings()
+
     def test_editable_without_password_when_allowed(self):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client, \

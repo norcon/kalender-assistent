@@ -3,14 +3,14 @@
 [![Tests](https://github.com/norcon/kalender-assistent/actions/workflows/ci.yml/badge.svg)](https://github.com/norcon/kalender-assistent/actions/workflows/ci.yml)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
 
-Liest ein IMAP-Postfach mit, lässt eine **lokale KI** Termine aus Mails,
+Liest ein IMAP-Postfach mit, lässt eine **KI** – lokal oder aus der Cloud – Termine aus Mails,
 PDFs, Bildern und Kalendereinladungen erkennen und zeigt sie als
 **Vorschläge** an. Erst nach deiner Prüfung landet ein Termin – per Tipp auf
 einen Kalendernamen – in **iCloud**. Gedacht für Familien und Haushalte, die
 Termine aus Schul-, Vereins- und Praxis-Mails nicht mehr abtippen wollen.
 
-> **English:** Calendar Assistant watches an IMAP mailbox, lets a local
-> OpenAI-compatible AI extract events from emails, PDFs, images and calendar
+> **English:** Calendar Assistant watches an IMAP mailbox, lets an
+> OpenAI-compatible AI – local or cloud – extract events from emails, PDFs, images and calendar
 > invitations, and shows them as suggestions. Nothing reaches your iCloud
 > calendar until you tap a calendar name. The interface is available in German
 > and English. See the [project page](https://norcon.github.io/kalender-assistent/en/)
@@ -48,8 +48,10 @@ Termine aus Schul-, Vereins- und Praxis-Mails nicht mehr abtippen wollen.
 
 - Docker mit Docker Compose
 - Ein IMAP-Postfach mit IMAP-Zugang
-- Eine OpenAI-kompatible Chat-Completions-API, am besten lokal
-  (z. B. LM Studio oder Ollama; für Bilder/Scans ein Vision-Modell)
+- Eine KI mit OpenAI-kompatibler Schnittstelle – lokal (LM Studio, Ollama)
+  oder als Cloud-Dienst (OpenAI, Anthropic Claude, Google Gemini, Mistral,
+  OpenRouter); für Bilder/Scans ein Modell mit Bilderkennung (siehe
+  [KI-Anbieter](#ki-anbieter))
 - Für iCloud: Apple-Account mit **app-spezifischem Passwort**
 
 ## Schnellstart
@@ -345,6 +347,35 @@ Ohne `APP_PASSWORD` (und ohne `CONNECTIONS_EDIT_WITHOUT_PASSWORD=1`) werden
 die Verbindungen nur angezeigt, Passwörter nie. Sonst könnte jemand im Netz
 z. B. alle E-Mails an einen fremden KI-Server umleiten.
 
+## KI-Anbieter
+
+Die App spricht das verbreitete OpenAI-Format „Chat Completions“. Im
+Einrichtungsassistenten und unter **Einstellungen → Verbindungen → KI-Server**
+gibt es Voreinstellungen; danach nur noch Schlüssel eintragen, **Modelle laden**
+und ein Modell wählen.
+
+| Anbieter | Adresse (`AI_BASE_URL`) | Schlüssel | Hinweis |
+|---|---|---|---|
+| LM Studio (lokal) | `http://host.docker.internal:1234/v1` | – | Server in LM Studio starten, Modell laden |
+| Ollama (lokal) | `http://host.docker.internal:11434/v1` | – | Modell mit `ollama pull` laden |
+| OpenAI | `https://api.openai.com/v1` | platform.openai.com | günstig: ein „mini“-Modell |
+| Anthropic (Claude) | `https://api.anthropic.com/v1` | platform.claude.com | günstig: `claude-haiku-5-5` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | aistudio.google.com | günstig: ein „Flash“-Modell |
+| Mistral AI | `https://api.mistral.ai/v1` | console.mistral.ai | Anbieter aus der EU |
+| OpenRouter | `https://openrouter.ai/api/v1` | openrouter.ai | viele Anbieter, ein Schlüssel |
+
+**Lokal oder Cloud?** Lokal verlässt keine Mail dein Netz, braucht aber einen
+Rechner mit genug Leistung (für Fotos und Scans ein Vision-Modell). Ein
+Cloud-Dienst braucht keine eigene Hardware und ist meist schneller; dafür gehen
+Mailtexte und Anhänge an den Anbieter, und je Auswertung fallen kleine Kosten
+an (bei kleinen Modellen Bruchteile eines Cents). Es gelten die
+Datenschutzbedingungen des Anbieters – kostenlose Kontingente erlauben oft die
+Nutzung der Daten zum Training. Für Fotos und gescannte PDFs immer ein Modell
+mit Bilderkennung wählen.
+
+Modelle, die keine feste `temperature` erlauben (z. B. neuere Claude- und
+OpenAI-Reasoning-Modelle), erkennt die App selbst und fragt dann ohne.
+
 ## Mehrere Postfächer
 
 Weitere Postfächer – oder weitere Ordner desselben Postfachs – legst du unter
@@ -477,7 +508,7 @@ Beim ersten Start werden standardmäßig nur E-Mails der letzten 14 Tage
 berücksichtigt. Weitere neue Nachrichten werden über IMAP-UIDs nachverfolgt.
 Nachrichten über `IMAP_MAX_MESSAGE_BYTES` werden übersprungen; das Limit kann
 in `.env` angepasst werden.
-Für die lokale KI-Analyse gilt standardmäßig ein Lese-Timeout von 30 Minuten
+Für die KI-Analyse gilt standardmäßig ein Lese-Timeout von 30 Minuten
 pro Anfrage (`AI_TIMEOUT_SECONDS`). Ein geplanter Mailabruf startet keinen
 zweiten Durchgang, wenn ein manueller Abruf noch läuft; der nächste Versuch
 erfolgt dann erst nach dem nächsten Abrufintervall. Verbindungsaufbau und Senden der Anfrage

@@ -53,6 +53,12 @@
         button.disabled = false;
         return;
       }
+      if (data.restarting === false) {
+        result.classList.add("ok");
+        result.textContent = t("Gespeichert.");
+        button.disabled = false;
+        return;
+      }
       result.classList.add("ok");
       await waitForRestart(result);
     } catch (error) {
@@ -69,6 +75,37 @@
       list.append(document.getElementById("mailbox-template").content.cloneNode(true));
       list.lastElementChild.querySelector('[data-field="host"]').focus();
       add.hidden = list.children.length >= 9;
+    });
+  }
+
+  const loadModels = document.getElementById("load-models");
+  if (loadModels) {
+    loadModels.addEventListener("click", async () => {
+      const form = loadModels.closest("form");
+      const status = form.querySelector(".models-result");
+      loadModels.disabled = true;
+      status.className = "models-result";
+      status.textContent = t("Frage Modelle ab …");
+      try {
+        const response = await fetch("/api/verbindungen/ki/modelle", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ AI_BASE_URL: form.elements.AI_BASE_URL.value, AI_API_KEY: form.elements.AI_API_KEY.value }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || t("Aktion fehlgeschlagen."));
+        const list = document.getElementById("ai-model-list");
+        list.replaceChildren(...data.models.map((name) => Object.assign(document.createElement("option"), { value: name })));
+        status.textContent = t("{count} Modelle gefunden.", { count: data.models.length });
+        if (!data.models.includes(form.elements.AI_MODEL.value)) {
+          form.elements.AI_MODEL.value = "";
+          form.elements.AI_MODEL.placeholder = t("Modell auswählen");
+        }
+        form.elements.AI_MODEL.focus();
+      } catch (error) {
+        status.classList.add("problem-text");
+        status.textContent = error.message;
+      }
+      loadModels.disabled = false;
     });
   }
 

@@ -155,6 +155,25 @@ class ValidateEventsTests(unittest.TestCase):
         self.assertEqual(timeout.write, 30)
 
     @patch("src.ai.httpx.post")
+    def test_retries_without_temperature_when_model_rejects_it(self, post):
+        from src import ai
+        ai._NO_TEMPERATURE.clear()
+        rejected = Mock(status_code=400, text='{"error": {"message": "temperature: only 1 is supported"}}')
+        ok = Mock(status_code=200)
+        ok.json.return_value = {"choices": [{"message": {"content": '{"events": []}'}}]}
+        post.side_effect = [rejected, ok, ok]
+        args = ("https://api.anthropic.com/v1", "key", "claude-haiku-5-5", 60, "B", "s", "2026-11-03T18:00:00+01:00", "Text")
+        with self.assertLogs("src.ai", "INFO"):
+            self.assertEqual(extract_events(*args), [])
+        bodies = [call.kwargs["json"] for call in post.call_args_list]
+        self.assertEqual(bodies[0]["temperature"], 0)
+        self.assertNotIn("temperature", bodies[1])
+        extract_events(*args)  # gemerkt: gleich ohne
+        self.assertEqual(post.call_count, 3)
+        self.assertNotIn("temperature", post.call_args.kwargs["json"])
+        ai._NO_TEMPERATURE.clear()
+
+    @patch("src.ai.httpx.post")
     def test_sends_supported_image_as_multimodal_message(self, post):
         response = Mock()
         response.json.return_value = {

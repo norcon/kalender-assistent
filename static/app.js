@@ -252,3 +252,34 @@ document.addEventListener("click", function (event) {
     });
   }).catch(function (error) { result.textContent = error.message; }).then(function () { button.disabled = false; });
 });
+
+// KI-Anbieter: Adresse vorbelegen, Hinweis und Cloud-Warnung zeigen.
+(function () {
+  function sync(select, fill) {
+    var form = select.closest("form");
+    var option = select.selectedOptions[0];
+    var url = form.elements[select.dataset.urlField];
+    if (fill && url && option.dataset.url) url.value = option.dataset.url;
+    if (fill && url && !option.dataset.url) { url.value = ""; url.focus(); }
+    var hint = form.querySelector(".ai-hint");
+    if (hint) hint.textContent = option.dataset.hint || "";
+    var cloud = form.querySelector(".ai-cloud");
+    if (cloud) cloud.hidden = option.dataset.local !== "0";
+  }
+  function init() {
+    document.querySelectorAll("select[data-ai-provider]").forEach(function (select) {
+      var url = select.closest("form").elements[select.dataset.urlField];
+      var current = (url && url.value || "").replace(/\/+$/, "");
+      var match = Array.prototype.find.call(select.options, function (option) {
+        return option.dataset.url && current.indexOf(option.dataset.url.replace(/\/+$/, "")) === 0;
+      });
+      select.value = match ? match.value : (current ? "other" : select.options[0].value);
+      sync(select, false);
+    });
+  }
+  document.addEventListener("change", function (event) {
+    var select = event.target.closest && event.target.closest("select[data-ai-provider]");
+    if (select) sync(select, true);
+  });
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+})();

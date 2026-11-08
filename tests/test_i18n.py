@@ -49,6 +49,11 @@ def collect_keys() -> set[str]:
     keys.update(app._MESSAGES.values())
     keys.update(label for fields in app.CONNECTION_SECTIONS.values() for _key, label, _kind in fields)
     keys.update(label for _key, label, _kind in app.MAILBOX_FIELDS)
+    from src import setup_wizard
+    for key, name, _url, _local, hint in setup_wizard.AI_PROVIDERS:
+        keys.add(hint)
+        if key == "other":
+            keys.add(name)
     for _channel, title, description, _keys in app.NOTIFY_CHANNEL_GROUPS:
         keys.update({title, description})
     keys.update({

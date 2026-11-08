@@ -4,6 +4,24 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.30.0 – 2026-11-08
+
+- **KI-Anbieter mit Voreinstellungen:** Im Einrichtungsassistenten und unter
+  Einstellungen → Verbindungen gibt es eine Auswahl – lokal (LM Studio,
+  Ollama) oder Cloud (OpenAI, Anthropic Claude, Google Gemini, Mistral,
+  OpenRouter) –, die die Adresse vorbelegt und erklärt, wo es den Schlüssel
+  gibt und welches Modell sich eignet. Bei Cloud-Diensten weist die App auf
+  Datenschutz und Kosten hin.
+- **Modell auf der Verbindungsseite wählen:** „Modelle laden“ und Auswahl
+  direkt beim KI-Server; ein reiner Modellwechsel gilt ohne Neustart, das
+  Modell wird vorher beim Server geprüft.
+- **Modelle ohne feste temperature:** Lehnt ein Modell `temperature: 0` ab
+  (z. B. neuere Claude- und OpenAI-Reasoning-Modelle), fragt die App
+  automatisch ohne. Die Modellliste von Anthropic wird mit dem passenden
+  Schlüssel-Header abgefragt, Gemini-Namen ohne „models/“ angezeigt und
+  offensichtliche Nicht-Chat-Modelle (Embeddings, Sprache, Bilder) ausgeblendet.
+- README, Projektseite und SECURITY.md beschreiben lokale und Cloud-KI.
+
 ## 0.29.0 – 2026-11-08
 
 - **Verbindungen besser auffindbar:** Die Einstellungsseite beginnt mit einer

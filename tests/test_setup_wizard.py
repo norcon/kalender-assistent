@@ -88,6 +88,24 @@ class CheckTests(unittest.TestCase):
             with self.assertRaises(setup_wizard.SetupError):
                 setup_wizard.ai_models("http://ki:1234/v1", "")
 
+    def test_ai_models_for_cloud_providers(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {"data": [
+            {"id": "models/gemini-flash"}, {"id": "text-embedding-3-small"}, {"id": "tts-1"}, {"id": "gpt-mini"},
+        ]}
+        with patch.object(setup_wizard.httpx, "get", return_value=response) as get:
+            self.assertEqual(setup_wizard.ai_models("https://api.openai.com/v1", "k"), ["gemini-flash", "gpt-mini"])
+            setup_wizard.ai_models("https://api.anthropic.com/v1", "k")
+        headers = get.call_args.kwargs["headers"]
+        self.assertEqual((headers["x-api-key"], headers["Authorization"]), ("k", "Bearer k"))
+        self.assertEqual(get.call_args.kwargs["params"], {"limit": 1000})
+        keys = [provider[0] for provider in setup_wizard.AI_PROVIDERS]
+        self.assertEqual(len(keys), len(set(keys)))
+        for key, _name, url, local, _hint in setup_wizard.AI_PROVIDERS:
+            self.assertTrue(url.startswith(("http://", "https://")) or key == "other", key)
+            self.assertFalse(url.endswith("/"), key)
+
     def test_sample_mail_mentions_a_date_next_week(self):
         subject, text = setup_wizard.sample_mail("de", date(2026, 11, 7))
         self.assertIn("14.11.2026", text)

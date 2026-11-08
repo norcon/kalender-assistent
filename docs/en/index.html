@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calendar Assistant – events from emails, reviewed into iCloud</title>
-  <meta name="description" content="Self-hosted assistant: watches an IMAP mailbox, detects events with a local AI and adds them to iCloud with one tap after you review them.">
+  <meta name="description" content="Self-hosted assistant: watches an IMAP mailbox, detects events with an AI – local or cloud – and adds them to iCloud with one tap after you review them.">
   <link rel="icon" href="../img/icon.svg" type="image/svg+xml">
   <link rel="alternate" hreflang="de" href="../">
   <link rel="stylesheet" href="../style.css">
@@ -73,10 +73,10 @@
     <div class="wrap">
       <h2>What makes it different</h2>
       <div class="grid">
-        <div class="card"><h3>Your data stays with you</h3><p>With a local AI (e.g. LM Studio or Ollama) no email leaves your network. Only suggestions with a short quote are stored – not the emails themselves.</p></div>
+        <div class="card"><h3>Your data, your choice</h3><p>With a local AI (LM Studio, Ollama) no email leaves your network. Without your own hardware it also works with OpenAI, Claude, Gemini or Mistral. Only suggestions with a short quote are stored – not the emails themselves.</p></div>
         <div class="card"><h3>Read-only, write on demand</h3><p>The mailbox is never changed. The app only writes to iCloud when you tap – and only to the calendars you allowed.</p></div>
         <div class="card"><h3>Honest about uncertainty</h3><p>If the AI is unsure, the card is marked. Assumed end times are labelled “assumed”.</p></div>
-        <div class="card"><h3>No cloud account, no subscription</h3><p>One Docker container and one settings file. You can even try it without any mailbox in demo mode.</p></div>
+        <div class="card"><h3>No subscription</h3><p>One Docker container and one settings file; a cloud AI is possible but not required. You can even try it without any mailbox in demo mode.</p></div>
       </div>
     </div>
   </section>
@@ -109,7 +109,7 @@
       <ul>
         <li><strong>Docker</strong> with Docker Compose – guide: <a href="https://docs.docker.com/engine/install/">docs.docker.com/engine/install</a></li>
         <li>A <strong>mailbox with IMAP access</strong>. Ideally a separate address you forward event emails to, e.g. <code>events@your-domain.com</code>.</li>
-        <li>An <strong>AI with an OpenAI-compatible API</strong>, e.g. <a href="https://lmstudio.ai">LM Studio</a> or <a href="https://ollama.com">Ollama</a>. For photos and scans, a model with image recognition (vision).</li>
+        <li>An <strong>AI with an OpenAI-compatible API</strong>: locally with <a href="https://lmstudio.ai">LM Studio</a> or <a href="https://ollama.com">Ollama</a>, or a cloud service such as OpenAI, Anthropic Claude, Google Gemini, Mistral or OpenRouter (API key required). For photos and scans, a model with image recognition (vision).</li>
         <li>For iCloud: an <strong>app-specific password</strong> (step 3).</li>
       </ul>
 
@@ -133,7 +133,7 @@ docker compose --profile updater up -d</code></pre>
       <ol>
         <li><strong>Language and time zone</strong></li>
         <li><strong>Mailbox</strong> – server, user, password; then choose the folder from the list.</li>
-        <li><strong>AI</strong> – address of the AI server (LM Studio: <code>http://host.docker.internal:1234/v1</code>, Ollama: <code>http://host.docker.internal:11434/v1</code>), pick a model from the list and try it with a sample email.</li>
+        <li><strong>AI</strong> – choose a provider (LM Studio, Ollama, OpenAI, Claude, Gemini, Mistral, OpenRouter or another server); the address is filled in. For cloud services enter the API key, pick a model from the list and try it with a sample email.</li>
         <li><strong>iCloud</strong> – Apple ID and app-specific password; then choose the target calendars and add a short description for the AI to each.</li>
         <li><strong>Save and start</strong> – the app restarts with the new settings.</li>
       </ol>
@@ -204,7 +204,7 @@ docker compose up -d</code></pre>
     <div class="wrap">
       <h2>FAQ</h2>
       <details><summary>Does it work without iCloud?</summary><p>iCloud is what has been tested. Other CalDAV servers (e.g. Nextcloud) probably work if you change <code>CALDAV_URL</code> – feedback welcome. Without calendar access the app still shows the suggestions.</p></details>
-      <details><summary>Which AI do I need?</summary><p>Any API that speaks the OpenAI “Chat Completions” format. Locally, a current model with image recognition is recommended so that photos of school letters and scanned PDFs work too. The maintenance overview shows how long an analysis takes.</p></details>
+      <details><summary>Which AI do I need?</summary><p>Any API that speaks the OpenAI “Chat Completions” format – local or cloud. Either way a current model with image recognition is recommended so that photos of school letters and scanned PDFs work too.</p><p><strong>Local</strong> (LM Studio, Ollama): no email leaves your network and there are no running costs – but you need a reasonably powerful machine, ideally with a graphics card.</p><p><strong>Cloud</strong> (OpenAI, Anthropic Claude, Google Gemini, Mistral, OpenRouter): no hardware of your own, usually faster; each email costs a little, with small models such as <code>claude-haiku-5-5</code>, “mini” or “Flash” models a fraction of a cent. In return, email texts and attachments go to the provider – free tiers often allow using them for training.</p><p>The maintenance overview shows how long an analysis takes.</p></details>
       <details><summary>Can I use a cloud AI service?</summary><p>Technically yes (<code>AI_BASE_URL</code> and <code>AI_API_KEY</code>). Email contents are then sent to that service – decide consciously.</p></details>
       <details><summary>What about advertising and parcel emails?</summary><p>The AI is instructed to ignore them. Whatever slips through you can hide for the whole sender with one tap; newsletters with uncertain detection end up under “Hidden” automatically.</p></details>
       <details><summary>Is the AI prompt in English?</summary><p>The prompt is in German, but current models handle English emails with it just fine. Technical log messages are in German as well.</p></details>

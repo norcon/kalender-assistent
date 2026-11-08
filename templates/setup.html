@@ -55,10 +55,11 @@
 
       <section class="setup-step" data-step="3" hidden>
         <h2>{{ _("KI-Server") }}</h2>
-        <p class="help">{{ _("Ein Server mit OpenAI-kompatibler Schnittstelle, z. B. LM Studio (http://host.docker.internal:1234/v1) oder Ollama (http://host.docker.internal:11434/v1).") }}</p>
+        <p class="help">{{ _("Die KI liest die Mails und schlägt Termine vor. Das geht mit einem lokalen Server wie LM Studio oder Ollama – dann bleibt alles im eigenen Netz – oder mit einem Cloud-Dienst wie OpenAI, Claude, Gemini oder Mistral.") }}</p>
         <div class="setup-grid">
+          {% with url_field="ai_base_url" %}{% include "_ai_provider.html" %}{% endwith %}
           <label class="wide">{{ _("Adresse") }}<input name="ai_base_url" required value="http://host.docker.internal:1234/v1" autocomplete="off"></label>
-          <label>{{ _("API-Schlüssel (meist leer)") }}<input name="ai_api_key" type="password" autocomplete="off"></label>
+          <label>{{ _("API-Schlüssel (bei Cloud-Diensten nötig, lokal meist leer)") }}<input name="ai_api_key" type="password" autocomplete="off"></label>
         </div>
         <button type="button" class="secondary" data-check="ai-models">{{ _("Modelle laden") }}</button>
         <p class="check-result" data-for="ai-models" role="status" aria-live="polite"></p>
