@@ -2032,7 +2032,7 @@ class SettingsPageTests(unittest.TestCase):
         db.reset_app_settings(app_module.settings.database_path)
         app_module._reload_settings()
 
-    def test_settings_can_be_changed_and_reset(self):
+    def test_settings_can_be_changed(self):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
                 page = client.get("/einstellungen")
@@ -2060,9 +2060,7 @@ class SettingsPageTests(unittest.TestCase):
                 self.assertIn("Mindestens 1 Minuten", response.text)
                 self.assertEqual(app_module.settings.default_event_minutes, 90)
 
-                client.post("/einstellungen/zuruecksetzen")
-                self.assertEqual(app_module.settings.imap_poll_seconds, 300)
-                self.assertEqual(app_module.settings.default_event_minutes, 60)
+                self.assertEqual(client.post("/einstellungen/zuruecksetzen").status_code, 404)
 
     def test_settings_survive_restart_and_reject_other_websites(self):
         with patch.object(app_module.mail, "poll_mailbox"):

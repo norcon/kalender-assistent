@@ -2935,7 +2935,6 @@ def _parameter_fields(
 _MESSAGES = {
     "1": "Einstellungen gespeichert.",
     "kalender": "Zielkalender gespeichert.",
-    "reset": "Alle Einstellungen auf die Werte aus .env zurückgesetzt.",
     "backup": "Sicherung erstellt.",
     "deleted": "Sicherung gelöscht.",
     "calendar": "Kalendersicherung abgeschlossen.",
@@ -3181,14 +3180,6 @@ async def save_settings(request: Request):
         )
     _store_settings(values)
     return RedirectResponse("/einstellungen?saved=1", status_code=303)
-
-
-@app.post("/einstellungen/zuruecksetzen")
-async def reset_settings():
-    db.reset_app_settings(settings.database_path)
-    _reload_settings()
-    logger.info("Einstellungen auf die Werte aus .env zurückgesetzt.")
-    return RedirectResponse("/einstellungen?saved=reset", status_code=303)
 
 
 @app.get("/sicherungen", response_class=HTMLResponse)

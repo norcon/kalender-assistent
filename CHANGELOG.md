@@ -4,6 +4,12 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.28.2 – 2026-11-08
+
+- Knopf „Alles auf .env-Werte zurücksetzen“ auf der Einstellungsseite
+  entfernt: Einstellungen werden in der App gepflegt, `.env` dient nur noch
+  als Eingang beim Start.
+
 ## 0.28.1 – 2026-11-07
 
 - Veröffentlichung von 0.28.0 (der Release-Bau war an einem zu strengen Test

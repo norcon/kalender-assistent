@@ -19,9 +19,6 @@
       <span class="meta">{{ _("Änderungen gelten sofort, ein Neustart ist nicht nötig.") }}</span>
     </div>
   </form>
-  <form method="post" action="/einstellungen/zuruecksetzen" data-confirm="{{ _("Alle Einstellungen auf die Werte aus .env zurücksetzen?") }}">
-    <button type="submit" class="secondary">{{ _("Alles auf .env-Werte zurücksetzen") }}</button>
-  </form>
 
   <section aria-labelledby="zielkalender">
     <h2 id="zielkalender">{{ _("Zielkalender") }} {{ info(_("Nur in diese Kalender kann die App Termine eintragen; sie erscheinen als Knöpfe auf den Karten. Die Beschreibung hilft der KI bei der Zuordnung, z. B. „Sohn, 4. Klasse, Fußball“. Ein gemeinsamer Kalender wird nur für ausdrücklich gemeinsame Termine gewählt."), _("Zielkalender")) }}</h2>
