@@ -4,6 +4,15 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.28.4 – 2026-11-08
+
+- Veraltete Hinweise auf `.env` in der Oberfläche ersetzt: KI-Server,
+  Kalender-Zugangsdaten und Benachrichtigungs-Kanäle verweisen jetzt auf
+  Einstellungen → Verbindungen; bei den Einstellungen heißt es nur noch
+  „Standard“.
+- `.env.example` enthält nur noch Grundeinstellungen; Zugangsdaten stehen als
+  auskommentierte Vorlage für die Einrichtung ohne Assistent ganz unten.
+
 ## 0.28.3 – 2026-11-08
 
 - **Verbindungen bleiben erhalten:** Beim Wiederherstellen einer

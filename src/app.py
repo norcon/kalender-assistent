@@ -1065,7 +1065,7 @@ async def setup_state():
 
 @app.post("/api/setup/skip")
 async def setup_skip():
-    """Assistent überspringen: Die App startet ohne Postfach; .env später ergänzen."""
+    """Assistent überspringen: Die App startet ohne Postfach; Zugangsdaten später nachtragen."""
     _require_setup_mode()
     db.set_service_state(settings.database_path, **{SETUP_SKIPPED_KEY: datetime.now(timezone.utc).isoformat()})
     _reload_settings()
@@ -3284,7 +3284,7 @@ async def restore_backup(request: Request, name: str):
 async def calendar_backup_now(request: Request):
     if not _caldav_configured():
         return _render_backup_page(
-            request, problem=_("iCloud-Zugangsdaten fehlen in .env."), status_code=503
+            request, problem=_("Keine iCloud-Zugangsdaten eingerichtet (Einstellungen → Verbindungen)."), status_code=503
         )
     if _calendar_backup_lock.locked():
         return _render_backup_page(
@@ -3725,7 +3725,7 @@ async def cleanup_env_now():
 @app.post("/api/benachrichtigungen/test")
 async def notification_test():
     if not notify.channels(settings):
-        raise HTTPException(status_code=409, detail=_("Kein Kanal eingerichtet. Zugangsdaten in .env eintragen."))
+        raise HTTPException(status_code=409, detail=_("Kein Kanal eingerichtet. Kanäle unter Einstellungen → Verbindungen einrichten."))
     results = await asyncio.to_thread(lambda: _in_language(lambda: notify.send(
         settings, _("Test vom Kalender-Assistenten"),
         _("Wenn du das liest, kommen Benachrichtigungen an."),
@@ -3759,7 +3759,7 @@ async def restore_calendar_event(request: Request, presence_id: int):
 
     if not _caldav_configured():
         return RedirectResponse(
-            with_param("problem", "iCloud-Zugangsdaten fehlen in .env."), status_code=303
+            with_param("problem", "Keine iCloud-Zugangsdaten eingerichtet (Einstellungen → Verbindungen)."), status_code=303
         )
 
     def restore() -> str:

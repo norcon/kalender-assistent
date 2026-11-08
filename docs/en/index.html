@@ -138,12 +138,12 @@ docker compose --profile updater up -d</code></pre>
         <li><strong>Save and start</strong> – the app restarts with the new settings.</li>
       </ol>
       <div class="note"><strong>Locked afterwards:</strong> once setup is complete it cannot be run again from the browser. The app stores the credentials encrypted and removes them from <code>.env</code>. You change them under <em>Settings → Connections</em> once <code>APP_PASSWORD</code> is set.</div>
-      <p><strong>Skip:</strong> if something does not work, end the wizard with “Skip”. The app then starts without a mailbox and shows a notice at the top from which you can restart the wizard at any time – or you enter the credentials directly in <code>.env</code>.</p>
+      <p><strong>Skip:</strong> if something does not work, end the wizard with “Skip”. The app then starts without a mailbox and shows a notice at the top from which you can restart the wizard at any time – or you enter the credentials under <em>Settings → Connections</em>.</p>
       <p>On a phone: open the page in the browser → <em>Share</em> → <em>Add to Home Screen</em>.</p>
 
       <details>
         <summary>Without the updater, or by hand</summary>
-        <p>Without the updater (<code>docker compose up -d</code> without <code>--profile updater</code>) the wizard shows the finished lines for <code>.env</code> at the end for you to copy. Alternatively, put at least the following into <code>.env</code> before starting:</p>
+        <p>Without the updater (<code>docker compose up -d</code> without <code>--profile updater</code>) the wizard shows the finished lines for <code>.env</code> at the end for you to copy. Alternatively, put at least the following into <code>.env</code> before starting (template at the bottom of the file; the app imports the values encrypted at start-up):</p>
         <pre><code>IMAP_HOST=imap.example.org
 IMAP_USERNAME=events@example.org
 IMAP_PASSWORD='your-mail-password'

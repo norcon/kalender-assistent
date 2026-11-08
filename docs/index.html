@@ -138,12 +138,12 @@ docker compose --profile updater up -d</code></pre>
         <li><strong>Speichern und starten</strong> – die App startet mit den neuen Einstellungen neu.</li>
       </ol>
       <div class="note"><strong>Danach gesperrt:</strong> Ist die Einrichtung abgeschlossen, lässt sie sich nicht noch einmal über den Browser ausführen. Die Zugangsdaten übernimmt die App verschlüsselt und räumt sie aus <code>.env</code>. Ändern lassen sie sich unter <em>Einstellungen → Verbindungen</em>, sobald <code>APP_PASSWORD</code> gesetzt ist.</div>
-      <p><strong>Überspringen:</strong> Klappt etwas nicht, lässt sich der Assistent mit „Überspringen“ beenden. Die App startet dann ohne Postfach und zeigt oben einen Hinweis, über den du den Assistenten jederzeit erneut startest – oder du trägst die Zugangsdaten direkt in <code>.env</code> ein.</p>
+      <p><strong>Überspringen:</strong> Klappt etwas nicht, lässt sich der Assistent mit „Überspringen“ beenden. Die App startet dann ohne Postfach und zeigt oben einen Hinweis, über den du den Assistenten jederzeit erneut startest – oder du trägst die Zugangsdaten unter <em>Einstellungen → Verbindungen</em> ein.</p>
       <p>Auf dem Handy: Seite im Browser öffnen → <em>Teilen</em> → <em>Zum Home-Bildschirm</em>.</p>
 
       <details>
         <summary>Ohne Updater oder lieber von Hand</summary>
-        <p>Ohne den Updater (<code>docker compose up -d</code> ohne <code>--profile updater</code>) zeigt der Assistent am Ende die fertigen Zeilen für <code>.env</code> zum Kopieren. Alternativ trägst du vor dem Start in <code>.env</code> mindestens ein:</p>
+        <p>Ohne den Updater (<code>docker compose up -d</code> ohne <code>--profile updater</code>) zeigt der Assistent am Ende die fertigen Zeilen für <code>.env</code> zum Kopieren. Alternativ trägst du vor dem Start in <code>.env</code> mindestens ein (Vorlage ganz unten in der Datei; die App übernimmt die Werte beim Start verschlüsselt):</p>
         <pre><code>IMAP_HOST=imap.example.org
 IMAP_USERNAME=termine@example.org
 IMAP_PASSWORD='dein-mail-passwort'

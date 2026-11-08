@@ -75,8 +75,8 @@ startet die App ohne Postfach; ein Hinweis oben auf jeder Seite öffnet den
 Assistenten bei Bedarf erneut.
 
 Ohne Updater (`docker compose up -d`) zeigt der Assistent am Ende die fertigen
-Zeilen für `.env` zum Kopieren. Wer lieber direkt `.env` bearbeitet, trägt
-mindestens `IMAP_HOST`, `IMAP_USERNAME`, `IMAP_PASSWORD`, `AI_BASE_URL` und
+Zeilen für `.env` zum Kopieren. Wer lieber direkt `.env` bearbeitet, nutzt
+die Vorlage ganz unten in der Datei und trägt mindestens `IMAP_HOST`, `IMAP_USERNAME`, `IMAP_PASSWORD`, `AI_BASE_URL` und
 `AI_MODEL` ein, für iCloud zusätzlich `CALDAV_USERNAME`, `CALDAV_APP_PASSWORD`
 und `TARGET_CALENDARS`.
 

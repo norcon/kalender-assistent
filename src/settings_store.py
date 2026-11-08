@@ -1,9 +1,8 @@
 """Über die Weboberfläche änderbare Einstellungen.
 
-Bewusst nur Verhaltensparameter: Zugangsdaten und Server-Adressen (IMAP, KI-URL,
-iCloud) bleiben in `.env`. Die Oberfläche hat keinen Login; wäre z. B. die
-KI-Adresse hier änderbar, könnte jeder im Netz alle Mails auf einen eigenen
-Server umleiten.
+Nur Verhaltensparameter. Zugangsdaten und Server-Adressen stehen verschlüsselt
+in connections.py und sind nur mit APP_PASSWORD änderbar (Einstellungen →
+Verbindungen) – sonst könnte jeder im Netz alle Mails umleiten.
 """
 
 import logging
@@ -69,7 +68,7 @@ PARAMETERS: tuple[Parameter, ...] = (
     ),
     Parameter(
         "ai_model", "KI-Auswertung", "KI-Modell",
-        "Name des Modells am konfigurierten KI-Server (Adresse steht in .env).",
+        "Name des Modells am KI-Server (Adresse unter Einstellungen → Verbindungen).",
         kind="text", max_length=200,
     ),
     Parameter(

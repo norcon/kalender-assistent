@@ -59,7 +59,7 @@
   <section aria-labelledby="calendar-heading">
     <h2 id="calendar-heading">{{ _("Kalender-Sicherung (iCloud)") }} {{ info(_("Unabhängig von der App: Die iCloud-Kalender selbst werden regelmäßig gesichert. Wurde ein Termin in der Kalender-App gelöscht oder verändert, lässt er sich hier einzeln zurückholen."), _("Kalender-Sicherung")) }}</h2>
     {% if not caldav_configured %}
-      <p class="message problem">{{ _("iCloud-Zugangsdaten fehlen in .env; die Kalender-Sicherung ist inaktiv.") }}</p>
+      <p class="message problem">{{ _("Keine iCloud-Zugangsdaten eingerichtet (Einstellungen → Verbindungen); die Kalender-Sicherung ist inaktiv.") }}</p>
     {% else %}
       <p class="meta">{{ _("Die ausgewählten iCloud-Kalender werden regelmäßig gesichert; übertragen und gespeichert werden nur Änderungen. Einzelne Termine lassen sich aus jedem gesicherten Stand zurückholen.") }}</p>
       {% set last = calendar_snapshots[0] if calendar_snapshots else None %}

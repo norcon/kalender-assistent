@@ -213,7 +213,7 @@
   });
 
   document.getElementById("setup-skip").addEventListener("click", async () => {
-    if (!window.confirm(t("Einrichtung überspringen? Die App startet dann ohne Postfach und der Assistent erscheint nicht mehr. Zugangsdaten trägst du später in .env ein – oder startest den Assistenten über den Hinweis oben auf jeder Seite erneut."))) return;
+    if (!window.confirm(t("Einrichtung überspringen? Die App startet dann ohne Postfach und der Assistent erscheint nicht mehr. Zugangsdaten trägst du später unter Einstellungen → Verbindungen ein – oder startest den Assistenten über den Hinweis oben auf jeder Seite erneut."))) return;
     try {
       await post("/api/setup/skip", {});
       window.location.href = "/";

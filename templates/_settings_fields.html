@@ -18,10 +18,10 @@
                   <input type="text" id="{{ p.key }}" name="{{ p.key }}" value="{{ field.value }}" maxlength="{{ p.max_length }}" required>
                 {% endif %}
                 {% if p.unit %}<span>{{ _(p.unit) }}</span>{% endif %}
-                {% if field.overridden %}<span class="badge" title="{{ _("Weicht vom Wert in .env ab oder wurde hier festgelegt") }}">{{ _("angepasst") }}</span>{% endif %}
+                {% if field.overridden %}<span class="badge" title="{{ _("Hier angepasst") }}">{{ _("angepasst") }}</span>{% endif %}
               </div>
               {% if field.error %}<p class="error">{{ field.error }}</p>{% endif %}
-              <p class="help">{{ _(p.help) }} <span class="meta">{{ _("Standard aus .env:") }} {% if p.kind == "choice" %}{{ _(dict(p.choices).get(field.env_value, field.env_value)) }}{% else %}{{ field.env_value }}{% if p.unit %} {{ _(p.unit) }}{% endif %}{% endif %}</span></p>
+              <p class="help">{{ _(p.help) }} <span class="meta">{{ _("Standard:") }} {% if p.kind == "choice" %}{{ _(dict(p.choices).get(field.env_value, field.env_value)) }}{% else %}{{ field.env_value }}{% if p.unit %} {{ _(p.unit) }}{% endif %}{% endif %}</span></p>
             </div>
           </div>
         {% endfor %}
@@ -29,7 +29,7 @@
           {% set channels = notify_channels() %}
           <div class="notify-channels">
             <p>{% if channels %}{{ _("Eingerichtete Kanäle: {list}", list=channels|join(", ")) }}{% else %}{{ _("Noch kein Kanal eingerichtet.") }}{% endif %}
-              {{ info(_("Die Kanäle richtest du in .env ein: ntfy (NTFY_URL, optional NTFY_TOKEN), Pushover (PUSHOVER_TOKEN, PUSHOVER_USER), Home Assistant (HOMEASSISTANT_URL, HOMEASSISTANT_TOKEN, HOMEASSISTANT_SERVICE) oder E-Mail (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, NOTIFY_EMAIL_TO). Mit APP_URL enthalten die Nachrichten einen Link zur App."), _("Kanäle")) }}</p>
+              {{ info(_("Die Kanäle – ntfy, Pushover, Home Assistant oder E-Mail – richtest du unter Einstellungen → Verbindungen ein. Ist dort die Adresse der App eingetragen, enthalten die Nachrichten einen Link zur App."), _("Kanäle")) }}</p>
             {% if channels %}<button type="button" class="secondary" id="notify-test">{{ _("Test senden") }}</button> <span id="notify-test-result" role="status" aria-live="polite"></span>{% endif %}
           </div>
         {% endif %}
