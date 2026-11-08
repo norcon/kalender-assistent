@@ -139,10 +139,10 @@ def delete_backup(backup_dir: str, name: str) -> None:
 
 
 # Einträge in service_state, die eine Wiederherstellung überdauern: die
-# verschlüsselten Verbindungen (connections.STATE_KEY). Sonst brächte eine
-# ältere Sicherung alte – oder vor 0.28 gar keine – Zugangsdaten zurück, obwohl
-# sie längst aus .env entfernt sind.
-KEEP_STATE = ("connections_v1",)
+# verschlüsselten Verbindungen (connections.STATE_KEY) und der Zugangsschutz
+# (access.KEEP_STATE). Sonst brächte eine ältere Sicherung alte – oder vor 0.28
+# gar keine – Zugangsdaten bzw. ein altes Passwort zurück.
+KEEP_STATE = ("connections_v1", "app_password_hash", "connections_without_password")
 
 
 def _kept_state(connection: sqlite3.Connection) -> list[tuple[str, str]]:

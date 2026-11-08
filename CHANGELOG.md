@@ -4,6 +4,33 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.31.0 – 2026-11-08
+
+- **Keine `.env` mehr:** Alles liegt in der Datenbank der App. Der
+  Einrichtungsassistent speichert direkt dort (Zugangsdaten verschlüsselt) und
+  braucht den Updater nicht mehr; das Kopieren von Zeilen in `.env` entfällt.
+- **Zugangsschutz in der Oberfläche:** Unter Einstellungen → Zugangsschutz
+  lässt sich das Passwort setzen, ändern oder ganz abschalten (Ändern und
+  Abschalten nur mit dem bisherigen Passwort, andere Geräte werden
+  abgemeldet). Gespeichert wird nur ein scrypt-Hash. Passwort vergessen:
+  `docker compose exec kalender-assistent python -m src.access passwort-weg`.
+- **Bearbeiten ohne Passwort:** wird im Assistenten oder auf dem Server
+  (`python -m src.access ohne-passwort-an`) eingeschaltet und lässt sich in
+  der Oberfläche jederzeit abschalten.
+- **Neue Einstellungen:** „Nach neuen Versionen suchen“ und „Ausführlichkeit der
+  Protokolle“ (bisher `UPDATE_CHECK`, `LOG_LEVEL`). „Standard“ zeigt jetzt den
+  eingebauten Wert.
+- **Umstieg:** Alle Werte aus einer vorhandenen `.env` (Abrufintervalle, Modell,
+  Sprache, Zeitzone, Passwort …) übernimmt die App beim Start; der Updater
+  entfernt sie danach, verschiebt die festgelegte Version nach `compose.yaml`
+  (`${KALENDER_VERSION:-x.y.z}`), stellt dort `env_file` auf optional um und
+  löscht die leere `.env` – jeweils nach einer Sicherung in
+  `backups/env-vor-aufraeumen-…/`. Ein unveränderter alter Wert überschreibt
+  nie eine Änderung aus der Oberfläche.
+- Passwort und „Bearbeiten ohne Passwort“ überstehen das Zurücksetzen der
+  Datenbank aus einer Sicherung, wie schon die Verbindungen.
+- `.env.example` entfällt; `compose.yaml` braucht Docker Compose 2.24 oder neuer.
+
 ## 0.30.0 – 2026-11-08
 
 - **KI-Anbieter mit Voreinstellungen:** Im Einrichtungsassistenten und unter

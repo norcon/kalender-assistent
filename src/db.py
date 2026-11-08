@@ -542,6 +542,11 @@ def set_service_state(database_path: str, **values: str) -> None:
         )
 
 
+def delete_service_state(database_path: str, *keys: str) -> None:
+    with connect(database_path) as connection:
+        connection.executemany("DELETE FROM service_state WHERE key = ?", [(key,) for key in keys])
+
+
 def get_service_state(database_path: str) -> dict[str, str]:
     with connect(database_path) as connection:
         rows = connection.execute("SELECT key, value FROM service_state").fetchall()
@@ -1604,7 +1609,7 @@ def seed_target_calendars(
 ) -> list[str]:
     """Erstbelegung der Zielkalender – nur, solange noch keine eingerichtet sind.
 
-    Vorrang hat `preset` (TARGET_CALENDARS aus .env), sonst die Kalender, die in
+    Vorrang hat `preset` (TARGET_CALENDARS aus .env älterer Installationen), sonst die Kalender, die in
     den bisherigen Daten schon verwendet wurden. Gibt die übernommenen Namen zurück.
     """
     with connect(database_path) as connection:

@@ -760,3 +760,9 @@ fieldset.channel legend { font-weight: 600; padding: 0 .3rem; }
 fieldset.channel .help { margin: 0 0 .7rem; }
 .badge.ok { background: var(--success-soft); color: var(--success); }
 .setup-grid .ai-hint, .setup-grid .ai-cloud { grid-column: 1 / -1; margin: 0; }
+
+/* Zugangsschutz (Einstellungen) */
+.access-form { display: grid; gap: .5rem; max-width: 28rem; margin: 1rem 0; }
+.access-form h3 { margin: 0; font-size: 1rem; }
+.access-form label { display: grid; gap: .2rem; }
+.access-form .actions { margin-top: .3rem; }

@@ -33,6 +33,7 @@
     <a href="#verbindungen">{{ _("Verbindungen") }}</a>
     {% for group in groups %}<a href="#group-{{ loop.index }}">{{ _(group) }}</a>{% endfor %}
     <a href="#zielkalender">{{ _("Zielkalender") }}</a>
+    {% if not demo_mode %}<a href="#zugangsschutz">{{ _("Zugangsschutz") }}</a>{% endif %}
   </nav>
 
   <form method="post" action="/einstellungen">
@@ -80,6 +81,48 @@
     <span id="caldav-status" role="status" aria-live="polite"></span>
     <ul id="caldav-calendars" hidden></ul>
   </section>
+
+  {% if not demo_mode %}
+  <section aria-labelledby="zugangsschutz" class="access">
+    <h2 id="zugangsschutz">{{ _("Zugangsschutz") }}</h2>
+    {% if access_error %}<p class="message problem" role="alert">{{ access_error }}</p>{% endif %}
+    {% if password_set %}
+      <p>{{ _("Die Oberfläche ist mit einem Passwort geschützt.") }}</p>
+      <form method="post" action="/einstellungen/zugangsschutz" class="access-form">
+        <input type="hidden" name="aktion" value="setzen">
+        <h3>{{ _("Passwort ändern") }}</h3>
+        <label>{{ _("Bisheriges Passwort") }} <input type="password" name="aktuell" autocomplete="current-password" required></label>
+        <label>{{ _("Neues Passwort (mindestens 8 Zeichen)") }} <input type="password" name="neu" autocomplete="new-password" minlength="8" required></label>
+        <label>{{ _("Neues Passwort wiederholen") }} <input type="password" name="wiederholung" autocomplete="new-password" minlength="8" required></label>
+        <div class="actions"><button type="submit">{{ _("Passwort ändern") }}</button> <span class="meta">{{ _("Andere Geräte werden abgemeldet.") }}</span></div>
+      </form>
+      <form method="post" action="/einstellungen/zugangsschutz" class="access-form" data-confirm="{{ _("Passwortschutz wirklich abschalten? Dann kann jeder in deinem Netz die Oberfläche samt Inhalten aus E-Mails sehen.") }}">
+        <input type="hidden" name="aktion" value="abschalten">
+        <h3>{{ _("Passwortschutz abschalten") }}</h3>
+        <p class="meta">{{ _("Nur sinnvoll, wenn ausschließlich vertrauenswürdige Geräte in deinem Netz sind. Verbindungen lassen sich danach nicht mehr bearbeiten, bis wieder ein Passwort gesetzt ist.") }}</p>
+        <label>{{ _("Bisheriges Passwort") }} <input type="password" name="aktuell" autocomplete="current-password" required></label>
+        <div class="actions"><button type="submit" class="danger">{{ _("Passwortschutz abschalten") }}</button></div>
+      </form>
+    {% else %}
+      <p>{{ _("Die Oberfläche hat kein Passwort: Jeder in deinem Netz kann sie öffnen und Inhalte aus E-Mails sehen.") }}</p>
+      {% if without_password %}
+        <p class="notice compact">{{ _("Verbindungen lassen sich auch ohne Passwort bearbeiten – das kann jeder in deinem Netz.") }}</p>
+        <form method="post" action="/einstellungen/zugangsschutz">
+          <input type="hidden" name="aktion" value="ohne-passwort-aus">
+          <button type="submit" class="secondary">{{ _("Bearbeiten ohne Passwort abschalten") }}</button>
+        </form>
+      {% endif %}
+      <form method="post" action="/einstellungen/zugangsschutz" class="access-form">
+        <input type="hidden" name="aktion" value="setzen">
+        <h3>{{ _("Passwort setzen") }}</h3>
+        <label>{{ _("Passwort (mindestens 8 Zeichen)") }} <input type="password" name="neu" autocomplete="new-password" minlength="8" required></label>
+        <label>{{ _("Passwort wiederholen") }} <input type="password" name="wiederholung" autocomplete="new-password" minlength="8" required></label>
+        <div class="actions"><button type="submit">{{ _("Passwort setzen") }}</button></div>
+      </form>
+    {% endif %}
+    <p class="meta">{{ _("Passwort vergessen? Auf dem Server: docker compose exec kalender-assistent python -m src.access passwort-weg – danach ist die Oberfläche wieder ohne Passwort erreichbar.") }}</p>
+  </section>
+  {% endif %}
 
   <script>
     for (const form of document.querySelectorAll("form[data-confirm]")) {

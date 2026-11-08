@@ -1,13 +1,17 @@
 services:
   kalender-assistent:
-    # Fertiges Image von GitHub; mit KALENDER_VERSION=0.16.0 in .env auf eine Version festlegen.
+    # Fertiges Image von GitHub; der Updater trägt hier nach jedem Update die Version ein.
     image: ghcr.io/norcon/kalender-assistent:${KALENDER_VERSION:-latest}
     # Zum selbst Bauen (Entwicklung): docker compose build
     build: .
     restart: unless-stopped
+    # .env ist optional: Alles Weitere stellst du in der Oberfläche ein.
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
+      # Beispieldaten statt echter Verbindungen:  DEMO_MODE=1 docker compose up -d
+      DEMO_MODE: ${DEMO_MODE:-0}
       APP_DATABASE_PATH: /data/calendar-assistant.sqlite3
       APP_BACKUP_DIR: /backups
     ports:

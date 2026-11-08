@@ -38,7 +38,7 @@ Termine aus Schul-, Vereins- und Praxis-Mails nicht mehr abtippen wollen.
 - **Benachrichtigungen:** neue Vorschläge, Störungen und neue Versionen über
   ntfy, Pushover, Home Assistant oder E-Mail.
 - **Statistik:** Vorschläge je Monat, Übernahmequote, Gründe beim Ablehnen.
-- **Optionaler Zugangsschutz** per Passwort (`APP_PASSWORD`).
+- **Optionaler Zugangsschutz** per Passwort, in der Oberfläche setz-, änder- und abschaltbar.
 - **Alltagstauglich:** Handy-App für den Home-Bildschirm, Hell/Dunkel,
   Deutsch/Englisch, Sofort-Erkennung neuer Mails (IMAP IDLE), Demo-Modus.
 - **Datensparsam:** Postfach nur lesend, keine Cloud nötig, keine Anmeldung
@@ -46,7 +46,7 @@ Termine aus Schul-, Vereins- und Praxis-Mails nicht mehr abtippen wollen.
 
 ## Voraussetzungen
 
-- Docker mit Docker Compose
+- Docker mit Docker Compose 2.24 oder neuer
 - Ein IMAP-Postfach mit IMAP-Zugang
 - Eine KI mit OpenAI-kompatibler Schnittstelle – lokal (LM Studio, Ollama)
   oder als Cloud-Dienst (OpenAI, Anthropic Claude, Google Gemini, Mistral,
@@ -59,7 +59,6 @@ Termine aus Schul-, Vereins- und Praxis-Mails nicht mehr abtippen wollen.
 ```sh
 mkdir kalender-assistent && cd kalender-assistent
 curl -fsSLO https://raw.githubusercontent.com/norcon/kalender-assistent/main/compose.yaml
-curl -fsSL https://raw.githubusercontent.com/norcon/kalender-assistent/main/.env.example -o .env
 mkdir -p data backups
 sudo chown 100:101 data backups
 sudo chmod 700 data backups
@@ -69,44 +68,39 @@ docker compose --profile updater up -d
 Dann `http://<server-ip>:8080` im Browser öffnen: Der **Einrichtungsassistent**
 fragt Sprache und Zeitzone, Postfach, KI-Server (mit Modellliste und
 Probe-Auswertung) und iCloud samt Zielkalendern ab, prüft jede Verbindung
-sofort und schreibt die Einstellungen über den Updater in `.env`. Danach ist
-er gesperrt. Beim nächsten Start übernimmt die App die Zugangsdaten
-verschlüsselt und räumt sie aus `.env`; ändern lassen sie sich danach unter
-**Einstellungen → Verbindungen** (mit `APP_PASSWORD`). Mit „Überspringen“
-startet die App ohne Postfach; ein Hinweis oben auf jeder Seite öffnet den
-Assistenten bei Bedarf erneut.
+sofort und speichert alles in der Datenbank der App – Passwörter und Tokens
+verschlüsselt. Eine Datei `.env` gibt es nicht mehr. Danach ist der Assistent
+gesperrt; Zugangsdaten änderst du unter **Einstellungen → Verbindungen**, alles
+andere unter **Einstellungen**. Mit „Überspringen“ startet die App ohne
+Postfach; ein Hinweis oben auf jeder Seite öffnet den Assistenten bei Bedarf
+erneut.
 
-Ohne Updater (`docker compose up -d`) zeigt der Assistent am Ende die fertigen
-Zeilen für `.env` zum Kopieren. Wer lieber direkt `.env` bearbeitet, nutzt
-die Vorlage ganz unten in der Datei und trägt mindestens `IMAP_HOST`, `IMAP_USERNAME`, `IMAP_PASSWORD`, `AI_BASE_URL` und
-`AI_MODEL` ein, für iCloud zusätzlich `CALDAV_USERNAME`, `CALDAV_APP_PASSWORD`
-und `TARGET_CALENDARS`.
-
-Erst einmal nur ansehen? `DEMO_MODE=1` in `.env` startet mit erfundenen
-Beispieldaten und ganz ohne Postfach, KI oder iCloud.
+Erst einmal nur ansehen? `DEMO_MODE=1 docker compose up -d` startet mit
+erfundenen Beispieldaten und ganz ohne Postfach, KI oder iCloud.
 
 **Update:** `docker compose pull && docker compose up -d`. Eine bestimmte
-Version hältst du mit `KALENDER_VERSION=0.16.0` in `.env` fest.
+Version legst du in `compose.yaml` fest, z. B.
+`image: ghcr.io/norcon/kalender-assistent:${KALENDER_VERSION:-0.16.0}` – das
+macht auch der Updater nach jedem Update und jeder Rückkehr.
 
 **Update auf Knopfdruck:** `docker compose --profile updater up -d` startet
 zusätzlich den Updater. Unter *Sicherungen → Version und Updates* zeigt die App
 dann neue Versionen mit Änderungen an, legt vor jedem Update eine Vollsicherung
-an (Datenbank, Kalender-Sicherung, `.env`, `compose.yaml`) und kehrt
+an (Datenbank, Kalender-Sicherung, `compose.yaml`) und kehrt
 automatisch zur bisherigen Version zurück, wenn die neue nicht sauber startet.
 Auch der Wechsel zu einer früheren Version – auf Wunsch mit den Daten von vor
 dem letzten Update – geht dort per Knopf. Der Updater hat Zugriff auf Docker;
 siehe [SECURITY.md](SECURITY.md).
 
-**Aus dem Quellcode:** Repository klonen, `.env` anlegen und
-`docker compose up -d --build`.
+**Aus dem Quellcode:** Repository klonen und `docker compose up -d --build`.
 
 Die Oberfläche ist auf Port `8080` an allen Netzwerkschnittstellen des
 Docker-Hosts erreichbar. Im Heimnetz erreichst du sie unter
-`http://<server-ip>:8080`. Ohne `APP_PASSWORD` in `.env` hat die Oberfläche
+`http://<server-ip>:8080`. Ohne Passwort (Einstellungen → Zugangsschutz) hat die Oberfläche
 keine Anmeldung und zeigt Inhalte aus E-Mails. Begrenze den Port deshalb per
 Host-/Router-Firewall auf dein vertrauenswürdiges Heimnetz und gib ihn nicht
 ins öffentliche Internet frei; für Zugriff von unterwegs VPN verwenden. Mit
-`APP_PASSWORD` fragt die App nach einem Passwort (siehe [SECURITY.md](SECURITY.md)).
+Passwort fragt die App beim Öffnen danach (siehe [SECURITY.md](SECURITY.md)).
 
 Auf der Startseite kannst du mit **Jetzt prüfen** einen sofortigen IMAP-Lauf
 starten. Währenddessen zeigt das Live-Aktivitätsfeld Status- und
@@ -210,7 +204,7 @@ zuordenbare Folge-Mails kannst du manuell einem vorhandenen Vorschlag zuordnen;
 auch danach ist eine separate Bestätigung erforderlich. Ein Verlauf zeigt
 Erkennung, Änderungen, Übertragungen und Bestätigungen.
 Da alle denselben Zugang nutzen (ohne Anmeldung oder mit dem gemeinsamen
-`APP_PASSWORD`), werden Aktionen im Verlauf als
+Passwort), werden Aktionen im Verlauf als
 **Gemeinsamer Zugang (Person nicht feststellbar)** gekennzeichnet.
 
 Der Button **iCloud-Verbindung testen** auf der Seite **Einstellungen** fragt per CalDAV nur die sichtbaren
@@ -229,13 +223,12 @@ Netzwerkabbrüchen. Der Eintrag in iCloud kann anschließend direkt in einer
 Kalender-App bearbeitet oder gelöscht werden.
 
 Zeitangaben ohne explizite Zeitzone werden standardmäßig als lokale Zeit in
-`Europe/Berlin` interpretiert (`CALDAV_TIMEZONE`). Datumsangaben ohne Uhrzeit
+`Europe/Berlin` interpretiert (Einstellungen → Kalender → Zeitzone). Datumsangaben ohne Uhrzeit
 werden als ganztägige Termine übertragen. Beim Export ganztägiger Termine wird
 das angezeigte Enddatum als letzter eingeschlossener Tag behandelt.
 
 Die Zugangsdaten für den Kalender trägst du im Einrichtungsassistenten oder
-unter **Einstellungen → Verbindungen** ein (alternativ `CALDAV_USERNAME` und
-`CALDAV_APP_PASSWORD` in `.env`, dann `docker compose up -d`). Das
+unter **Einstellungen → Verbindungen** ein. Das
 App-spezifische Passwort in den Apple-Account-Sicherheitseinstellungen
 erstellen und nirgends sonst weitergeben.
 
@@ -245,7 +238,7 @@ Container läuft als UID `100` und GID `101`; das Datenverzeichnis muss für
 diesen Benutzer beschreibbar sein. `./data/` ist von Git ausgeschlossen.
 `data/secret.key` ist der Schlüssel zu den gespeicherten Zugangsdaten: nur für
 den Administrator lesbar halten, zusammen mit `data/` sichern und nie in Git
-ablegen. Dasselbe gilt für `.env`, solange dort noch Zugangsdaten stehen.
+ablegen.
 
 ## Darstellung und App-Icon
 
@@ -299,8 +292,22 @@ Unter **Einstellungen** (`/einstellungen`) lassen sich Verhaltensparameter
 ohne Neustart ändern: Abrufintervall, IMAP-Ordner, Rückblick beim ersten Abruf,
 maximale E-Mail-Größe, KI-Modell und -Zeitlimit, Standarddauer für Termine ohne
 Endzeit, Schwelle für unsichere Vorschläge, Zeitzone und iCloud-Zeitlimit.
-Die Werte werden in der Datenbank gespeichert und haben Vorrang vor den
-Werten aus `.env`.
+Dazu kommen die Benachrichtigungs-Ereignisse, die Suche nach neuen Versionen und
+die Ausführlichkeit der Protokolle. Alles liegt in der Datenbank; „Standard“
+zeigt den eingebauten Wert.
+
+### Zugangsschutz
+
+Unter **Einstellungen → Zugangsschutz** setzt du ein Passwort für die
+Oberfläche, änderst es oder schaltest den Schutz wieder ab (Ändern und
+Abschalten verlangen das bisherige Passwort; andere Geräte werden dabei
+abgemeldet). Gespeichert wird nur ein scrypt-Hash. Passwort vergessen? Auf dem
+Server:
+
+```sh
+docker compose exec kalender-assistent python -m src.access passwort-weg
+docker compose restart kalender-assistent
+```
 
 ### Verbindungen
 
@@ -310,27 +317,41 @@ als Übersicht mit direktem Link. Passwörter und Tokens liegen dort
 verschlüsselt in der Datenbank; der Schlüssel liegt getrennt in
 `data/secret.key` (oder `APP_SECRET_KEY`), Datenbank-Sicherungen allein sind
 also wertlos. Bearbeiten lassen sich die Verbindungen mit eingeschaltetem
-Zugangsschutz (`APP_PASSWORD`) – oder, wenn nur vertrauenswürdige Geräte im
-Netz sind, auch ohne: `CONNECTIONS_EDIT_WITHOUT_PASSWORD=1` in `.env` (bzw. der
-Haken im Einrichtungsassistenten). Jede Änderung wird vor dem Speichern
-geprüft, danach startet die App kurz neu.
+Zugangsschutz – oder, wenn nur vertrauenswürdige Geräte im Netz sind, auch
+ohne. Das schaltest du mit dem Haken im Einrichtungsassistenten ein oder auf dem
+Server mit `docker compose exec kalender-assistent python -m src.access
+ohne-passwort-an` (danach `docker compose restart kalender-assistent`).
+Abschalten geht jederzeit unter Einstellungen → Zugangsschutz. Im Browser
+einschalten lässt es sich bewusst nicht – sonst könnte das jeder im Netz. Jede
+Änderung wird vor dem Speichern geprüft, danach startet die App kurz neu.
 
-Werte in `.env` werden beim Start übernommen und anschließend vom Updater aus
-`.env` entfernt (vorher gesichert in `backups/env-vor-aufraeumen-…/` – diese
-Kopie enthält die Zugangsdaten im Klartext und kann nach erfolgreicher Prüfung
-gelöscht werden). Neue Werte in `.env` werden beim nächsten Start ebenfalls
-übernommen; ein unveränderter alter Wert überschreibt nie eine Änderung aus der
-Oberfläche. Ohne Updater bleiben die Werte zusätzlich in `.env` stehen, gelten
-aber aus der App.
+### Umstieg von älteren Versionen (`.env`)
+
+Bis 0.30 standen Zugangsdaten und Einstellungen in einer Datei `.env`. Die App
+übernimmt beim Start alles, was sie dort findet – Zugangsdaten verschlüsselt,
+Einstellungen und Passwort (als Hash) in die Datenbank –, danach entfernt der
+Updater die Zeilen. Vorher sichert er `.env` nach
+`backups/env-vor-aufraeumen-…/`; diese Kopie enthält die Zugangsdaten im
+Klartext und kann nach erfolgreicher Prüfung gelöscht werden. Die festgelegte
+Version (`KALENDER_VERSION`) wandert in `compose.yaml`; dort stellt der Updater
+auch den `env_file`-Eintrag auf optional um. Bleibt nichts übrig, löscht er
+`.env`. Ein unveränderter alter Wert überschreibt nie eine Änderung aus der
+Oberfläche. Ohne Updater bleiben die Zeilen stehen, gelten aber aus der App –
+löschen kannst du sie dann selbst.
+
+Wer ganz ohne Browser einrichten will, kann die Werte weiterhin einmalig in eine
+`.env` neben `compose.yaml` schreiben (Namen wie in den Tabellen unten, z. B.
+`IMAP_HOST`, `IMAP_USERNAME`, `IMAP_PASSWORD`, `AI_BASE_URL`, `AI_MODEL`,
+`CALDAV_USERNAME`, `CALDAV_APP_PASSWORD`, `APP_PASSWORD`) und
+`docker compose up -d` ausführen.
 
 **Zielkalender:** Unter Einstellungen → Zielkalender wählst du aus den
 gefundenen iCloud-Kalendern, in welche die App schreiben darf, die Reihenfolge
 der Buttons und welcher ein gemeinsamer Kalender ist (wird nur für ausdrücklich
 gemeinsame Termine gewählt). Eine kurze Beschreibung je Kalender („Tochter,
 4. Klasse, Schwimmverein“) hilft der KI bei der Zuordnung. Beim ersten Start
-werden die Zielkalender aus `TARGET_CALENDARS` in `.env` übernommen
-(Komma-getrennt, exakte iCloud-Namen), sonst aus den bisher verwendeten
-Kalendern. Neue Kalender erscheinen nach „iCloud-Verbindung testen“.
+übernimmt die App die im Einrichtungsassistenten gewählten Kalender, sonst die
+bisher verwendeten. Neue Kalender erscheinen nach „iCloud-Verbindung testen“.
 
 **Sprache:** Die Oberfläche gibt es auf Deutsch und Englisch. Oben im Menü
 schaltet DE/EN pro Gerät um; der Standard steht unter Einstellungen →
@@ -339,12 +360,12 @@ der Browsersprache). Übersetzungen liegen in `src/locales/en.json`, Schlüssel
 ist der deutsche Text; `tests/test_i18n.py` meldet fehlende Einträge.
 Protokolleinträge bleiben deutsch.
 
-**Demo-Modus:** Mit `DEMO_MODE=1` startet die App mit erfundenen
+**Demo-Modus:** Mit `DEMO_MODE=1 docker compose up -d` startet die App mit erfundenen
 Beispieldaten und ohne Verbindung zu Postfach, KI oder iCloud – zum
 Ausprobieren und für Screenshots. Übertragen wird nur simuliert.
 
-Ohne `APP_PASSWORD` (und ohne `CONNECTIONS_EDIT_WITHOUT_PASSWORD=1`) werden
-die Verbindungen nur angezeigt, Passwörter nie. Sonst könnte jemand im Netz
+Ohne Passwort (und ohne „Bearbeiten ohne Passwort“) werden die Verbindungen nur
+angezeigt, Passwörter nie. Sonst könnte jemand im Netz
 z. B. alle E-Mails an einen fremden KI-Server umleiten.
 
 ## KI-Anbieter
@@ -379,9 +400,7 @@ OpenAI-Reasoning-Modelle), erkennt die App selbst und fragt dann ohne.
 ## Mehrere Postfächer
 
 Weitere Postfächer – oder weitere Ordner desselben Postfachs – legst du unter
-**Einstellungen → Verbindungen** an oder trägst sie in `.env` als `IMAP2_*` bis
-`IMAP9_*` ein (gleiche Felder wie das erste:
-`HOST`, `PORT`, `USERNAME`, `PASSWORD`, `FOLDER`, optional `NAME`). Jedes
+**Einstellungen → Verbindungen** an. Jedes
 Postfach wird einzeln abgerufen und hat eine eigene Sofort-Erkennung; ist eines
 gestört, laufen die anderen weiter.
 
@@ -389,18 +408,18 @@ gestört, laufen die anderen weiter.
 
 Statt iCloud funktioniert jeder Kalender-Server mit CalDAV-Standard. Im
 Einrichtungsassistenten gibt es eine Auswahl, später unter **Einstellungen →
-Verbindungen** oder in `.env`:
+Verbindungen**:
 
-| Anbieter | `CALDAV_URL` | Hinweis |
+| Anbieter | Adresse | Hinweis |
 |---|---|---|
 | iCloud | `https://caldav.icloud.com` | App-spezifisches Passwort |
-| Nextcloud | `https://<host>/remote.php/dav` | App-Passwort, `CALDAV_NAME=Nextcloud` |
+| Nextcloud | `https://<host>/remote.php/dav` | App-Passwort |
 | mailbox.org | `https://dav.mailbox.org/` | |
 | Fastmail | `https://caldav.fastmail.com/dav/` | App-Passwort mit CalDAV-Zugriff |
 | Posteo | `https://posteo.de:8443/` | |
-| Baïkal, Radicale, Synology … | Adresse des Servers | ältere Baïkal: `CALDAV_AUTH=digest` |
+| Baïkal, Radicale, Synology … | Adresse des Servers | ältere Baïkal: Anmeldeverfahren „Digest“ |
 
-Die Oberfläche nennt den Dienst beim Namen (`CALDAV_NAME`, sonst aus der
+Die Oberfläche nennt den Dienst beim Namen (Anzeigename, sonst aus der
 Adresse abgeleitet). Reine Aufgabenlisten werden ausgeblendet. Google Kalender
 wird nicht unterstützt (verlangt eine OAuth-Anmeldung).
 
@@ -410,10 +429,10 @@ Die App meldet neue Vorschläge, länger andauernde Störungen (Postfach,
 KI-Server, iCloud – samt Entwarnung), auffällig viele gelöschte Kalendertermine
 und neue Versionen. Welche Ereignisse, legst du unter **Einstellungen →
 Benachrichtigungen** fest; dort steht auch „Test senden“. Die Kanäle richtest
-du unter **Einstellungen → Verbindungen** ein oder trägst sie in `.env` ein –
-jeder eingetragene wird genutzt:
+du unter **Einstellungen → Verbindungen** ein – jeder eingetragene wird
+genutzt:
 
-| Kanal | Felder bzw. Einträge in `.env` |
+| Kanal | Felder |
 |---|---|
 | [ntfy](https://ntfy.sh) | `NTFY_URL=https://ntfy.sh/mein-geheimes-thema`, optional `NTFY_TOKEN` |
 | [Pushover](https://pushover.net) | `PUSHOVER_TOKEN`, `PUSHOVER_USER` |
@@ -477,9 +496,10 @@ docker compose start
 ```
 
 Anders als über die Seite **Sicherungen** kommen die Verbindungen dabei aus
-der Sicherung. Stammt sie von vor 0.28.0, enthält sie keine; dann die
-Zugangsdaten aus `backups/env-vor-aufraeumen-…/.env` wieder in `.env`
-eintragen und `docker compose up -d` ausführen.
+der Sicherung (ebenso das Passwort). Stammt sie von vor 0.28.0, enthält sie
+keine Zugangsdaten; dann `backups/env-vor-aufraeumen-…/.env` als `.env` neben
+`compose.yaml` kopieren und `docker compose up -d` ausführen – die App übernimmt
+sie wieder.
 
 `./backups/` liegt auf derselben Festplatte wie die Datenbank. Gegen einen
 Plattendefekt hilft das nur, wenn der Ordner zusätzlich extern gesichert wird.
@@ -506,10 +526,10 @@ gelesene als solche gekennzeichnet.
 
 Beim ersten Start werden standardmäßig nur E-Mails der letzten 14 Tage
 berücksichtigt. Weitere neue Nachrichten werden über IMAP-UIDs nachverfolgt.
-Nachrichten über `IMAP_MAX_MESSAGE_BYTES` werden übersprungen; das Limit kann
-in `.env` angepasst werden.
+Größere Nachrichten werden übersprungen; das Limit steht unter Einstellungen →
+Postfach.
 Für die KI-Analyse gilt standardmäßig ein Lese-Timeout von 30 Minuten
-pro Anfrage (`AI_TIMEOUT_SECONDS`). Ein geplanter Mailabruf startet keinen
+pro Anfrage (Einstellungen → KI-Auswertung). Ein geplanter Mailabruf startet keinen
 zweiten Durchgang, wenn ein manueller Abruf noch läuft; der nächste Versuch
 erfolgt dann erst nach dem nächsten Abrufintervall. Verbindungsaufbau und Senden der Anfrage
 haben kürzere Timeouts, damit Netzwerkprobleme weiterhin schnell auffallen.
@@ -530,8 +550,7 @@ Alle Python-Pakete sind in `requirements.txt` auf exakte Versionen
 festgeschrieben. Für ein Update die Version dort ändern, neu bauen, Tests
 ausführen und erst dann mit `docker compose up -d` übernehmen.
 
-Das Projekt ist ein lokales Git-Repository; `.env`, `data/` und `backups/`
-sind ausgeschlossen.
+`.env`, `data/` und `backups/` sind von Git ausgeschlossen.
 
 Die Bilder der Projektseite (`docs/`) entstehen aus dem Demo-Modus:
 `sh tools/screenshots/make.sh`.

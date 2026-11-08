@@ -107,7 +107,7 @@
 
       <h3>1. Voraussetzungen</h3>
       <ul>
-        <li><strong>Docker</strong> mit Docker Compose – Anleitung: <a href="https://docs.docker.com/engine/install/">docs.docker.com/engine/install</a></li>
+        <li><strong>Docker</strong> mit Docker Compose 2.24 oder neuer – Anleitung: <a href="https://docs.docker.com/engine/install/">docs.docker.com/engine/install</a></li>
         <li>Ein <strong>Postfach mit IMAP-Zugang</strong>. Am besten eine eigene Adresse, an die du Termin-Mails weiterleitest, z. B. <code>termine@deine-domain.de</code>.</li>
         <li>Eine <strong>KI mit OpenAI-kompatibler Schnittstelle</strong>: lokal mit <a href="https://lmstudio.ai">LM Studio</a> oder <a href="https://ollama.com">Ollama</a>, oder ein Cloud-Dienst wie OpenAI, Anthropic Claude, Google Gemini, Mistral oder OpenRouter (API-Schlüssel nötig). Für Fotos und Scans ein Modell mit Bilderkennung (Vision).</li>
         <li>Für iCloud: ein <strong>app-spezifisches Passwort</strong> (Schritt 3).</li>
@@ -122,7 +122,6 @@
       <h3>3. Installieren und starten</h3>
       <pre><code>mkdir kalender-assistent && cd kalender-assistent
 curl -fsSLO https://raw.githubusercontent.com/norcon/kalender-assistent/main/compose.yaml
-curl -fsSL https://raw.githubusercontent.com/norcon/kalender-assistent/main/.env.example -o .env
 mkdir -p data backups
 sudo chown 100:101 data backups
 sudo chmod 700 data backups
@@ -137,22 +136,13 @@ docker compose --profile updater up -d</code></pre>
         <li><strong>iCloud</strong> – Apple-ID und app-spezifisches Passwort; danach Zielkalender auswählen und je eine kurze Beschreibung für die KI eintragen.</li>
         <li><strong>Speichern und starten</strong> – die App startet mit den neuen Einstellungen neu.</li>
       </ol>
-      <div class="note"><strong>Danach gesperrt:</strong> Ist die Einrichtung abgeschlossen, lässt sie sich nicht noch einmal über den Browser ausführen. Die Zugangsdaten übernimmt die App verschlüsselt und räumt sie aus <code>.env</code>. Ändern lassen sie sich unter <em>Einstellungen → Verbindungen</em> – mit <code>APP_PASSWORD</code> oder, wenn im Assistenten angehakt, auch ohne Passwort (<code>CONNECTIONS_EDIT_WITHOUT_PASSWORD=1</code>).</div>
+      <div class="note"><strong>Danach gesperrt:</strong> Ist die Einrichtung abgeschlossen, lässt sie sich nicht noch einmal über den Browser ausführen. Alles liegt in der Datenbank der App, Zugangsdaten verschlüsselt – eine Konfigurationsdatei gibt es nicht. Ändern lassen sie sich unter <em>Einstellungen → Verbindungen</em> – mit Passwort oder, wenn im Assistenten angehakt, auch ohne. Das Passwort selbst setzt, änderst oder entfernst du unter <em>Einstellungen → Zugangsschutz</em>.</div>
       <p><strong>Überspringen:</strong> Klappt etwas nicht, lässt sich der Assistent mit „Überspringen“ beenden. Die App startet dann ohne Postfach und zeigt oben einen Hinweis, über den du den Assistenten jederzeit erneut startest – oder du trägst die Zugangsdaten unter <em>Einstellungen → Verbindungen</em> ein.</p>
       <p>Auf dem Handy: Seite im Browser öffnen → <em>Teilen</em> → <em>Zum Home-Bildschirm</em>.</p>
 
       <details>
-        <summary>Ohne Updater oder lieber von Hand</summary>
-        <p>Ohne den Updater (<code>docker compose up -d</code> ohne <code>--profile updater</code>) zeigt der Assistent am Ende die fertigen Zeilen für <code>.env</code> zum Kopieren. Alternativ trägst du vor dem Start in <code>.env</code> mindestens ein (Vorlage ganz unten in der Datei; die App übernimmt die Werte beim Start verschlüsselt):</p>
-        <pre><code>IMAP_HOST=imap.example.org
-IMAP_USERNAME=termine@example.org
-IMAP_PASSWORD='dein-mail-passwort'
-AI_BASE_URL=http://host.docker.internal:1234/v1
-AI_MODEL=name-des-modells
-CALDAV_USERNAME=deine-apple-id@example.org
-CALDAV_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
-TARGET_CALENDARS=Alex,Sam,Familie</code></pre>
-        <p>Passwörter mit Sonderzeichen in einfache Anführungszeichen setzen.</p>
+        <summary>Ohne Updater</summary>
+        <p>Der Assistent braucht den Updater nicht: <code>docker compose up -d</code> ohne <code>--profile updater</code> genügt. Nur Updates per Knopfdruck fallen dann weg.</p>
       </details>
       <details>
         <summary>Erst einmal nur ausprobieren (Demo-Modus)</summary>
@@ -160,7 +150,7 @@ TARGET_CALENDARS=Alex,Sam,Familie</code></pre>
         <pre><code>docker run --rm -p 8080:8000 -e DEMO_MODE=1 ghcr.io/norcon/kalender-assistent:latest</code></pre>
         <p>Dann <code>http://localhost:8080</code> öffnen. Mit <code>-e APP_LANGUAGE=en</code> gibt es englische Beispieldaten.</p>
       </details>
-      <div class="warn"><strong>Wichtig:</strong> Ohne <code>APP_PASSWORD</code> in <code>.env</code> hat die Oberfläche keine Anmeldung. Gib Port 8080 nicht ins Internet frei; für unterwegs ein VPN nutzen. Mit <code>APP_PASSWORD</code> fragt die App nach einem Passwort. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
+      <div class="warn"><strong>Wichtig:</strong> Ohne Passwort hat die Oberfläche keine Anmeldung. Gib Port 8080 nicht ins Internet frei; für unterwegs ein VPN nutzen. Ein Passwort setzt du im Assistenten oder unter <em>Einstellungen → Zugangsschutz</em>. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
     </div>
   </section>
 
@@ -178,11 +168,11 @@ docker compose pull
 docker compose up -d</code></pre>
       <p>Die Datenbank wird beim Start automatisch angepasst. Eine Sicherung legt die App jede Nacht an; vor einem Update kannst du unter <em>Sicherungen → Jetzt sichern</em> zusätzlich eine erstellen.</p>
       <h3>Zu einer früheren Version zurück</h3>
-      <p>Trage in <code>.env</code> die gewünschte Version ein (alle Versionen stehen im <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">Änderungsprotokoll</a>):</p>
-      <pre><code>KALENDER_VERSION=0.16.1</code></pre>
+      <p>Am einfachsten per Knopfdruck unter <em>Sicherungen → Version und Updates</em>. Von Hand: in <code>compose.yaml</code> die gewünschte Version eintragen (alle Versionen stehen im <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">Änderungsprotokoll</a>):</p>
+      <pre><code>image: ghcr.io/norcon/kalender-assistent:${KALENDER_VERSION:-0.28.0}</code></pre>
       <pre><code>docker compose pull
 docker compose up -d</code></pre>
-      <p>Falls die neuere Version die Daten schon umgebaut hat: unter <em>Sicherungen</em> die Sicherung von vor dem Update wiederherstellen. Zurück zur neuesten Version: die Zeile <code>KALENDER_VERSION</code> wieder entfernen.</p>
+      <p>Falls die neuere Version die Daten schon umgebaut hat: unter <em>Sicherungen</em> die Sicherung von vor dem Update wiederherstellen. Zurück zur neuesten Version: statt der Nummer wieder <code>latest</code> eintragen.</p>
     </div>
   </section>
 
@@ -195,14 +185,14 @@ docker compose up -d</code></pre>
         <tr><td><code>data/</code></td><td>Datenbank mit Vorschlägen, Regeln, Verlauf, Einstellungen und verschlüsselten Zugangsdaten – samt Schlüssel <code>secret.key</code>, ohne den sie nicht lesbar sind</td></tr>
         <tr><td><code>backups/</code></td><td>tägliche Datenbank-Sicherungen und die versionierte Sicherung der iCloud-Kalender</td></tr>
       </table>
-      <p>Kopiere beide Ordner und deine <code>.env</code> regelmäßig auf ein zweites Gerät, z. B. ein NAS – die eingebauten Sicherungen liegen auf derselben Festplatte.</p>
+      <p>Kopiere beide Ordner und <code>compose.yaml</code> regelmäßig auf ein zweites Gerät, z. B. ein NAS – die eingebauten Sicherungen liegen auf derselben Festplatte.</p>
     </div>
   </section>
 
   <section id="fragen">
     <div class="wrap">
       <h2>Häufige Fragen</h2>
-      <details><summary>Funktioniert es auch ohne iCloud?</summary><p>Getestet ist iCloud. Andere CalDAV-Server (z. B. Nextcloud) funktionieren wahrscheinlich, wenn du <code>CALDAV_URL</code> anpasst – Rückmeldungen sind willkommen. Ohne Kalender-Zugang zeigt die App die Vorschläge trotzdem an.</p></details>
+      <details><summary>Funktioniert es auch ohne iCloud?</summary><p>Getestet ist iCloud. Andere CalDAV-Server (z. B. Nextcloud) funktionieren wahrscheinlich, wenn du unter <em>Einstellungen → Verbindungen</em> den Kalender-Server anpasst – Rückmeldungen sind willkommen. Ohne Kalender-Zugang zeigt die App die Vorschläge trotzdem an.</p></details>
       <details><summary>Welche KI brauche ich?</summary><p>Jede Schnittstelle, die das OpenAI-Format „Chat Completions“ spricht – lokal oder in der Cloud. In jedem Fall empfehlenswert ist ein aktuelles Modell mit Bilderkennung, damit auch Fotos von Elternbriefen und gescannte PDFs funktionieren.</p><p><strong>Lokal</strong> (LM Studio, Ollama): Keine Mail verlässt dein Netz, keine laufenden Kosten – braucht aber einen Rechner mit genug Leistung, am besten mit Grafikkarte.</p><p><strong>Cloud</strong> (OpenAI, Anthropic Claude, Google Gemini, Mistral, OpenRouter): keine eigene Hardware, meist schneller; je Mail fallen kleine Kosten an, bei kleinen Modellen wie <code>claude-haiku-5-5</code>, „mini“- oder „Flash“-Modellen Bruchteile eines Cents. Dafür gehen Mailtexte und Anhänge an den Anbieter – kostenlose Kontingente erlauben oft die Nutzung zum Training.</p><p>Wie lange eine Auswertung dauert, zeigt die Wartungs-Übersicht.</p></details>
       <details><summary>Kann ich einen Cloud-Dienst als KI nutzen?</summary><p>Technisch ja (<code>AI_BASE_URL</code> und <code>AI_API_KEY</code>). Dann gehen Mailinhalte allerdings an diesen Dienst – bewusst entscheiden.</p></details>
       <details><summary>Was passiert mit Werbung und Paket-Mails?</summary><p>Die KI ist angewiesen, sie zu ignorieren. Was trotzdem durchrutscht, blendest du per Tipp für den ganzen Absender aus; Newsletter mit unsicherer Erkennung landen automatisch unter „Ausgeblendet“.</p></details>

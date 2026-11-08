@@ -98,8 +98,8 @@ class Settings:
     update_repository: str = "norcon/kalender-assistent"
     updater_url: str = "http://updater:8000"
     update_check: bool = True
-    app_password: str = ""  # leer = kein Zugangsschutz
-    # Verbindungen auch ohne APP_PASSWORD in der Oberfläche änderbar (bewusst nur per .env)
+    password_hash: str = ""  # leer = kein Zugangsschutz (aus der DB, siehe access.py)
+    # Verbindungen auch ohne Passwort in der Oberfläche änderbar (aus der DB, siehe access.py)
     connections_without_password: bool = False
     app_url: str = ""  # Adresse für Links in Benachrichtigungen
     imap_name: str = ""  # Anzeigename des (ersten) Postfachs
@@ -147,15 +147,20 @@ class Settings:
         return os.path.join(self.backup_dir, "calendar-history.sqlite3")
 
     @classmethod
-    def from_env(cls, connections: Mapping[str, str] | None = None) -> "Settings":
-        """Einstellungen aus der Umgebung; mit `connections` kommen Verbindungsdaten nur von dort."""
+    def from_env(cls, connections: Mapping[str, str] | None = None,
+                 environ: Mapping[str, str] | None = None) -> "Settings":
+        """Einstellungen aus der Umgebung; mit `connections` kommen Verbindungsdaten nur von dort.
+
+        `environ={}` liefert die eingebauten Standardwerte.
+        """
+        env = os.environ if environ is None else environ
 
         def getenv(name: str, default: str = "") -> str:
             if connections is not None and name in CONNECTION_KEYS:
                 return connections.get(name, default)
-            return os.getenv(name, default)
+            return env.get(name, default)
 
-        demo = os.getenv("DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "ja"}
+        demo = env.get("DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "ja"}
 
         imap = {name: getenv(name, "").strip() for name in ("IMAP_HOST", "IMAP_USERNAME", "IMAP_PASSWORD")}
         # Ohne Postfach-Zugangsdaten startet die App im Einrichtungsmodus (Assistent).
@@ -164,6 +169,8 @@ class Settings:
         def required(name: str) -> str:
             return getenv(name, "")
 
+        log_level = getenv("LOG_LEVEL", "INFO").strip().upper()
+
         return cls(
             demo_mode=demo,
             setup_mode=setup,
@@ -171,9 +178,6 @@ class Settings:
             language=getenv("APP_LANGUAGE", "auto").strip().lower() or "auto",
             update_repository=getenv("UPDATE_REPOSITORY", "norcon/kalender-assistent").strip(),
             updater_url=getenv("UPDATER_URL", "http://updater:8000").strip(),
-            app_password=getenv("APP_PASSWORD", "").strip("\r\n"),
-            connections_without_password=getenv("CONNECTIONS_EDIT_WITHOUT_PASSWORD", "0").strip().lower()
-            in {"1", "true", "yes", "ja"},
             app_url=getenv("APP_URL", "").strip(),
             caldav_name=getenv("CALDAV_NAME", "").strip() or service_name_for(getenv("CALDAV_URL", "")),
             caldav_auth=(getenv("CALDAV_AUTH", "basic").strip().lower() or "basic"),
@@ -223,7 +227,7 @@ class Settings:
             database_path=getenv(
                 "APP_DATABASE_PATH", "/data/calendar-assistant.sqlite3"
             ),
-            log_level=getenv("LOG_LEVEL", "INFO").upper(),
+            log_level=log_level if log_level in {"INFO", "DEBUG", "WARNING"} else "INFO",
             default_event_minutes=min(
                 1440, max(5, int(getenv("DEFAULT_EVENT_MINUTES", "60")))
             ),

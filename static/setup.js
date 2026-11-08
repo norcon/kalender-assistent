@@ -186,7 +186,7 @@
     finish.disabled = true;
     report("finish", t("Speichere …"));
     try {
-      const data = await post("/api/setup/finish", {
+      await post("/api/setup/finish", {
         language: value("language"), timezone: value("timezone"),
         imap_host: value("imap_host"), imap_port: Number(value("imap_port") || 993), imap_username: value("imap_username"),
         imap_password: form.elements.imap_password.value, imap_folder: value("imap_folder") || "INBOX",
@@ -197,16 +197,8 @@
         edit_without_password: !form.elements.app_password.value && form.elements.edit_without_password.checked,
         targets: targets(),
       });
-      if (data.mode === "updater") {
-        if (value("language") !== "auto") document.cookie = `lang=${value("language")}; path=/; max-age=31536000; SameSite=Lax`;
-        await waitForRestart();
-        return;
-      }
-      const manual = document.getElementById("manual-env");
-      manual.querySelector("code").textContent = data.env;
-      manual.hidden = false;
-      report("finish", data.reason ? t("Der Updater hat abgelehnt: {reason}", { reason: data.reason }) : "", data.reason ? false : undefined);
-      finish.disabled = false;
+      if (value("language") !== "auto") document.cookie = `lang=${value("language")}; path=/; max-age=31536000; SameSite=Lax`;
+      await waitForRestart();
     } catch (error) {
       report("finish", error.message, false);
       finish.disabled = false;

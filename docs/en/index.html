@@ -107,7 +107,7 @@
 
       <h3>1. Requirements</h3>
       <ul>
-        <li><strong>Docker</strong> with Docker Compose – guide: <a href="https://docs.docker.com/engine/install/">docs.docker.com/engine/install</a></li>
+        <li><strong>Docker</strong> with Docker Compose 2.24 or later – guide: <a href="https://docs.docker.com/engine/install/">docs.docker.com/engine/install</a></li>
         <li>A <strong>mailbox with IMAP access</strong>. Ideally a separate address you forward event emails to, e.g. <code>events@your-domain.com</code>.</li>
         <li>An <strong>AI with an OpenAI-compatible API</strong>: locally with <a href="https://lmstudio.ai">LM Studio</a> or <a href="https://ollama.com">Ollama</a>, or a cloud service such as OpenAI, Anthropic Claude, Google Gemini, Mistral or OpenRouter (API key required). For photos and scans, a model with image recognition (vision).</li>
         <li>For iCloud: an <strong>app-specific password</strong> (step 3).</li>
@@ -122,7 +122,6 @@
       <h3>3. Install and start</h3>
       <pre><code>mkdir kalender-assistent && cd kalender-assistent
 curl -fsSLO https://raw.githubusercontent.com/norcon/kalender-assistent/main/compose.yaml
-curl -fsSL https://raw.githubusercontent.com/norcon/kalender-assistent/main/.env.example -o .env
 mkdir -p data backups
 sudo chown 100:101 data backups
 sudo chmod 700 data backups
@@ -137,23 +136,13 @@ docker compose --profile updater up -d</code></pre>
         <li><strong>iCloud</strong> – Apple ID and app-specific password; then choose the target calendars and add a short description for the AI to each.</li>
         <li><strong>Save and start</strong> – the app restarts with the new settings.</li>
       </ol>
-      <div class="note"><strong>Locked afterwards:</strong> once setup is complete it cannot be run again from the browser. The app stores the credentials encrypted and removes them from <code>.env</code>. You change them under <em>Settings → Connections</em> – with <code>APP_PASSWORD</code> or, if ticked in the wizard, also without a password (<code>CONNECTIONS_EDIT_WITHOUT_PASSWORD=1</code>).</div>
+      <div class="note"><strong>Locked afterwards:</strong> once setup is complete it cannot be run again from the browser. Everything is stored in the app's database, credentials encrypted – there is no configuration file. You change them under <em>Settings → Connections</em> – with a password or, if ticked in the wizard, also without one. The password itself is set, changed or removed under <em>Settings → Access protection</em>.</div>
       <p><strong>Skip:</strong> if something does not work, end the wizard with “Skip”. The app then starts without a mailbox and shows a notice at the top from which you can restart the wizard at any time – or you enter the credentials under <em>Settings → Connections</em>.</p>
       <p>On a phone: open the page in the browser → <em>Share</em> → <em>Add to Home Screen</em>.</p>
 
       <details>
-        <summary>Without the updater, or by hand</summary>
-        <p>Without the updater (<code>docker compose up -d</code> without <code>--profile updater</code>) the wizard shows the finished lines for <code>.env</code> at the end for you to copy. Alternatively, put at least the following into <code>.env</code> before starting (template at the bottom of the file; the app imports the values encrypted at start-up):</p>
-        <pre><code>IMAP_HOST=imap.example.org
-IMAP_USERNAME=events@example.org
-IMAP_PASSWORD='your-mail-password'
-AI_BASE_URL=http://host.docker.internal:1234/v1
-AI_MODEL=model-name
-CALDAV_USERNAME=your-apple-id@example.org
-CALDAV_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
-TARGET_CALENDARS=Alex,Sam,Family
-APP_LANGUAGE=en</code></pre>
-        <p>Put passwords with special characters in single quotes.</p>
+        <summary>Without the updater</summary>
+        <p>The wizard does not need the updater: <code>docker compose up -d</code> without <code>--profile updater</code> is enough. You only lose one-click updates.</p>
       </details>
       <details>
         <summary>Just try it first (demo mode)</summary>
@@ -161,7 +150,7 @@ APP_LANGUAGE=en</code></pre>
         <pre><code>docker run --rm -p 8080:8000 -e DEMO_MODE=1 -e APP_LANGUAGE=en ghcr.io/norcon/kalender-assistent:latest</code></pre>
         <p>Then open <code>http://localhost:8080</code>.</p>
       </details>
-      <div class="warn"><strong>Important:</strong> without <code>APP_PASSWORD</code> in <code>.env</code> the interface has no login. Do not expose port 8080 to the internet; use a VPN for remote access. With <code>APP_PASSWORD</code> the app asks for a password. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
+      <div class="warn"><strong>Important:</strong> without a password the interface has no login. Do not expose port 8080 to the internet; use a VPN for remote access. Set a password in the wizard or under <em>Settings → Access protection</em>. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
     </div>
   </section>
 
@@ -179,11 +168,11 @@ docker compose pull
 docker compose up -d</code></pre>
       <p>The database is upgraded automatically on start. The app makes a backup every night; before an update you can create an extra one under <em>Backups → Back up now</em>.</p>
       <h3>Back to an earlier version</h3>
-      <p>Put the version you want into <code>.env</code> (all versions are listed in the <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">changelog</a>):</p>
-      <pre><code>KALENDER_VERSION=0.16.1</code></pre>
+      <p>Easiest with one click under <em>Backups → Version and updates</em>. By hand: put the version you want into <code>compose.yaml</code> (all versions are listed in the <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">changelog</a>):</p>
+      <pre><code>image: ghcr.io/norcon/kalender-assistent:${KALENDER_VERSION:-0.28.0}</code></pre>
       <pre><code>docker compose pull
 docker compose up -d</code></pre>
-      <p>If the newer version has already changed the data: restore the backup from before the update under <em>Backups</em>. To return to the latest version, remove the <code>KALENDER_VERSION</code> line again.</p>
+      <p>If the newer version has already changed the data: restore the backup from before the update under <em>Backups</em>. To return to the latest version, put <code>latest</code> back instead of the number.</p>
     </div>
   </section>
 
@@ -196,14 +185,14 @@ docker compose up -d</code></pre>
         <tr><td><code>data/</code></td><td>database with suggestions, rules, history, settings and encrypted credentials – including the key <code>secret.key</code>, without which they cannot be read</td></tr>
         <tr><td><code>backups/</code></td><td>daily database backups and the versioned backup of your iCloud calendars</td></tr>
       </table>
-      <p>Copy both folders and your <code>.env</code> to a second device regularly, e.g. a NAS – the built-in backups live on the same disk.</p>
+      <p>Copy both folders and <code>compose.yaml</code> to a second device regularly, e.g. a NAS – the built-in backups live on the same disk.</p>
     </div>
   </section>
 
   <section id="faq">
     <div class="wrap">
       <h2>FAQ</h2>
-      <details><summary>Does it work without iCloud?</summary><p>iCloud is what has been tested. Other CalDAV servers (e.g. Nextcloud) probably work if you change <code>CALDAV_URL</code> – feedback welcome. Without calendar access the app still shows the suggestions.</p></details>
+      <details><summary>Does it work without iCloud?</summary><p>iCloud is what has been tested. Other CalDAV servers (e.g. Nextcloud) probably work if you change the calendar server under <em>Settings → Connections</em> – feedback welcome. Without calendar access the app still shows the suggestions.</p></details>
       <details><summary>Which AI do I need?</summary><p>Any API that speaks the OpenAI “Chat Completions” format – local or cloud. Either way a current model with image recognition is recommended so that photos of school letters and scanned PDFs work too.</p><p><strong>Local</strong> (LM Studio, Ollama): no email leaves your network and there are no running costs – but you need a reasonably powerful machine, ideally with a graphics card.</p><p><strong>Cloud</strong> (OpenAI, Anthropic Claude, Google Gemini, Mistral, OpenRouter): no hardware of your own, usually faster; each email costs a little, with small models such as <code>claude-haiku-5-5</code>, “mini” or “Flash” models a fraction of a cent. In return, email texts and attachments go to the provider – free tiers often allow using them for training.</p><p>The maintenance overview shows how long an analysis takes.</p></details>
       <details><summary>Can I use a cloud AI service?</summary><p>Technically yes (<code>AI_BASE_URL</code> and <code>AI_API_KEY</code>). Email contents are then sent to that service – decide consciously.</p></details>
       <details><summary>What about advertising and parcel emails?</summary><p>The AI is instructed to ignore them. Whatever slips through you can hide for the whole sender with one tap; newsletters with uncertain detection end up under “Hidden” automatically.</p></details>

@@ -35,6 +35,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from . import (
+    access,
     version,
     backup,
     calendar_backup,
@@ -57,7 +58,8 @@ from . import (
 from .config import Settings
 from .i18n import _
 
-# Werte aus .env; gespeicherte Einstellungen der Weboberfläche liegen darüber.
+# Eingebaute Standards (bzw. Werte aus .env älterer Installationen); die in der
+# Datenbank gespeicherten Einstellungen liegen darüber.
 _env_settings = Settings.from_env()
 settings = _env_settings
 logging.basicConfig(
@@ -435,6 +437,23 @@ def _migrate_connections() -> None:
     _connection_state.update(ok=True, error=None, cleanup=removable)
 
 
+def _migrate_env_settings() -> None:
+    """Beim Start: Einstellungswerte aus .env in die Datenbank übernehmen."""
+    if _env_settings.demo_mode:
+        return
+    try:
+        _absorbed, removable = settings_store.absorb_env(
+            _env_settings.database_path, os.environ,
+            targets_set=bool(db.list_target_calendars(_env_settings.database_path)),
+        )
+        removable.update(access.absorb_env(_env_settings.database_path, os.environ))
+    except Exception as error:  # noqa: BLE001 – dann gelten die Werte aus .env
+        logger.error("Einstellungen aus .env konnten nicht übernommen werden (%s).", type(error).__name__)
+        return
+    _connection_state["cleanup"] = {**(_connection_state.get("cleanup") or {}), **removable}
+    _reload_settings()
+
+
 _background_tasks: set[asyncio.Task] = set()
 
 
@@ -455,7 +474,7 @@ async def _cleanup_env_file() -> None:
     if ok:
         _connection_state.update(cleanup={}, cleanup_message=None)
         if removed:
-            logger.info(".env aufgeräumt: %s (jetzt verschlüsselt in der App).", ", ".join(removed))
+            logger.info(".env aufgeräumt: %s (gilt jetzt aus der App).", ", ".join(removed))
     else:
         _connection_state["cleanup_message"] = message
         logger.warning(".env konnte nicht aufgeräumt werden (%s); die Werte bleiben dort, gelten aber aus der App.", message)
@@ -468,12 +487,16 @@ def _reload_settings() -> None:
     settings = settings_store.apply_overrides(
         base, db.get_app_settings(_env_settings.database_path)
     )
-    # Übersprungene Einrichtung: App läuft ohne Postfach, bis .env ergänzt ist.
+    # Übersprungene Einrichtung: App läuft ohne Postfach, bis es unter Verbindungen eingetragen ist.
     skipped = settings.setup_mode and bool(
         db.get_service_state(settings.database_path).get(SETUP_SKIPPED_KEY)
     )
     if skipped:
         settings = replace(settings, setup_mode=False)
+    if not settings.demo_mode:
+        password_hash, without_password = access.load(_env_settings.database_path)
+        settings = replace(settings, password_hash=password_hash, connections_without_password=without_password)
+    logging.getLogger().setLevel(getattr(logging, settings.log_level, logging.INFO))
     i18n.set_service_name(settings.caldav_name)
     caldav.set_auth_mode(settings.caldav_auth)
     templates.env.globals["demo_mode"] = settings.demo_mode
@@ -796,6 +819,7 @@ async def lifespan(_: FastAPI):
             "Einstellungen → Zielkalender.",
             ", ".join(adopted),
         )
+    _migrate_env_settings()
     _stop_threads.clear()
     _heartbeat = time.monotonic()
     _workers.clear()
@@ -894,7 +918,7 @@ async def setup_redirect(request: Request, call_next):
 SESSION_COOKIE = "ka_session"
 SESSION_LONG = 30 * 24 * 3600
 SESSION_SHORT = 12 * 3600
-_AUTH_OPEN = ("/anmelden", "/static/", "/i18n/", "/health", "/api/version")
+_AUTH_OPEN = ("/anmelden", "/static/", "/i18n/", "/health", "/api/version", "/api/setup/state")
 _login_failures: dict[str, tuple[int, float]] = {}  # IP → (Fehlversuche, gesperrt bis)
 LOGIN_FAILURE_DELAY = 1.0  # Sekunden Pause nach jedem Fehlversuch
 
@@ -906,7 +930,7 @@ def _session_secret() -> bytes:
         secret = secrets.token_hex(32)
         db.set_service_state(settings.database_path, session_secret=secret)
     # Das Passwort fließt mit ein: ein neues Passwort meldet alle Geräte ab.
-    return hashlib.sha256(f"{secret}:{settings.app_password}".encode()).digest()
+    return hashlib.sha256(f"{secret}:{settings.password_hash}".encode()).digest()
 
 
 def _session_token(expires: int) -> str:
@@ -933,7 +957,7 @@ def _safe_next(target: str) -> str:
 
 @app.middleware("http")
 async def require_login(request: Request, call_next):
-    if not settings.app_password or request.url.path.startswith(_AUTH_OPEN):
+    if not settings.password_hash or request.url.path.startswith(_AUTH_OPEN):
         return await call_next(request)
     if _valid_session(request.cookies.get(SESSION_COOKIE)):
         return await call_next(request)
@@ -945,7 +969,7 @@ async def require_login(request: Request, call_next):
 
 @app.get("/anmelden", response_class=HTMLResponse)
 async def login_page(request: Request, weiter: str = Query(default="/", max_length=2000), fehler: str = ""):
-    if not settings.app_password:
+    if not settings.password_hash:
         return RedirectResponse("/", status_code=303)
     return templates.TemplateResponse(request=request, name="login.html", context={
         "weiter": _safe_next(weiter), "fehler": fehler,
@@ -954,7 +978,7 @@ async def login_page(request: Request, weiter: str = Query(default="/", max_leng
 
 @app.post("/anmelden")
 async def login_submit(request: Request):
-    if not settings.app_password:
+    if not settings.password_hash:
         return RedirectResponse("/", status_code=303)
     form = parse_qs((await request.body()).decode("utf-8", errors="replace"))
     password = (form.get("passwort") or [""])[-1]
@@ -966,7 +990,7 @@ async def login_submit(request: Request):
     if locked_until > now:
         wait = int(locked_until - now) + 1
         return RedirectResponse("/anmelden?" + urlencode({"weiter": target, "fehler": _("Zu viele Fehlversuche. Bitte {seconds} Sekunden warten.", seconds=wait)}), status_code=303)
-    if not hmac.compare_digest(password.encode(), settings.app_password.encode()):
+    if not await asyncio.to_thread(access.verify_password, password, settings.password_hash):
         failures += 1
         # Ab dem 5. Fehlversuch zunehmend länger sperren (30 s, 60 s, … bis 15 Min.)
         lock = min(900, 30 * 2 ** (failures - 5)) if failures >= 5 else 0
@@ -993,7 +1017,7 @@ async def logout():
     return response
 
 
-templates.env.globals["login_required"] = lambda: bool(settings.app_password)
+templates.env.globals["login_required"] = lambda: bool(settings.password_hash)
 templates.env.globals["service_name"] = i18n.service_name
 templates.env.globals["notify_channels"] = lambda: notify.channels(settings)
 templates.env.globals["ai_providers"] = setup_wizard.AI_PROVIDERS
@@ -1152,22 +1176,27 @@ async def setup_finish(request: SetupFinishRequest):
         {"name": str(t.get("name")).strip()[:100], "description": str(t.get("description") or "")[:500], "shared": bool(t.get("shared"))}
         for t in request.targets if str(t.get("name") or "").strip()
     ]
-    values = setup_wizard.env_values(request.model_dump())
+    stored, chosen = setup_wizard.stored_values(request.model_dump())
+    for key, raw in chosen.items():
+        try:
+            settings_store.parse_value(settings_store.PARAMETERS_BY_KEY[key], raw)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+    if any(any(ord(character) < 32 for character in value) for value in stored.values()):
+        raise HTTPException(status_code=422, detail=_("Steuerzeichen oder Zeilenumbrüche sind nicht erlaubt."))
     try:
-        text = setup_wizard.env_text(values)
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail=_("Steuerzeichen oder Zeilenumbrüche sind nicht erlaubt.")) from error
+        await asyncio.to_thread(connections.update, settings.database_path, stored)
+    except connections.StoreError as error:
+        raise HTTPException(status_code=500, detail=_("Die Zugangsdaten ließen sich nicht verschlüsselt speichern.")) from error
+    db.save_app_settings(settings.database_path, chosen)
+    access.set_password(settings.database_path, request.app_password or None)
+    if request.edit_without_password and not request.app_password:
+        access.set_without_password(settings.database_path, True)
     if targets:
         db.save_target_calendars(settings.database_path, targets)
-    state = await asyncio.to_thread(updates.updater_status, settings.updater_url)
-    if state is not None:
-        ok, message = await asyncio.to_thread(updates.configure, settings.updater_url, values)
-        if ok:
-            logger.info("Ersteinrichtung abgeschlossen; Updater schreibt .env und startet die App neu.")
-            return {"mode": "updater"}
-        logger.warning("Updater hat die Ersteinrichtung abgelehnt: %s", message)
-        return {"mode": "manual", "env": text, "reason": message}
-    return {"mode": "manual", "env": text, "reason": ""}
+    logger.info("Ersteinrichtung abgeschlossen; die App startet mit den neuen Einstellungen neu.")
+    _schedule_restart()
+    return {"mode": "restart"}
 
 
 @app.get("/i18n/{language}.js")
@@ -2906,6 +2935,7 @@ async def restore(suggestion_id: int):
 
 
 BACKUP_GROUPS = {"Backup", "Kalender-Sicherung"}
+_DEFAULT_SETTINGS = Settings.from_env(environ={})  # eingebaute Standardwerte
 
 
 def _parameter_fields(
@@ -2926,7 +2956,7 @@ def _parameter_fields(
                     parameter.key,
                     settings_store.display_value(parameter, settings),
                 ),
-                "env_value": settings_store.display_value(parameter, _env_settings),
+                "env_value": settings_store.display_value(parameter, _DEFAULT_SETTINGS),
                 "overridden": parameter.key in stored,
                 "error": (errors or {}).get(parameter.key),
             }
@@ -2945,6 +2975,9 @@ _MESSAGES = {
         "Sicherung wiederhergestellt. Der vorherige Stand wurde zuvor "
         "als neue Sicherung abgelegt."
     ),
+    "passwort": "Passwort gespeichert. Andere Geräte müssen sich neu anmelden.",
+    "passwort-aus": "Passwortschutz abgeschaltet. Die Oberfläche ist jetzt ohne Anmeldung erreichbar.",
+    "ohne-passwort-aus": "Verbindungen lassen sich jetzt nur noch mit Passwort bearbeiten.",
 }
 
 
@@ -2997,6 +3030,7 @@ def _render_settings_page(
     errors: dict[str, str] | None = None,
     message: str | None = None,
     status_code: int = 200,
+    access_error: str | None = None,
 ):
     return templates.TemplateResponse(
         request=request,
@@ -3010,6 +3044,9 @@ def _render_settings_page(
             "message": message,
             "connection_overview": _connection_overview(),
             "connections_editable": _connections_editable()[0],
+            "access_error": access_error,
+            "password_set": bool(settings.password_hash),
+            "without_password": settings.connections_without_password and not settings.password_hash,
         },
     )
 
@@ -3177,6 +3214,55 @@ def _store_settings(values: dict[str, object]) -> None:
 @app.get("/einstellungen", response_class=HTMLResponse)
 async def settings_page(request: Request, saved: str | None = None):
     return _render_settings_page(request, message=_(_MESSAGES[saved]) if saved in _MESSAGES else None)
+
+
+@app.post("/einstellungen/zugangsschutz", response_class=HTMLResponse)
+async def save_access(request: Request):
+    """Passwort setzen, ändern oder abschalten; Bearbeiten ohne Passwort abschalten."""
+    if settings.demo_mode:
+        raise HTTPException(status_code=403, detail=_("Im Demo-Modus nicht verfügbar."))
+    form = await _read_form(request)
+    action = form.get("aktion", "")
+    current = form.get("aktuell", "")
+    new = form.get("neu", "")
+
+    def problem(text: str):
+        return _render_settings_page(request, access_error=text, status_code=422)
+
+    if action == "ohne-passwort-aus":
+        access.set_without_password(settings.database_path, False)
+        logger.info("Bearbeiten der Verbindungen ohne Passwort abgeschaltet.")
+        _reload_settings()
+        return RedirectResponse("/einstellungen?saved=ohne-passwort-aus#zugangsschutz", status_code=303)
+    if action not in ("setzen", "abschalten"):
+        return problem(_("Unbekannte Aktion."))
+    if settings.password_hash:
+        # Ändern und Abschalten nur mit dem bisherigen Passwort – eine offene
+        # Sitzung auf einem fremden Gerät allein reicht nicht.
+        if not await asyncio.to_thread(access.verify_password, current, settings.password_hash):
+            await asyncio.sleep(LOGIN_FAILURE_DELAY)
+            logger.warning("Zugangsschutz: falsches bisheriges Passwort von %s.", _client_ip(request))
+            return problem(_("Das bisherige Passwort stimmt nicht."))
+    if action == "abschalten":
+        access.set_password(settings.database_path, None)
+        logger.info("Passwortschutz abgeschaltet (von %s).", _client_ip(request))
+        _reload_settings()
+        return RedirectResponse("/einstellungen?saved=passwort-aus#zugangsschutz", status_code=303)
+    if len(new) < access.MIN_LENGTH:
+        return problem(_("Das Passwort muss mindestens 8 Zeichen haben."))
+    if new != form.get("wiederholung", ""):
+        return problem(_("Die beiden Passwörter stimmen nicht überein."))
+    if any(ord(character) < 32 for character in new):
+        return problem(_("Enthält ungültige Steuerzeichen."))
+    await asyncio.to_thread(access.set_password, settings.database_path, new)
+    logger.info("Passwort für die Oberfläche %s (von %s).", "geändert" if settings.password_hash else "gesetzt", _client_ip(request))
+    _reload_settings()
+    # Diese Sitzung bleibt angemeldet, alle anderen sind abgemeldet.
+    response = RedirectResponse("/einstellungen?saved=passwort#zugangsschutz", status_code=303)
+    secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    response.set_cookie(SESSION_COOKIE, _session_token(int(time.time()) + SESSION_SHORT),
+                        httponly=True, samesite="lax", secure=secure)
+    return response
 
 
 @app.post("/einstellungen", response_class=HTMLResponse)
@@ -3573,8 +3659,8 @@ def _connections_editable() -> tuple[bool, str]:
     if settings.demo_mode:
         return False, _("Im Demo-Modus nicht verfügbar.")
     if not _connection_state["ok"]:
-        return False, _("Die gespeicherten Verbindungen sind nicht lesbar; es gelten die Werte aus .env.")
-    if not settings.app_password and not settings.connections_without_password:
+        return False, _("Die gespeicherten Verbindungen sind nicht lesbar. Fehlt die Datei secret.key im Datenordner?")
+    if not settings.password_hash and not settings.connections_without_password:
         return False, _("Bearbeiten erst mit Zugangsschutz: Ohne Passwort könnte jeder im Netz z. B. alle Mails an einen fremden KI-Server umleiten.")
     return True, ""
 
@@ -3610,7 +3696,7 @@ async def connections_page(request: Request):
             (channel, title, description, [field for key in keys for field in CONNECTION_SECTIONS["benachrichtigungen"] if field[0] == key])
             for channel, title, description, keys in NOTIFY_CHANNEL_GROUPS
         ],
-        "unprotected_edit": editable and not settings.app_password,
+        "unprotected_edit": editable and not settings.password_hash,
         "active_channels": notify.channels(settings),
         "ai_model": settings.ai_model,
         "mailbox_fields": MAILBOX_FIELDS,

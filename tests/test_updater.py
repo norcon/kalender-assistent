@@ -13,7 +13,7 @@ _spec.loader.exec_module(updater)
 
 
 class FakeDocker:
-    """Merkt sich compose-Aufrufe; die App „läuft“ mit der Version aus .env."""
+    """Merkt sich compose-Aufrufe; die App „läuft“ mit der festgelegten Version."""
 
     def __init__(self, project: Path, *, fail_pull=False, broken=()):
         self.project = project
@@ -27,7 +27,7 @@ class FakeDocker:
         if command[2] == "pull" and self.fail_pull:
             return subprocess.CompletedProcess(command, 1, "", "manifest unknown")
         if command[2] == "up":
-            self.running = updater.read_env_value(self.project / ".env", "KALENDER_VERSION")
+            self.running = updater.pinned_version(self.project)
         if command[2] == "stop":
             self.running = None
         return subprocess.CompletedProcess(command, 0, "", "")
@@ -153,29 +153,89 @@ class UpdaterTests(unittest.TestCase):
         connection.close()
         self.assertEqual(state, {"connections_v1": "neu-verschluesselt", "other": "alt"})
 
+    def _store_connections(self):
+        import sqlite3
+        database = self.project / "data" / "calendar-assistant.sqlite3"
+        database.unlink()
+        with sqlite3.connect(database) as connection:
+            connection.execute("CREATE TABLE service_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            connection.execute("INSERT INTO service_state VALUES ('connections_v1', 'x')")
+
     def test_env_cleanup_only_matching_allowed_keys(self):
         import hashlib
         env = self.project / ".env"
-        env.write_text("IMAP_HOST=mail\nIMAP_PASSWORD='ge heim'\nAI_MODEL=m\nKALENDER_VERSION=0.16.1\nNTFY_URL=https://ntfy.sh/a\n")
+        env.write_text("IMAP_HOST=mail\nIMAP_PASSWORD='ge heim'\nAI_MODEL=m\nAPP_PASSWORD=\nKALENDER_VERSION=0.16.1\nNTFY_URL=https://ntfy.sh/a\n")
         digest = lambda value: hashlib.sha256(value.encode()).hexdigest()
         instance = self.make(FakeDocker(self.project))
         self.assertFalse(updater.cleanup_env(instance, {"KALENDER_VERSION": digest("0.16.1")})[0])  # nicht erlaubt
-        self.assertFalse(updater.cleanup_env(instance, {"AI_MODEL": digest("m")})[0])
+        self.assertFalse(updater.cleanup_env(instance, {"PATH": digest("x")})[0])
         ok, _message, removed = updater.cleanup_env(instance, {
             "IMAP_HOST": digest("mail"), "IMAP_PASSWORD": digest("ge heim"), "NTFY_URL": digest("https://ntfy.sh/anders"),
+            "AI_MODEL": digest("m"), "APP_PASSWORD": digest(""),
         })
         self.assertTrue(ok)
-        self.assertEqual(sorted(removed), ["IMAP_HOST", "IMAP_PASSWORD"])
+        self.assertEqual(sorted(removed), ["AI_MODEL", "APP_PASSWORD", "IMAP_HOST", "IMAP_PASSWORD"])
         text = env.read_text()
         self.assertNotIn("IMAP_PASSWORD", text)
+        self.assertNotIn("APP_PASSWORD", text)  # leere Zeile ebenfalls
         self.assertIn("NTFY_URL=https://ntfy.sh/a", text)  # Prüfsumme passte nicht → bleibt
-        self.assertIn("AI_MODEL=m", text)
-        self.assertIn("KALENDER_VERBINDUNGEN=app", text)
-        self.assertTrue(updater.configured(env))  # Ersteinrichtung bleibt gesperrt
+        self.assertNotIn("KALENDER_VERBINDUNGEN", text)  # Markierung wird nicht mehr gebraucht
         backups = list((self.project / "backups").glob("env-vor-aufraeumen-*/.env"))
         self.assertEqual(len(backups), 1)
         self.assertIn("IMAP_PASSWORD", backups[0].read_text())
         self.assertEqual(updater.cleanup_env(instance, {"IMAP_HOST": digest("mail")})[1], "Nichts zu entfernen.")
+        # Ersteinrichtung gesperrt, sobald die App Zugangsdaten gespeichert hat
+        self.assertFalse(updater.configured(env, instance.data_file))
+        self._store_connections()
+        self.assertTrue(updater.configured(env, instance.data_file))
+        self.assertTrue(instance.migrated())
+
+    LEGACY_COMPOSE = (
+        "services:\n  kalender-assistent:\n"
+        "    image: ghcr.io/norcon/kalender-assistent:${KALENDER_VERSION:-latest}\n"
+        "    env_file:\n      - .env\n"
+        "  updater:\n    image: ghcr.io/norcon/kalender-assistent-updater:${KALENDER_UPDATER_VERSION:-latest}\n"
+    )
+
+    def test_version_is_pinned_in_compose_yaml(self):
+        compose = self.project / "compose.yaml"
+        compose.write_text(self.LEGACY_COMPOSE)
+        self.assertEqual(updater.pinned_version(self.project), "0.16.1")  # .env hat noch Vorrang
+        docker = FakeDocker(self.project)
+        instance = self.make(docker)
+        self.assertTrue(instance.start({"version": "0.17.0", "previous": "0.16.1"})[0])
+        self.assertEqual(self.wait(instance)["state"], "done")
+        self.assertIn("kalender-assistent:${KALENDER_VERSION:-0.17.0}\n", compose.read_text())
+        self.assertIn("updater:${KALENDER_UPDATER_VERSION:-latest}", compose.read_text())  # Updater-Zeile bleibt
+        self.assertNotIn("KALENDER_VERSION", (self.project / ".env").read_text())
+        self.assertEqual(docker.running, "0.17.0")
+        # kaputte Version → zurück auf die bisherige, ebenfalls in compose.yaml
+        docker.broken.add("0.18.0")
+        instance.start({"version": "0.18.0", "previous": "0.17.0"})
+        self.assertEqual(self.wait(instance)["state"], "rolled_back")
+        self.assertEqual(updater.pinned_version(self.project), "0.17.0")
+
+    def test_tidy_env_removes_the_file_when_nothing_is_left(self):
+        compose = self.project / "compose.yaml"
+        compose.write_text(self.LEGACY_COMPOSE)
+        env = self.project / ".env"
+        env.write_text("# Kommentar\nKALENDER_VERSION=0.29.0\nKALENDER_VERBINDUNGEN=app\n")
+        instance = self.make(FakeDocker(self.project))
+        updater.tidy_env(instance)
+        self.assertIn("KALENDER_VERBINDUNGEN=app", env.read_text())  # ohne gespeicherte Verbindungen bleibt sie
+        self.assertIn("${KALENDER_VERSION:-0.29.0}", compose.read_text())
+        self._store_connections()
+        steps = updater.tidy_env(instance)
+        self.assertFalse(env.exists())
+        self.assertIn(".env gelöscht (nichts mehr darin)", steps)
+        text = compose.read_text()
+        self.assertIn("    env_file:\n      - path: .env\n        required: false\n", text)
+        self.assertEqual(updater.pinned_version(self.project), "0.29.0")
+        self.assertTrue(list((self.project / "backups").glob("env-vor-aufraeumen-*/.env")))
+        self.assertEqual(updater.tidy_env(instance), [])  # ohne .env nichts zu tun
+        # .env neu anlegen (z. B. Version in eigener compose-Datei) geht weiterhin
+        updater.set_env_value(env, "KALENDER_VERSION", "0.30.0")
+        self.assertEqual(oct(env.stat().st_mode & 0o777), "0o600")
 
     def test_rejects_bad_input_and_parallel_updates(self):
         instance = self.make(FakeDocker(self.project))

@@ -94,18 +94,8 @@ def backup_calendar_store(store_path: str, backup_dir: str, keep: int = 3) -> Pa
     return target
 
 
-def configure(url: str, values: dict[str, str]) -> tuple[bool, str]:
-    """Ersteinrichtung: Updater schreibt .env (nur erlaubte Schlüssel) und startet neu."""
-    try:
-        response = httpx.post(f"{url.rstrip('/')}/configure", json={"values": values}, timeout=15)
-        data = response.json()
-        return response.status_code == 202, str(data.get("message") or "")
-    except (httpx.HTTPError, ValueError) as error:
-        return False, type(error).__name__
-
-
 def cleanup_env(url: str, keys: dict[str, str]) -> tuple[bool, str, list[str]]:
-    """Übernommene Verbindungsdaten aus .env entfernen lassen (Updater prüft Prüfsummen)."""
+    """Übernommene Werte aus .env entfernen lassen (Updater prüft Prüfsummen)."""
     try:
         response = httpx.post(f"{url.rstrip('/')}/env/cleanup", json={"keys": keys}, timeout=15)
         if response.status_code == 404:

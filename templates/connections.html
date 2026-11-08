@@ -18,26 +18,20 @@
     <a href="#benachrichtigungen">{{ _("Benachrichtigungen") }}</a>
   </nav>
 
-  {% if store_error %}<p class="message problem" role="alert">{{ _("Die gespeicherten Verbindungen sind nicht lesbar ({error}); es gelten die Werte aus .env. Fehlt die Datei secret.key im Datenordner?", error=store_error) }}</p>{% endif %}
+  {% if store_error %}<p class="message problem" role="alert">{{ _("Die gespeicherten Verbindungen sind nicht lesbar ({error}). Fehlt die Datei secret.key im Datenordner?", error=store_error) }}</p>{% endif %}
   {% if not editable %}
     <div class="notice">
       <p><strong>{{ _("Nur Ansicht.") }}</strong> {{ reason }}</p>
       {% if not login_required() and not demo_mode %}
         <p>{{ _("So schaltest du das Bearbeiten frei:") }}</p>
-        <ol>
-          <li>{{ _("Auf dem Server in der Datei .env neben compose.yaml eine Zeile ergänzen:") }}
-            <ul>
-              <li>{{ _("mit Passwort (empfohlen):") }} <code>APP_PASSWORD=dein-passwort</code></li>
-              <li>{{ _("oder ohne Passwort, wenn nur vertrauenswürdige Geräte im Netz sind:") }} <code>CONNECTIONS_EDIT_WITHOUT_PASSWORD=1</code></li>
-            </ul>
-          </li>
-          <li>{{ _("Im selben Ordner ausführen:") }} <code>docker compose up -d</code></li>
-          <li>{{ _("Diese Seite neu laden – mit Passwort fragt die App einmal danach.") }}</li>
-        </ol>
+        <ul>
+          <li>{{ _("Empfohlen:") }} <a href="/einstellungen#zugangsschutz">{{ _("Passwort setzen unter Einstellungen → Zugangsschutz") }}</a></li>
+          <li>{{ _("Oder ohne Passwort, wenn nur vertrauenswürdige Geräte im Netz sind – auf dem Server ausführen:") }} <code>docker compose exec kalender-assistent python -m src.access ohne-passwort-an</code> {{ _("und danach") }} <code>docker compose restart kalender-assistent</code></li>
+        </ul>
       {% endif %}
     </div>
   {% endif %}
-  {% if unprotected_edit %}<p class="notice compact">{{ _("Bearbeiten ohne Passwort ist eingeschaltet (CONNECTIONS_EDIT_WITHOUT_PASSWORD): Jeder in deinem Netz kann diese Verbindungen ändern.") }}</p>{% endif %}
+  {% if unprotected_edit %}<p class="notice compact">{{ _("Bearbeiten ohne Passwort ist eingeschaltet: Jeder in deinem Netz kann diese Verbindungen ändern.") }} <a href="/einstellungen#zugangsschutz">{{ _("Zugangsschutz") }}</a></p>{% endif %}
   {% if pending_cleanup %}
     <div class="notice">
       <p>{{ _("Diese Werte stehen noch zusätzlich in .env, gelten aber bereits aus der App: {keys}", keys=pending_cleanup|join(", ")) }}{% if cleanup_message %} <span class="meta">({{ cleanup_message }})</span>{% endif %}</p>

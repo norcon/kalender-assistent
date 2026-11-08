@@ -20,7 +20,7 @@
       <label class="checkbox"><input type="checkbox" name="bleiben" value="1" checked> {{ _("Auf diesem Gerät angemeldet bleiben (30 Tage)") }}</label>
       <button type="submit">{{ _("Anmelden") }}</button>
     </form>
-    <p class="meta">{{ _("Das Passwort steht in der Datei .env auf dem Server (APP_PASSWORD).") }}</p>
+    <p class="meta">{{ _("Passwort vergessen? Auf dem Server: docker compose exec kalender-assistent python -m src.access passwort-weg") }}</p>
   </main>
 </body>
 </html>

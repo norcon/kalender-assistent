@@ -1,7 +1,7 @@
-"""Einrichtungsassistent: Verbindungen testen und die Werte für .env erzeugen.
+"""Einrichtungsassistent: Verbindungen testen und das Ergebnis aufbereiten.
 
-Läuft nur im Einrichtungsmodus (Postfach-Zugangsdaten fehlen). Geschrieben wird
-.env über den Updater; ohne Updater zeigt der Assistent die Zeilen zum Kopieren.
+Läuft nur im Einrichtungsmodus (Postfach-Zugangsdaten fehlen). Die App speichert
+das Ergebnis direkt in ihrer Datenbank (Zugangsdaten verschlüsselt).
 """
 
 import imaplib
@@ -155,44 +155,32 @@ def valid_timezone(value: str) -> bool:
         return False
 
 
-# ---------- .env ----------
+# ---------- Ergebnis ----------
 
-def quote_env_value(value: str) -> str:
-    """Wie im Updater: Schreibweise, die Docker Compose unverändert übernimmt."""
-    if any(ord(character) < 32 for character in value):
-        raise ValueError("control characters")
-    if re.fullmatch(r"[A-Za-z0-9._:/@,+-]*", value):
-        return value
-    if "'" not in value:
-        return f"'{value}'"
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "$$")
-    return f'"{escaped}"'
+def stored_values(form: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
+    """Ergebnis des Assistenten: (Verbindungsdaten, Einstellungen) für die Datenbank."""
+    secret = {"imap_password", "caldav_password", "ai_api_key"}
 
+    def get(name: str, default: str = "") -> str:
+        value = str(form.get(name) or default)
+        return value if name in secret else value.strip()
 
-def env_values(form: dict[str, Any]) -> dict[str, str]:
-    values = {
-        "IMAP_HOST": form.get("imap_host", ""),
+    connections = {
+        "IMAP_HOST": get("imap_host"),
         "IMAP_PORT": str(form.get("imap_port") or 993),
-        "IMAP_USERNAME": form.get("imap_username", ""),
-        "IMAP_PASSWORD": form.get("imap_password", ""),
-        "IMAP_FOLDER": form.get("imap_folder") or "INBOX",
-        "AI_BASE_URL": form.get("ai_base_url", ""),
-        "AI_API_KEY": form.get("ai_api_key", ""),
-        "AI_MODEL": form.get("ai_model", ""),
-        "CALDAV_URL": form.get("caldav_url") or "https://caldav.icloud.com",
-        "CALDAV_USERNAME": form.get("caldav_username", ""),
-        "CALDAV_APP_PASSWORD": form.get("caldav_password", ""),
-        "CALDAV_TIMEZONE": form.get("timezone") or "Europe/Berlin",
-        "CALDAV_NAME": form.get("caldav_name", ""),
-        "APP_LANGUAGE": form.get("language") or "auto",
-        "APP_PASSWORD": form.get("app_password", ""),
+        "IMAP_USERNAME": get("imap_username"),
+        "IMAP_PASSWORD": get("imap_password"),
+        "AI_BASE_URL": get("ai_base_url").rstrip("/"),
+        "AI_API_KEY": get("ai_api_key"),
+        "CALDAV_URL": get("caldav_url", "https://caldav.icloud.com"),
+        "CALDAV_USERNAME": get("caldav_username"),
+        "CALDAV_APP_PASSWORD": get("caldav_password"),
+        "CALDAV_NAME": get("caldav_name"),
     }
-    if form.get("edit_without_password") and not form.get("app_password"):
-        # nur wenn gewählt – ältere Updater kennen den Schlüssel nicht
-        values["CONNECTIONS_EDIT_WITHOUT_PASSWORD"] = "1"
-    secret = ("IMAP_PASSWORD", "CALDAV_APP_PASSWORD", "AI_API_KEY", "APP_PASSWORD")
-    return {key: str(value).strip() if key not in secret else str(value) for key, value in values.items()}
-
-
-def env_text(values: dict[str, str]) -> str:
-    return "\n".join(f"{key}={quote_env_value(value)}" for key, value in values.items() if value != "") + "\n"
+    chosen = {
+        "language": get("language", "auto"),
+        "imap_folder": get("imap_folder", "INBOX"),
+        "ai_model": get("ai_model"),
+        "caldav_timezone": get("timezone", "Europe/Berlin"),
+    }
+    return {key: value for key, value in connections.items() if value}, chosen

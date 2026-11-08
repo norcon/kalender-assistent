@@ -76,12 +76,17 @@ def quote_env_value(value: str) -> str:
 
 
 def read_env_value(path: Path, key: str) -> str | None:
+    return _env_line_value(path, key) or None
+
+
+def _env_line_value(path: Path, key: str) -> str | None:
+    """Wert einer Zeile KEY=…; "" bei leerer Zeile, None wenn sie fehlt."""
     if not path.exists():
         return None
     for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if stripped.startswith(f"{key}="):
-            return _unquote(stripped.split("=", 1)[1]) or None
+            return _unquote(stripped.split("=", 1)[1])
     return None
 
 
@@ -102,7 +107,15 @@ def set_env_values(path: Path, values: dict[str, str | None]) -> None:
         except PermissionError:
             pass
     else:
+        # neu angelegt (.env ist optional): Besitzer wie compose.yaml, damit
+        # `docker compose` sie auch ohne root lesen kann
         os.chmod(temporary, 0o600)
+        owner = path.with_name("compose.yaml")
+        try:
+            stat = (owner if owner.exists() else path.parent).stat()
+            os.chown(temporary, stat.st_uid, stat.st_gid)
+        except (OSError, PermissionError):
+            pass
     temporary.replace(path)
 
 
@@ -125,13 +138,20 @@ CLEANUP_KEY_PATTERN = re.compile(
     r"(IMAP_(HOST|PORT|USERNAME|PASSWORD|NAME)|IMAP[2-9]_(HOST|PORT|USERNAME|PASSWORD|NAME|FOLDER)"
     r"|AI_BASE_URL|AI_API_KEY|CALDAV_(URL|USERNAME|APP_PASSWORD|NAME|AUTH)|APP_URL|NTFY_(URL|TOKEN)"
     r"|PUSHOVER_(TOKEN|USER)|HOMEASSISTANT_(URL|TOKEN|SERVICE)"
-    r"|SMTP_(HOST|PORT|SECURITY|USERNAME|PASSWORD|FROM)|NOTIFY_EMAIL_TO)"
+    r"|SMTP_(HOST|PORT|SECURITY|USERNAME|PASSWORD|FROM)|NOTIFY_EMAIL_TO"
+    # Einstellungen, die die App in ihre Datenbank übernommen hat (src/settings_store.py)
+    r"|APP_LANGUAGE|IMAP_(POLL_SECONDS|IDLE_POLL_SECONDS|FOLDER|INITIAL_LOOKBACK_DAYS|MAX_MESSAGE_BYTES)"
+    r"|AI_(MODEL|TIMEOUT_SECONDS)|UNCERTAIN_THRESHOLD_PERCENT|NEWSLETTER_MIN_CONFIDENCE_PERCENT"
+    r"|DEFAULT_EVENT_MINUTES|REMINDER_MINUTES|ALLDAY_REMINDER_HOUR|CALDAV_(TIMEZONE|TIMEOUT_SECONDS)"
+    r"|CALENDAR_(BACKUP_MINUTES|KEEP_DAYS)|BACKUP_(HOUR|KEEP_DAYS)"
+    # Schalter, die nur den eingebauten Standard wiederholen
+    r"|APP_DATABASE_PATH|LOG_LEVEL|DEMO_MODE|UPDATE_CHECK|CONNECTIONS_EDIT_WITHOUT_PASSWORD|APP_PASSWORD|TARGET_CALENDARS)"
 )
 MIGRATED_MARKER = "KALENDER_VERBINDUNGEN"  # =app: Zugangsdaten liegen verschlüsselt in der App
 # Ältere Versionen lesen Zugangsdaten nur aus .env – nach dem Aufräumen liefen
 # sie ohne Postfach, KI und Kalender.
 MIN_VERSION_AFTER_MIGRATION = (0, 28, 0)
-KEEP_STATE = ("connections_v1",)  # überdauert eine Datenbank-Wiederherstellung
+KEEP_STATE = ("connections_v1", "app_password_hash", "connections_without_password")  # überdauert eine Datenbank-Wiederherstellung
 
 
 def _carry_over_state(current: Path, restored: Path) -> None:
@@ -151,6 +171,73 @@ def _carry_over_state(current: Path, restored: Path) -> None:
         target.executemany("INSERT INTO service_state(key, value) VALUES (?, ?) "
                            "ON CONFLICT(key) DO UPDATE SET value = excluded.value", rows)
         target.commit()
+
+
+def _has_state(database: Path, key: str) -> bool:
+    if not database.is_file():
+        return False
+    try:
+        with closing(sqlite3.connect(f"file:{database}?mode=ro", uri=True, timeout=30)) as connection:
+            return connection.execute("SELECT 1 FROM service_state WHERE key = ?", (key,)).fetchone() is not None
+    except sqlite3.Error:
+        return False
+
+
+# ---------- Version in compose.yaml ----------
+# Die festgelegte Version steht als Vorgabe in der Image-Zeile:
+#   image: ghcr.io/norcon/kalender-assistent:${KALENDER_VERSION:-0.31.0}
+# Ein KALENDER_VERSION in .env (ältere Updater) hat weiterhin Vorrang.
+COMPOSE_IMAGE = re.compile(
+    r"^(?P<head>[ \t]*image:[ \t]*\S*/kalender-assistent:)"
+    r"(?:\$\{KALENDER_VERSION:-(?P<default>[^}\s]*)\}|(?P<tag>[^\s$]+))[ \t]*$",
+    re.M,
+)
+
+
+# env_file-Eintrag: alte compose.yaml verlangen .env, neue nicht (Compose ≥ 2.24)
+LEGACY_ENV_FILE = re.compile(r"^(?P<i>[ \t]*)env_file:[ \t]*\n(?P<j>[ \t]*)- \.env[ \t]*$", re.M)
+OPTIONAL_ENV_FILE = re.compile(r"-[ \t]*path:[ \t]*\.env[ \t]*\n[ \t]*required:[ \t]*false\b")
+
+
+def _write_like(path: Path, text: str) -> None:
+    temporary = path.with_name(path.name + ".updater-tmp")
+    temporary.write_text(text, encoding="utf-8")
+    stat = path.stat()
+    os.chmod(temporary, stat.st_mode & 0o7777)
+    try:
+        os.chown(temporary, stat.st_uid, stat.st_gid)
+    except PermissionError:
+        pass
+    temporary.replace(path)
+
+
+def pinned_version(project_dir: Path) -> str | None:
+    from_env = read_env_value(project_dir / ".env", ENV_KEY)
+    if from_env:
+        return from_env
+    compose = project_dir / "compose.yaml"
+    match = COMPOSE_IMAGE.search(compose.read_text(encoding="utf-8")) if compose.is_file() else None
+    if not match:
+        return None
+    value = match.group("default") if match.group("default") is not None else match.group("tag")
+    return None if value in ("", "latest") else value
+
+
+def pin_version(project_dir: Path, version: str | None) -> None:
+    """Version in compose.yaml festlegen (None = latest); KALENDER_VERSION aus .env entfernen."""
+    compose = project_dir / "compose.yaml"
+    env_file = project_dir / ".env"
+    text = compose.read_text(encoding="utf-8") if compose.is_file() else ""
+    if not COMPOSE_IMAGE.search(text):
+        # eigene compose-Datei ohne erkennbare Image-Zeile: wie bisher über .env
+        set_env_value(env_file, ENV_KEY, version)
+        return
+    replacement = "${KALENDER_VERSION:-" + (version or "latest") + "}"
+    updated = COMPOSE_IMAGE.sub(lambda match: match.group("head") + replacement, text, count=1)
+    if updated != text:
+        _write_like(compose, updated)
+    if _env_line_value(env_file, ENV_KEY) is not None:
+        set_env_value(env_file, ENV_KEY, None)
 
 
 # ---------- Ablauf ----------
@@ -255,6 +342,10 @@ class Updater:
         except PermissionError:
             pass
 
+    def migrated(self) -> bool:
+        """Liegen die Zugangsdaten schon in der App (ab 0.28.0)?"""
+        return read_env_value(self.env_file, MIGRATED_MARKER) == "app" or _has_state(self.data_file, KEEP_STATE[0])
+
     def _save_config(self, stamp: str, prefix: str = "vor-update") -> Path:
         target = self.backup_dir / f"{prefix}-{stamp}"
         target.mkdir(parents=True, exist_ok=True)
@@ -274,7 +365,7 @@ class Updater:
             return False, "Ungültige Versionsnummer."
         if previous and not VERSION_PATTERN.match(previous):
             return False, "Ungültige bisherige Versionsnummer."
-        if (read_env_value(self.env_file, MIGRATED_MARKER) == "app"
+        if (self.migrated()
                 and tuple(int(part) for part in version.split(".")) < MIN_VERSION_AFTER_MIGRATION):
             return False, ("Versionen vor 0.28.0 lesen die Zugangsdaten nur aus .env; "
                            "die liegen inzwischen verschlüsselt in der App.")
@@ -293,12 +384,12 @@ class Updater:
 
     def _run_update(self, version: str, previous: str, backup: str | None, restore: str | None) -> None:
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
-        old_value = read_env_value(self.env_file, ENV_KEY)
+        old_value = pinned_version(self.project_dir)
         self._touched = False  # wurde die laufende App schon angefasst?
         try:
             saved = self._save_config(stamp)
             self._step(f"Konfiguration gesichert in {saved.name}.")
-            set_env_value(self.env_file, ENV_KEY, version)
+            pin_version(self.project_dir, version)
             self._step(f"Hole Version {version} …")
             self._compose("pull", self.service)
             self._touched = True
@@ -325,7 +416,7 @@ class Updater:
         try:
             # Ausdrücklich die bisherige Version eintragen – „latest“ könnte die
             # gerade fehlgeschlagene neue Version sein.
-            set_env_value(self.env_file, ENV_KEY, previous or old_value)
+            pin_version(self.project_dir, previous or old_value)
             if not getattr(self, "_touched", False):
                 self.state.update(state="failed", finished=_now(),
                                   message=f"Update nicht möglich ({reason}). An der laufenden App wurde nichts geändert.")
@@ -350,14 +441,16 @@ class Updater:
 
 # ---------- Ersteinrichtung ----------
 
-def configured(env_file: Path) -> bool:
+def configured(env_file: Path, data_file: Path | None = None) -> bool:
     if read_env_value(env_file, MIGRATED_MARKER) == "app":
+        return True
+    if data_file is not None and _has_state(data_file, KEEP_STATE[0]):
         return True
     return all(read_env_value(env_file, key) for key in CREDENTIAL_KEYS)
 
 
 def cleanup_env(updater: "Updater", keys: dict[str, Any]) -> tuple[bool, str, list[str]]:
-    """Übernommene Verbindungsdaten aus .env entfernen.
+    """Von der App übernommene Werte aus .env entfernen.
 
     Entfernt wird ein Schlüssel nur, wenn er erlaubt ist und sein Wert genau der
     übergebenen Prüfsumme entspricht (also das ist, was die App gespeichert hat).
@@ -368,8 +461,8 @@ def cleanup_env(updater: "Updater", keys: dict[str, Any]) -> tuple[bool, str, li
         return False, "Nicht erlaubte Schlüssel.", []
     removable = []
     for key, digest in keys.items():
-        value = read_env_value(updater.env_file, key)
-        if value and isinstance(digest, str) and hashlib.sha256(value.encode("utf-8")).hexdigest() == digest:
+        value = _env_line_value(updater.env_file, key)
+        if value is not None and isinstance(digest, str) and hashlib.sha256(value.encode("utf-8")).hexdigest() == digest:
             removable.append(key)
     if not removable:
         return True, "Nichts zu entfernen.", []
@@ -378,17 +471,64 @@ def cleanup_env(updater: "Updater", keys: dict[str, Any]) -> tuple[bool, str, li
     try:
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
         saved = updater._save_config(stamp, prefix="env-vor-aufraeumen")
-        set_env_values(updater.env_file, {**{key: None for key in removable}, MIGRATED_MARKER: "app"})
-        logger.info("Aus .env entfernt (jetzt verschlüsselt in der App): %s; Sicherung in %s.",
+        set_env_values(updater.env_file, {key: None for key in removable})
+        logger.info("Aus .env entfernt (gilt jetzt aus der App): %s; Sicherung in %s.",
                     ", ".join(removable), saved.name)
+        tidy_env(updater, backup=False)
     finally:
         updater._lock.release()
     return True, "aufgeräumt", removable
 
 
+def tidy_env(updater: "Updater", *, backup: bool = True) -> list[str]:
+    """.env überflüssig machen: Version nach compose.yaml, Markierung weg, leere Datei löschen.
+
+    Läuft beim Start des Updaters und nach dem Aufräumen. Gibt die Schritte zurück.
+    """
+    env_file = updater.env_file
+    if not env_file.exists():
+        return []
+    steps: list[str] = []
+    saved = False
+
+    def save_once() -> None:
+        nonlocal saved
+        if backup and not saved:
+            updater._save_config(datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S"), prefix="env-vor-aufraeumen")
+            saved = True
+
+    if _env_line_value(env_file, ENV_KEY) is not None and COMPOSE_IMAGE.search(
+            (updater.project_dir / "compose.yaml").read_text(encoding="utf-8")
+            if (updater.project_dir / "compose.yaml").is_file() else ""):
+        save_once()
+        pin_version(updater.project_dir, read_env_value(env_file, ENV_KEY))
+        steps.append("Version nach compose.yaml übernommen")
+    if _env_line_value(env_file, MIGRATED_MARKER) is not None and _has_state(updater.data_file, KEEP_STATE[0]):
+        save_once()
+        set_env_value(env_file, MIGRATED_MARKER, None)
+        steps.append(f"{MIGRATED_MARKER} entfernt")
+    lines = env_file.read_text(encoding="utf-8").splitlines()
+    compose = updater.project_dir / "compose.yaml"
+    if all(not line.strip() or line.strip().startswith("#") for line in lines) and compose.is_file():
+        text = compose.read_text(encoding="utf-8")
+        if LEGACY_ENV_FILE.search(text):
+            save_once()
+            text = LEGACY_ENV_FILE.sub(
+                lambda m: f"{m['i']}env_file:\n{m['j']}- path: .env\n{m['j']}  required: false", text, count=1)
+            _write_like(compose, text)
+            steps.append("compose.yaml: .env ist jetzt optional")
+        if OPTIONAL_ENV_FILE.search(text):
+            save_once()
+            env_file.unlink()
+        steps.append(".env gelöscht (nichts mehr darin)")
+    if steps:
+        logger.info(".env aufgeräumt: %s.", "; ".join(steps))
+    return steps
+
+
 def configure(updater: "Updater", values: dict[str, Any]) -> tuple[bool, str]:
     """Schreibt die Werte der Ersteinrichtung – nur solange noch keine Zugangsdaten gesetzt sind."""
-    if configured(updater.env_file):
+    if configured(updater.env_file, updater.data_file):
         return False, "Die Einrichtung ist bereits abgeschlossen; Zugangsdaten änderst du unter Einstellungen → Verbindungen."
     if not isinstance(values, dict) or not values:
         return False, "Keine Werte übergeben."
@@ -449,7 +589,7 @@ def make_handler(updater: Updater) -> type[BaseHTTPRequestHandler]:
 
         def do_GET(self) -> None:  # noqa: N802
             if self.path == "/status":
-                self._send(200, {**updater.state, "configured": configured(updater.env_file)})
+                self._send(200, {**updater.state, "configured": configured(updater.env_file, updater.data_file)})
             else:
                 self._send(404, {"error": "not found"})
 
@@ -490,6 +630,10 @@ def main() -> None:
         health_timeout=float(os.environ.get("HEALTH_TIMEOUT", "240")),
     )
     port = int(os.environ.get("UPDATER_PORT", "8000"))
+    try:
+        tidy_env(updater)
+    except Exception as error:  # noqa: BLE001 – Aufräumen ist nur Kür
+        logger.warning(".env konnte nicht aufgeräumt werden: %s", error)
     logger.info("Updater bereit für %s (Projekt %s).", updater.service, project)
     ThreadingHTTPServer(("0.0.0.0", port), make_handler(updater)).serve_forever()
 

@@ -16,36 +16,23 @@ _spec.loader.exec_module(updater)
 class EnvTests(unittest.TestCase):
     VALUES = ["abc", "pa$word", "it's \\ back$slash \"q\" #h", "a b ", "0.17.0", "http://host.docker.internal:1234/v1", ""]
 
-    def test_quoting_matches_updater_and_round_trips(self):
+    def test_updater_quoting_round_trips(self):
         for value in self.VALUES:
-            quoted = setup_wizard.quote_env_value(value)
-            self.assertEqual(quoted, updater.quote_env_value(value), value)
-            self.assertEqual(updater._unquote(quoted), value, value)
+            self.assertEqual(updater._unquote(updater.quote_env_value(value)), value, value)
         with self.assertRaises(ValueError):
-            setup_wizard.quote_env_value("zwei\nzeilen")
+            updater.quote_env_value("zwei\nzeilen")
 
-    def test_env_values_and_text(self):
-        values = setup_wizard.env_values({
+    def test_stored_values(self):
+        stored, chosen = setup_wizard.stored_values({
             "imap_host": " imap.example.org ", "imap_username": "a@b.de", "imap_password": " geheim$ ",
-            "ai_base_url": "http://ki:1234/v1", "ai_model": "modell", "timezone": "Europe/Berlin", "language": "en",
+            "ai_base_url": "http://ki:1234/v1/", "ai_model": "modell", "timezone": "Europe/Berlin", "language": "en",
         })
-        self.assertEqual(values["IMAP_HOST"], "imap.example.org")
-        self.assertEqual(values["IMAP_PASSWORD"], " geheim$ ")  # Passwörter unverändert
-        self.assertEqual(values["IMAP_FOLDER"], "INBOX")
-        self.assertEqual(values["CALDAV_URL"], "https://caldav.icloud.com")
-        text = setup_wizard.env_text(values)
-        self.assertIn("IMAP_PASSWORD=' geheim$ '\n", text)
-        self.assertNotIn("CALDAV_USERNAME=", text)  # leere Werte entfallen
-        self.assertEqual(set(values) - updater.SETUP_KEYS, set())
-        self.assertNotIn("CONNECTIONS_EDIT_WITHOUT_PASSWORD", values)  # nur wenn gewählt
-        base = {"imap_host": "h", "imap_username": "u", "imap_password": "p", "edit_without_password": True}
-        allowed = setup_wizard.env_values(base)
-        self.assertEqual(allowed["CONNECTIONS_EDIT_WITHOUT_PASSWORD"], "1")
-        self.assertEqual(set(allowed) - updater.SETUP_KEYS, set())
-        # mit Passwort überflüssig
-        self.assertNotIn("CONNECTIONS_EDIT_WITHOUT_PASSWORD", setup_wizard.env_values({**base, "app_password": "12345678"}))
-        with patch.dict(os.environ, {"CONNECTIONS_EDIT_WITHOUT_PASSWORD": "1"}):
-            self.assertTrue(Settings.from_env().connections_without_password)
+        self.assertEqual(stored["IMAP_HOST"], "imap.example.org")
+        self.assertEqual(stored["IMAP_PASSWORD"], " geheim$ ")  # Passwörter unverändert
+        self.assertEqual(stored["AI_BASE_URL"], "http://ki:1234/v1")
+        self.assertEqual(stored["CALDAV_URL"], "https://caldav.icloud.com")
+        self.assertNotIn("CALDAV_USERNAME", stored)  # leere Werte entfallen
+        self.assertEqual(chosen, {"language": "en", "imap_folder": "INBOX", "ai_model": "modell", "caldav_timezone": "Europe/Berlin"})
 
     def test_setup_mode_without_credentials(self):
         with patch.dict(os.environ, {"IMAP_HOST": "", "IMAP_USERNAME": "", "IMAP_PASSWORD": "", "DEMO_MODE": "0"}):

@@ -3,13 +3,20 @@
 Nur Verhaltensparameter. Zugangsdaten und Server-Adressen stehen verschlüsselt
 in connections.py und sind nur mit APP_PASSWORD änderbar (Einstellungen →
 Verbindungen) – sonst könnte jeder im Netz alle Mails umleiten.
+
+Werte für diese Parameter in `.env` (aus älteren Versionen oder vom
+Einrichtungsassistenten) übernimmt `absorb_env` beim Start in die Datenbank;
+danach entfernt der Updater sie aus `.env`.
 """
 
+import hashlib
+import json
 import logging
 from dataclasses import dataclass, replace
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from . import db
 from .config import Settings
 from .i18n import _
 
@@ -166,12 +173,25 @@ PARAMETERS: tuple[Parameter, ...] = (
         "Ältere Sicherungen werden automatisch gelöscht; die neueste bleibt immer erhalten.",
         unit="Tage", minimum=1, maximum=365,
     ),
+    Parameter(
+        "update_check", "System", "Nach neuen Versionen suchen",
+        "Fragt einmal täglich die öffentliche Versionsliste bei GitHub ab. Dabei "
+        "werden keine Daten aus der App übertragen.",
+        kind="choice", choices=(("1", "An"), ("0", "Aus")),
+    ),
+    Parameter(
+        "log_level", "System", "Ausführlichkeit der Protokolle",
+        "„Fehlersuche“ schreibt deutlich mehr in die Logs (docker compose logs).",
+        kind="choice", choices=(("INFO", "Normal"), ("DEBUG", "Fehlersuche"), ("WARNING", "Nur Warnungen")),
+    ),
 )
 PARAMETERS_BY_KEY = {parameter.key: parameter for parameter in PARAMETERS}
 
 
 def display_value(parameter: Parameter, settings: Settings) -> str:
     value = getattr(settings, parameter.key)
+    if isinstance(value, bool):
+        return "1" if value else "0"
     if parameter.kind == "int":
         scaled = value / parameter.factor
         return str(int(scaled)) if scaled == int(scaled) else f"{scaled:g}"
@@ -238,8 +258,90 @@ def apply_overrides(base: Settings, stored: dict[str, str]) -> Settings:
                 changes[key] = number
             else:
                 changes[key] = parse_value(parameter, raw)
+                if isinstance(getattr(base, key), bool):
+                    changes[key] = changes[key] == "1"
         except ValueError as error:
             logger.warning(
                 "Gespeicherte Einstellung %s wird ignoriert (%s).", key, error
             )
     return replace(base, **changes)
+
+
+# .env-Name je Parameter (Benachrichtigungs-Parameter gab es nie in .env)
+ENV_NAMES = {
+    parameter.key: "APP_LANGUAGE" if parameter.key == "language" else parameter.key.upper()
+    for parameter in PARAMETERS if not parameter.key.startswith("notify_")
+}
+_TRUE = {"1", "true", "yes", "ja"}
+# Nur-.env-Schalter: entfernbar, solange sie den eingebauten Standard wiederholen
+DEFAULT_ONLY = {
+    "APP_DATABASE_PATH": "/data/calendar-assistant.sqlite3",
+    "DEMO_MODE": "0",
+    "TARGET_CALENDARS": "",
+}
+ENV_HASHES_STATE = "env_settings_hashes"
+
+
+def _digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _stored_text(parameter: Parameter, value: Any) -> str:
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    return str(int(value)) if parameter.kind == "int" else str(value)
+
+
+def absorb_env(database_path: str, environ: dict[str, str] | Any, *, targets_set: bool) -> tuple[list[str], dict[str, str]]:
+    """Einstellungswerte aus .env in die Datenbank übernehmen.
+
+    Ein Wert gilt als neu, wenn er sich seit der letzten Übernahme geändert hat;
+    ein in der Oberfläche geänderter Wert wird von einem unveränderten alten
+    .env-Wert nie überschrieben. Rückgabe: (übernommene Parameter,
+    {.env-Schlüssel: Prüfsumme} der Zeilen, die aus .env entfernt werden dürfen).
+    """
+    current = Settings.from_env(environ=environ)
+    defaults = Settings.from_env(environ={})
+    stored = db.get_app_settings(database_path)
+    state = db.get_service_state(database_path)
+    try:
+        hashes: dict[str, str] = json.loads(state.get(ENV_HASHES_STATE) or "{}")
+    except ValueError:
+        hashes = {}
+    absorbed: dict[str, str] = {}
+    removable: dict[str, str] = {}
+    for key, name in ENV_NAMES.items():
+        if name not in environ:
+            continue
+        raw = environ[name]
+        digest = _digest(raw)
+        parameter = PARAMETERS_BY_KEY[key]
+        value = getattr(current, key)
+        known = name in hashes
+        changed = known and hashes[name] != digest
+        if raw.strip() and (changed or (not known and key not in stored and value != getattr(defaults, key))):
+            text = _stored_text(parameter, value)
+            try:
+                if parameter.kind == "int":
+                    if value % parameter.factor:
+                        raise ValueError("kein Vielfaches der Einheit")
+                    parse_value(parameter, str(value // parameter.factor))
+                else:
+                    parse_value(parameter, text)
+            except ValueError:
+                logger.warning("Wert für %s in .env ist ungültig und bleibt dort.", name)
+                continue
+            absorbed[key] = text
+        hashes[name] = digest
+        removable[name] = digest
+    for name, default in DEFAULT_ONLY.items():
+        if name not in environ:
+            continue
+        raw = environ[name]
+        if raw.strip() in {"", default} or (name == "TARGET_CALENDARS" and targets_set):
+            removable[name] = _digest(raw)
+    if absorbed:
+        db.save_app_settings(database_path, absorbed)
+        logger.info("Einstellungen aus .env übernommen: %s.", ", ".join(ENV_NAMES[key] for key in absorbed))
+    db.set_service_state(database_path, **{ENV_HASHES_STATE: json.dumps(hashes, sort_keys=True)})
+    return list(absorbed), removable

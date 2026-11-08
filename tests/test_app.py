@@ -1124,26 +1124,36 @@ class SetupModeTests(unittest.TestCase):
                 self.assertNotIn('id="setup-resume"', client.get("/").text)
                 self.assertEqual(client.post("/api/setup/resume").status_code, 404)
 
-    def test_finish_with_and_without_updater(self):
-        before = db.list_target_calendars(app_module.settings.database_path)
+    def test_finish_stores_everything_in_the_app(self):
         payload = {"language": "en", "timezone": "Europe/Berlin", "imap_host": "imap.example.org", "imap_username": "a@b.de",
-                   "imap_password": "it's $x", "ai_base_url": "http://ki:1/v1", "ai_model": "m1",
+                   "imap_password": "it's $x", "ai_base_url": "http://ki:1/v1/", "ai_model": "m1",
+                   "edit_without_password": True,
                    "targets": [{"name": "Neu", "description": "Test", "shared": False}]}
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
-                with patch.object(app_module, "settings", self._setup_settings()):
-                    with patch.object(app_module.updates, "updater_status", return_value=None):
-                        data = client.post("/api/setup/finish", json=payload).json()
-                        self.assertEqual(data["mode"], "manual")
-                        self.assertIn('IMAP_PASSWORD="it\'s $$x"', data["env"])
-                        self.assertIn("APP_LANGUAGE=en", data["env"])
-                    self.assertEqual(db.list_target_calendars(app_module.settings.database_path)[0]["name"], "Neu")
-                    with patch.object(app_module.updates, "updater_status", return_value={"state": "idle"}), \
-                         patch.object(app_module.updates, "configure", return_value=(True, "gespeichert")) as configure:
-                        self.assertEqual(client.post("/api/setup/finish", json=payload).json(), {"mode": "updater"})
-                        self.assertEqual(configure.call_args.args[1]["IMAP_PASSWORD"], "it's $x")
-                    self.assertEqual(client.post("/api/setup/finish", json={**payload, "timezone": "Mond/Krater"}).status_code, 422)
-        db.save_target_calendars(app_module.settings.database_path, before)
+                with patch.object(app_module, "settings", self._setup_settings()), \
+                        patch.object(app_module.connections, "update") as update, \
+                        patch.object(app_module.db, "save_app_settings") as save_settings, \
+                        patch.object(app_module.db, "save_target_calendars") as save_targets, \
+                        patch.object(app_module.access, "set_password") as set_password, \
+                        patch.object(app_module.access, "set_without_password") as set_without, \
+                        patch.object(app_module, "_schedule_restart") as restart:
+                    self.assertEqual(client.post("/api/setup/finish", json=payload).json(), {"mode": "restart"})
+                    stored = update.call_args.args[1]
+                    self.assertEqual((stored["IMAP_PASSWORD"], stored["AI_BASE_URL"]), ("it's $x", "http://ki:1/v1"))
+                    self.assertNotIn("CALDAV_USERNAME", stored)  # leere Werte entfallen
+                    self.assertEqual(save_settings.call_args.args[1],
+                                     {"language": "en", "imap_folder": "INBOX", "ai_model": "m1", "caldav_timezone": "Europe/Berlin"})
+                    self.assertEqual(save_targets.call_args.args[1][0]["name"], "Neu")
+                    set_password.assert_called_once_with(app_module.settings.database_path, None)
+                    set_without.assert_called_once_with(app_module.settings.database_path, True)
+                    restart.assert_called_once()
+                    set_without.reset_mock()
+                    client.post("/api/setup/finish", json={**payload, "app_password": "12345678"})
+                    self.assertEqual(set_password.call_args.args[1], "12345678")
+                    set_without.assert_not_called()  # mit Passwort überflüssig
+                    for bad in ({"timezone": "Mond/Krater"}, {"app_password": "kurz"}, {"imap_folder": "a\nb"}):
+                        self.assertEqual(client.post("/api/setup/finish", json={**payload, **bad}).status_code, 422, bad)
 
 
 class ReleaseCacheTests(unittest.TestCase):
@@ -1433,6 +1443,9 @@ class CalendarBackupPageTests(unittest.TestCase):
                     self.assertNotRegex(page, r'value="Privat" checked')
 
 
+_HASHES = {password: app_module.access.hash_password(password) for password in ("geheim-123", "anderes-456")}
+
+
 class LoginTests(unittest.TestCase):
     def setUp(self):
         app_module._login_failures.clear()
@@ -1445,7 +1458,7 @@ class LoginTests(unittest.TestCase):
                 self.assertNotIn('action="/abmelden"', client.get("/").text)
 
     def test_password_protects_pages_and_api(self):
-        protected = replace(app_module.settings, app_password="geheim-123")
+        protected = replace(app_module.settings, password_hash=_HASHES["geheim-123"])
         with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "LOGIN_FAILURE_DELAY", 0):
             with TestClient(app_module.app) as client, patch.object(app_module, "settings", protected):
                 response = client.get("/archiv?q=x", follow_redirects=False)
@@ -1469,14 +1482,61 @@ class LoginTests(unittest.TestCase):
                 evil = client.post("/anmelden", content="passwort=geheim-123&weiter=//evil.example", headers=form, follow_redirects=False)
                 self.assertEqual(evil.headers["location"], "/")
                 # Neues Passwort meldet ab
-                with patch.object(app_module, "settings", replace(protected, app_password="anderes-456")):
+                with patch.object(app_module, "settings", replace(protected, password_hash=_HASHES["anderes-456"])):
                     self.assertEqual(client.get("/", follow_redirects=False).status_code, 303)
                 client.post("/abmelden")
                 self.assertEqual(client.get("/", follow_redirects=False).status_code, 303)
                 client.cookies.clear()
 
+    def test_access_protection_can_be_set_changed_and_switched_off(self):
+        path = app_module.settings.database_path
+        form = {"Content-Type": "application/x-www-form-urlencoded"}
+        try:
+            with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "LOGIN_FAILURE_DELAY", 0):
+                with TestClient(app_module.app) as client:
+                    page = client.get("/einstellungen").text
+                    self.assertIn('id="zugangsschutz"', page)
+                    self.assertIn('name="wiederholung"', page)
+                    short = client.post("/einstellungen/zugangsschutz", content="aktion=setzen&neu=kurz&wiederholung=kurz", headers=form)
+                    self.assertEqual(short.status_code, 422)
+                    other = client.post("/einstellungen/zugangsschutz", content="aktion=setzen&neu=geheim-123&wiederholung=geheim-124", headers=form)
+                    self.assertEqual(other.status_code, 422)
+                    self.assertFalse(app_module.settings.password_hash)
+                    done = client.post("/einstellungen/zugangsschutz", content="aktion=setzen&neu=geheim-123&wiederholung=geheim-123",
+                                       headers=form, follow_redirects=False)
+                    self.assertEqual(done.status_code, 303)
+                    self.assertIn("Passwort gespeichert", client.get(done.headers["location"]).text)
+                    self.assertTrue(app_module.access.verify_password("geheim-123", app_module.settings.password_hash))
+                    # diese Sitzung bleibt angemeldet
+                    self.assertEqual(client.get("/einstellungen", follow_redirects=False).status_code, 200)
+                    with self.assertLogs("src.app", "WARNING"):
+                        wrong = client.post("/einstellungen/zugangsschutz", content="aktion=abschalten&aktuell=falsch", headers=form)
+                    self.assertEqual(wrong.status_code, 422)
+                    self.assertTrue(app_module.settings.password_hash)
+                    changed = client.post("/einstellungen/zugangsschutz",
+                                          content="aktion=setzen&aktuell=geheim-123&neu=anderes-456&wiederholung=anderes-456",
+                                          headers=form, follow_redirects=False)
+                    self.assertEqual(changed.status_code, 303)
+                    self.assertTrue(app_module.access.verify_password("anderes-456", app_module.settings.password_hash))
+                    off = client.post("/einstellungen/zugangsschutz", content="aktion=abschalten&aktuell=anderes-456",
+                                      headers=form, follow_redirects=False)
+                    self.assertEqual(off.status_code, 303)
+                    self.assertFalse(app_module.settings.password_hash)
+                    # Bearbeiten ohne Passwort: in der Oberfläche nur abschaltbar
+                    app_module.access.set_without_password(path, True)
+                    app_module._reload_settings()
+                    self.assertIn('value="ohne-passwort-aus"', client.get("/einstellungen").text)
+                    client.post("/einstellungen/zugangsschutz", content="aktion=ohne-passwort-aus", headers=form)
+                    self.assertFalse(app_module.settings.connections_without_password)
+                    self.assertEqual(client.post("/einstellungen/zugangsschutz", content="aktion=ohne-passwort-an", headers=form).status_code, 422)
+        finally:
+            app_module.access.set_password(path, None)
+            app_module.access.set_without_password(path, False)
+            app_module._reload_settings()
+            app_module._login_failures.clear()
+
     def test_repeated_failures_lock_out(self):
-        protected = replace(app_module.settings, app_password="geheim-123")
+        protected = replace(app_module.settings, password_hash=_HASHES["geheim-123"])
         form = {"Content-Type": "application/x-www-form-urlencoded"}
         with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "LOGIN_FAILURE_DELAY", 0):
             with TestClient(app_module.app) as client, patch.object(app_module, "settings", protected):
@@ -1654,7 +1714,7 @@ class AutoExportTests(unittest.TestCase):
 
 class ConnectionsPageTests(unittest.TestCase):
     def _protected(self):
-        return replace(app_module.settings, app_password="geheim-123")
+        return replace(app_module.settings, password_hash=_HASHES["geheim-123"])
 
     def _login(self, client):
         client.post("/anmelden", content="passwort=geheim-123", headers={"Content-Type": "application/x-www-form-urlencoded"})
@@ -1663,8 +1723,8 @@ class ConnectionsPageTests(unittest.TestCase):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
                 page = client.get("/einstellungen/verbindungen").text
-                self.assertIn("APP_PASSWORD=dein-passwort", page)
-                self.assertIn("CONNECTIONS_EDIT_WITHOUT_PASSWORD=1", page)
+                self.assertIn('href="/einstellungen#zugangsschutz"', page)
+                self.assertIn("python -m src.access ohne-passwort-an", page)
                 self.assertIn(" disabled", page)
                 self.assertNotIn("Prüfen und speichern", page)
                 for anchor in ("postfaecher", "ki", "kalender", "benachrichtigungen"):
