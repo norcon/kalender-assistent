@@ -194,6 +194,7 @@
         caldav_url: value("caldav_url"), caldav_username: value("caldav_username"), caldav_password: form.elements.caldav_password.value,
         caldav_name: value("caldav_name"),
         app_password: form.elements.app_password.value,
+        edit_without_password: !form.elements.app_password.value && form.elements.edit_without_password.checked,
         targets: targets(),
       });
       if (data.mode === "updater") {
@@ -223,6 +224,12 @@
   });
 
   form.elements.app_password.addEventListener("input", summary);
+  // Mit Passwort ist Bearbeiten ohnehin möglich – der Haken gilt nur ohne.
+  const withoutPassword = () => {
+    document.getElementById("edit-without-password-row").hidden = Boolean(form.elements.app_password.value);
+  };
+  form.elements.app_password.addEventListener("input", withoutPassword);
+  withoutPassword();
 
   // Kalender-Anbieter: Adresse, Anzeigename und Hinweis vorbelegen.
   form.elements.caldav_provider.addEventListener("change", () => {

@@ -99,6 +99,8 @@ class Settings:
     updater_url: str = "http://updater:8000"
     update_check: bool = True
     app_password: str = ""  # leer = kein Zugangsschutz
+    # Verbindungen auch ohne APP_PASSWORD in der Oberfläche änderbar (bewusst nur per .env)
+    connections_without_password: bool = False
     app_url: str = ""  # Adresse für Links in Benachrichtigungen
     imap_name: str = ""  # Anzeigename des (ersten) Postfachs
     extra_mailboxes: tuple = ()  # weitere Postfächer aus IMAP2_* … IMAP9_*
@@ -170,6 +172,8 @@ class Settings:
             update_repository=getenv("UPDATE_REPOSITORY", "norcon/kalender-assistent").strip(),
             updater_url=getenv("UPDATER_URL", "http://updater:8000").strip(),
             app_password=getenv("APP_PASSWORD", "").strip("\r\n"),
+            connections_without_password=getenv("CONNECTIONS_EDIT_WITHOUT_PASSWORD", "0").strip().lower()
+            in {"1", "true", "yes", "ja"},
             app_url=getenv("APP_URL", "").strip(),
             caldav_name=getenv("CALDAV_NAME", "").strip() or service_name_for(getenv("CALDAV_URL", "")),
             caldav_auth=(getenv("CALDAV_AUTH", "basic").strip().lower() or "basic"),

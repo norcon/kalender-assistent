@@ -1,0 +1,12 @@
+            <label{% if kind == "url" %} class="wide"{% endif %}>{{ _(label) }}
+              {% if kind.startswith("choice:") %}
+                <select name="{{ key }}"{% if not editable %} disabled{% endif %}>
+                  {% for option in kind[7:].split("|") %}<option value="{{ option }}"{% if (stored.get(key) or kind[7:].split("|")[0]) == option %} selected{% endif %}>{{ option }}</option>{% endfor %}
+                </select>
+              {% elif kind == "secret" %}
+                <input type="password" name="{{ key }}" autocomplete="new-password" placeholder="{{ _("gesetzt – leer lassen für unverändert") if secret_set.get(key) else _("nicht gesetzt") }}"{% if not editable %} disabled{% endif %}>
+                {% if secret_set.get(key) and editable %}<span class="clear-secret"><input type="checkbox" name="{{ key }}__clear"> {{ _("löschen") }}</span>{% endif %}
+              {% else %}
+                <input type="{{ "number" if kind == "port" else "text" }}" name="{{ key }}" value="{{ stored.get(key, "") }}"{% if key == "CALDAV_URL" %} placeholder="https://caldav.icloud.com"{% elif key == "SMTP_PORT" %} placeholder="587"{% endif %} autocomplete="off"{% if not editable %} disabled{% endif %}>
+              {% endif %}
+            </label>

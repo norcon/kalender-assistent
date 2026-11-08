@@ -1,7 +1,13 @@
 {% from "_macros.html" import info %}
     {% for group, fields in groups.items() %}
-      <section aria-labelledby="group-{{ loop.index }}">
+      <section aria-labelledby="group-{{ loop.index }}"{% if group == "Benachrichtigungen" %} id="ereignisse"{% endif %}>
         <h2 id="group-{{ loop.index }}">{{ _(group) }}</h2>
+        {% set link = {
+          "Postfach": ("postfaecher", _("Server und Zugangsdaten der Postfächer")),
+          "KI-Auswertung": ("ki", _("Adresse des KI-Servers")),
+          "Kalender": ("kalender", _("Kalender-Server und Zugangsdaten")),
+        }.get(group) %}
+        {% if link %}<p class="group-link">{{ link[1] }}: <a href="/einstellungen/verbindungen#{{ link[0] }}">{{ _("Verbindungen") }} <span aria-hidden="true">→</span></a></p>{% endif %}
         {% for field in fields %}
           {% set p = field.parameter %}
           <div class="field{% if field.error %} invalid{% endif %}">
@@ -28,8 +34,8 @@
         {% if group == "Benachrichtigungen" %}
           {% set channels = notify_channels() %}
           <div class="notify-channels">
-            <p>{% if channels %}{{ _("Eingerichtete Kanäle: {list}", list=channels|join(", ")) }}{% else %}{{ _("Noch kein Kanal eingerichtet.") }}{% endif %}
-              {{ info(_("Die Kanäle – ntfy, Pushover, Home Assistant oder E-Mail – richtest du unter Einstellungen → Verbindungen ein. Ist dort die Adresse der App eingetragen, enthalten die Nachrichten einen Link zur App."), _("Kanäle")) }}</p>
+            <p>{% if channels %}{{ _("Eingerichtete Kanäle: {list}", list=channels|join(", ")) }}{% else %}{{ _("Noch kein Kanal eingerichtet – ohne Kanal meldet die App nichts.") }}{% endif %}</p>
+            <a class="button secondary" href="/einstellungen/verbindungen#benachrichtigungen">{% if channels %}{{ _("Kanäle bearbeiten") }}{% else %}{{ _("Kanal einrichten: ntfy, Pushover, Home Assistant oder E-Mail") }}{% endif %}</a>
             {% if channels %}<button type="button" class="secondary" id="notify-test">{{ _("Test senden") }}</button> <span id="notify-test-result" role="status" aria-live="polite"></span>{% endif %}
           </div>
         {% endif %}

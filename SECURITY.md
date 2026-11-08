@@ -22,8 +22,10 @@ Was die App selbst absichert:
   Datenordner samt `secret.key` beim Umzug mitnehmen.
 - Bearbeiten lassen sich diese Verbindungen in der Oberfläche **nur mit
   eingeschaltetem Zugangsschutz** (`APP_PASSWORD`) – sonst könnte jemand im
-  Netz z. B. alle Mails an einen fremden KI-Server umleiten. Jede Änderung wird
-  vor dem Speichern geprüft.
+  Netz z. B. alle Mails an einen fremden KI-Server umleiten. Wer das bewusst
+  in Kauf nimmt, erlaubt es mit `CONNECTIONS_EDIT_WITHOUT_PASSWORD=1` in
+  `.env` auch ohne Passwort; die Seite weist dann darauf hin. Jede Änderung
+  wird vor dem Speichern geprüft.
 - Werte in `.env` werden beim Start übernommen und danach vom Updater aus
   `.env` entfernt; vorher sichert er `.env` nach
   `backups/env-vor-aufraeumen-…/`. Diese Sicherung enthält die Zugangsdaten
@@ -79,7 +81,8 @@ reachable from the internet, also use HTTPS via a reverse proxy.
 Credentials and server addresses are stored **encrypted** in the database; the
 key is kept separately in `data/secret.key` (or `APP_SECRET_KEY`), so database
 backups alone are useless. They can be edited in the interface only when access
-protection (`APP_PASSWORD`) is on; every change is tested first. Values found
+protection (`APP_PASSWORD`) is on – or, accepting that anyone on the network
+can change them, with `CONNECTIONS_EDIT_WITHOUT_PASSWORD=1` in `.env`; every change is tested first. Values found
 in `.env` are imported at start-up and then removed from `.env` by the updater
 (after backing it up to `backups/env-vor-aufraeumen-…/`, which contains them in
 plain text and can be deleted once everything works). The mailbox is opened

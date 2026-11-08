@@ -37,6 +37,15 @@ class EnvTests(unittest.TestCase):
         self.assertIn("IMAP_PASSWORD=' geheim$ '\n", text)
         self.assertNotIn("CALDAV_USERNAME=", text)  # leere Werte entfallen
         self.assertEqual(set(values) - updater.SETUP_KEYS, set())
+        self.assertNotIn("CONNECTIONS_EDIT_WITHOUT_PASSWORD", values)  # nur wenn gewählt
+        base = {"imap_host": "h", "imap_username": "u", "imap_password": "p", "edit_without_password": True}
+        allowed = setup_wizard.env_values(base)
+        self.assertEqual(allowed["CONNECTIONS_EDIT_WITHOUT_PASSWORD"], "1")
+        self.assertEqual(set(allowed) - updater.SETUP_KEYS, set())
+        # mit Passwort überflüssig
+        self.assertNotIn("CONNECTIONS_EDIT_WITHOUT_PASSWORD", setup_wizard.env_values({**base, "app_password": "12345678"}))
+        with patch.dict(os.environ, {"CONNECTIONS_EDIT_WITHOUT_PASSWORD": "1"}):
+            self.assertTrue(Settings.from_env().connections_without_password)
 
     def test_setup_mode_without_credentials(self):
         with patch.dict(os.environ, {"IMAP_HOST": "", "IMAP_USERNAME": "", "IMAP_PASSWORD": "", "DEMO_MODE": "0"}):

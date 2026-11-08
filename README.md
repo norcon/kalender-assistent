@@ -303,12 +303,15 @@ Werten aus `.env`.
 ### Verbindungen
 
 Postfächer, KI-Server, Kalender-Server und Benachrichtigungs-Kanäle stehen
-unter **Einstellungen → Verbindungen**. Passwörter und Tokens liegen dort
+unter **Einstellungen → Verbindungen** – die Einstellungsseite zeigt sie oben
+als Übersicht mit direktem Link. Passwörter und Tokens liegen dort
 verschlüsselt in der Datenbank; der Schlüssel liegt getrennt in
 `data/secret.key` (oder `APP_SECRET_KEY`), Datenbank-Sicherungen allein sind
-also wertlos. Bearbeiten lassen sich die Verbindungen nur mit eingeschaltetem
-Zugangsschutz (`APP_PASSWORD`); jede Änderung wird vor dem Speichern geprüft,
-danach startet die App kurz neu.
+also wertlos. Bearbeiten lassen sich die Verbindungen mit eingeschaltetem
+Zugangsschutz (`APP_PASSWORD`) – oder, wenn nur vertrauenswürdige Geräte im
+Netz sind, auch ohne: `CONNECTIONS_EDIT_WITHOUT_PASSWORD=1` in `.env` (bzw. der
+Haken im Einrichtungsassistenten). Jede Änderung wird vor dem Speichern
+geprüft, danach startet die App kurz neu.
 
 Werte in `.env` werden beim Start übernommen und anschließend vom Updater aus
 `.env` entfernt (vorher gesichert in `backups/env-vor-aufraeumen-…/` – diese
@@ -338,9 +341,9 @@ Protokolleinträge bleiben deutsch.
 Beispieldaten und ohne Verbindung zu Postfach, KI oder iCloud – zum
 Ausprobieren und für Screenshots. Übertragen wird nur simuliert.
 
-Ohne `APP_PASSWORD` werden die Verbindungen nur angezeigt (Passwörter nie).
-Sonst könnte jemand im Netz z. B. alle E-Mails an einen fremden KI-Server
-umleiten.
+Ohne `APP_PASSWORD` (und ohne `CONNECTIONS_EDIT_WITHOUT_PASSWORD=1`) werden
+die Verbindungen nur angezeigt, Passwörter nie. Sonst könnte jemand im Netz
+z. B. alle E-Mails an einen fremden KI-Server umleiten.
 
 ## Mehrere Postfächer
 

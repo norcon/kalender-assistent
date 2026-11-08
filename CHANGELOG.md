@@ -4,6 +4,22 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.29.0 – 2026-11-08
+
+- **Verbindungen besser auffindbar:** Die Einstellungsseite beginnt mit einer
+  Übersicht – Postfächer, KI-Server, Kalender-Server und Benachrichtigungen
+  mit aktuellem Stand und direktem Link. Darunter Sprungmarken zu allen
+  Abschnitten; Postfach, KI-Auswertung, Kalender und Benachrichtigungen
+  verweisen auf die passende Verbindung („Kanal einrichten“).
+- **Verbindungsseite neu gegliedert:** kurze Erklärung, Sprungmarken,
+  Benachrichtigungs-Kanäle einzeln (ntfy, Pushover, Home Assistant, E-Mail)
+  mit Beschreibung und „eingerichtet“-Markierung, „Test senden“ direkt dort.
+  Ohne Freigabe zeigt die Seite Schritt für Schritt, wie man sie freischaltet.
+- **Bearbeiten ohne Passwort möglich:** `CONNECTIONS_EDIT_WITHOUT_PASSWORD=1`
+  in `.env` (oder Haken im Einrichtungsassistenten) erlaubt das Ändern der
+  Verbindungen auch ohne `APP_PASSWORD` – dann kann das jeder im Netz; die
+  Seite weist darauf hin.
+
 ## 0.28.4 – 2026-11-08
 
 - Veraltete Hinweise auf `.env` in der Oberfläche ersetzt: KI-Server,

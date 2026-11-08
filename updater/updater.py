@@ -116,6 +116,7 @@ SETUP_KEYS = {
     "AI_BASE_URL", "AI_API_KEY", "AI_MODEL",
     "CALDAV_URL", "CALDAV_USERNAME", "CALDAV_APP_PASSWORD", "CALDAV_TIMEZONE",
     "APP_LANGUAGE", "TARGET_CALENDARS", "APP_PASSWORD", "CALDAV_NAME", "CALDAV_AUTH",
+    "CONNECTIONS_EDIT_WITHOUT_PASSWORD",
 }
 CREDENTIAL_KEYS = ("IMAP_HOST", "IMAP_USERNAME", "IMAP_PASSWORD")
 # Verbindungsdaten, die die App verschlüsselt übernommen hat und die aus .env
@@ -388,7 +389,7 @@ def cleanup_env(updater: "Updater", keys: dict[str, Any]) -> tuple[bool, str, li
 def configure(updater: "Updater", values: dict[str, Any]) -> tuple[bool, str]:
     """Schreibt die Werte der Ersteinrichtung – nur solange noch keine Zugangsdaten gesetzt sind."""
     if configured(updater.env_file):
-        return False, "Die Einrichtung ist bereits abgeschlossen; Zugangsdaten werden nur noch in .env geändert."
+        return False, "Die Einrichtung ist bereits abgeschlossen; Zugangsdaten änderst du unter Einstellungen → Verbindungen."
     if not isinstance(values, dict) or not values:
         return False, "Keine Werte übergeben."
     unknown = set(values) - SETUP_KEYS

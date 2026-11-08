@@ -141,6 +141,9 @@ def env_values(form: dict[str, Any]) -> dict[str, str]:
         "APP_LANGUAGE": form.get("language") or "auto",
         "APP_PASSWORD": form.get("app_password", ""),
     }
+    if form.get("edit_without_password") and not form.get("app_password"):
+        # nur wenn gewählt – ältere Updater kennen den Schlüssel nicht
+        values["CONNECTIONS_EDIT_WITHOUT_PASSWORD"] = "1"
     secret = ("IMAP_PASSWORD", "CALDAV_APP_PASSWORD", "AI_API_KEY", "APP_PASSWORD")
     return {key: str(value).strip() if key not in secret else str(value) for key, value in values.items()}
 

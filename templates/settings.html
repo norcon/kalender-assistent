@@ -12,6 +12,29 @@
   {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
   {% if errors %}<p class="message problem" role="alert">{{ _("Bitte die markierten Felder korrigieren. Es wurde nichts gespeichert.") }}</p>{% endif %}
 
+  <section aria-labelledby="verbindungen" class="connection-overview">
+    <h2 id="verbindungen">{{ _("Verbindungen") }}</h2>
+    <p class="meta">{{ _("Postfächer, KI-Server, Kalender-Server und die Kanäle für Benachrichtigungen – Adressen und Zugangsdaten. Was die App damit tut, z. B. wie oft sie abruft oder welche Ereignisse sie meldet, stellst du weiter unten ein.") }}</p>
+    <ul class="connection-cards">
+      {% for card in connection_overview %}
+        <li><a class="connection-card" href="/einstellungen/verbindungen#{{ card.anchor }}">
+          <span class="connection-card-title">{{ card.title }}</span>
+          <span class="connection-card-hint">{{ card.hint }}</span>
+          <span class="connection-card-value{% if not card.ok %} missing{% endif %}">{{ card.value }}</span>
+          <span class="connection-card-action">{{ _("Bearbeiten") if connections_editable else _("Ansehen") }} <span aria-hidden="true">→</span></span>
+        </a></li>
+      {% endfor %}
+    </ul>
+    {% if not connections_editable and not demo_mode %}<p class="meta">{{ _("Bearbeiten lässt sich das erst mit Passwort für die Oberfläche – wie das geht, steht auf der Seite Verbindungen.") }}</p>{% endif %}
+  </section>
+
+  <nav class="page-toc" aria-label="{{ _("Auf dieser Seite") }}">
+    <span class="meta">{{ _("Auf dieser Seite:") }}</span>
+    <a href="#verbindungen">{{ _("Verbindungen") }}</a>
+    {% for group in groups %}<a href="#group-{{ loop.index }}">{{ _(group) }}</a>{% endfor %}
+    <a href="#zielkalender">{{ _("Zielkalender") }}</a>
+  </nav>
+
   <form method="post" action="/einstellungen">
     {% include "_settings_fields.html" %}
     <div class="actions">
@@ -56,14 +79,6 @@
     <button id="caldav-button" type="button">{{ _("iCloud-Verbindung testen") }}</button>
     <span id="caldav-status" role="status" aria-live="polite"></span>
     <ul id="caldav-calendars" hidden></ul>
-  </section>
-  <section aria-labelledby="fixed-heading">
-    <h2 id="fixed-heading">{{ _("Verbindungen") }}</h2>
-    <p class="meta">{{ _("Postfächer, KI-Server, Kalender-Server und Benachrichtigungs-Kanäle. Bearbeiten lassen sie sich, sobald der Zugangsschutz (APP_PASSWORD) eingeschaltet ist.") }}</p>
-    <p><a class="button secondary" href="/einstellungen/verbindungen">{{ _("Verbindungen bearbeiten") }}</a></p>
-    <dl class="fixed">
-      {% for label, value in fixed %}<dt>{{ _(label) }}</dt><dd>{{ _(value) }}</dd>{% endfor %}
-    </dl>
   </section>
 
   <script>

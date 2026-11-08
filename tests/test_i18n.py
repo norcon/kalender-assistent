@@ -47,6 +47,10 @@ def collect_keys() -> set[str]:
     keys.update(formatting.HISTORY_LABELS.values())
     keys.update(app.ARCHIVE_STATUS.values())
     keys.update(app._MESSAGES.values())
+    keys.update(label for fields in app.CONNECTION_SECTIONS.values() for _key, label, _kind in fields)
+    keys.update(label for _key, label, _kind in app.MAILBOX_FIELDS)
+    for _channel, title, description, _keys in app.NOTIFY_CHANNEL_GROUPS:
+        keys.update({title, description})
     keys.update({
         "Vergangen", "Heute", "Morgen", "Diese Woche", "Nächste Woche", "Später", "Ohne gültiges Datum",
         "unverändert", "geändert", "gelöscht",

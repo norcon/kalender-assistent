@@ -1041,6 +1041,7 @@ class SetupFinishRequest(BaseModel):
     caldav_password: str = Field(default="", max_length=500)
     caldav_name: str = Field(default="", max_length=60)
     app_password: str = Field(default="", max_length=200)
+    edit_without_password: bool = False
     targets: list[dict] = Field(default_factory=list, max_length=30)
 
 
@@ -3006,27 +3007,31 @@ def _render_settings_page(
             "calendar_colors": calendar_backup.calendar_colors(settings.calendar_store_path),
             "errors": errors or {},
             "message": message,
-            "fixed": [
-                ("IMAP-Server", f"{settings.imap_host}:{settings.imap_port}"),
-                ("IMAP-Benutzer", settings.imap_username),
-                *[
-                    ("Weiteres Postfach", f"{box.mailbox_label} – {box.imap_username}@{box.imap_host} · {box.imap_folder}")
-                    for box in settings.mailboxes()[1:]
-                ],
-                ("KI-Server", settings.ai_base_url),
-                ("iCloud-Server", settings.caldav_url),
-                ("iCloud-Benutzer", settings.caldav_username or "nicht gesetzt"),
-                (
-                    "iCloud-Passwort",
-                    "gesetzt" if settings.caldav_app_password else "nicht gesetzt",
-                ),
-                (
-                    "Zugangsschutz",
-                    "aktiv (APP_PASSWORD)" if settings.app_password else "aus – APP_PASSWORD in .env setzen",
-                ),
-            ],
+            "connection_overview": _connection_overview(),
+            "connections_editable": _connections_editable()[0],
         },
     )
+
+
+def _connection_overview() -> list[dict[str, Any]]:
+    """Kacheln oben auf der Einstellungsseite: was ist wo angebunden?"""
+    boxes = settings.mailboxes() if settings.mail_configured else []
+    channels = notify.channels(settings)
+    calendar_ready = bool(settings.caldav_username and settings.caldav_app_password)
+    ai_host = urlsplit(settings.ai_base_url).netloc or settings.ai_base_url
+    return [
+        {"anchor": "postfaecher", "title": _("Postfächer"), "ok": bool(boxes),
+         "value": ", ".join(box.mailbox_label for box in boxes) if boxes else _("nicht eingerichtet"),
+         "hint": _("Von wo die App Mails liest")},
+        {"anchor": "ki", "title": _("KI-Server"), "ok": bool(ai_host), "value": ai_host or _("nicht eingerichtet"),
+         "hint": _("Wer die Mails auswertet")},
+        {"anchor": "kalender", "title": _("Kalender-Server"), "ok": calendar_ready,
+         "value": f"{i18n.service_name()} · {settings.caldav_username}" if calendar_ready else _("nicht eingerichtet"),
+         "hint": _("Wohin Termine geschrieben werden")},
+        {"anchor": "benachrichtigungen", "title": _("Benachrichtigungen"), "ok": bool(channels),
+         "value": ", ".join(channels) if channels else _("noch kein Kanal"),
+         "hint": _("ntfy, Pushover, Home Assistant oder E-Mail")},
+    ]
 
 
 MIN_ROLLBACK_VERSION = (0, 28, 0)
@@ -3522,23 +3527,38 @@ CONNECTION_SECTIONS: dict[str, list[tuple[str, str, str]]] = {
         ("CALDAV_AUTH", "Anmeldeverfahren", "choice:basic|digest"),
     ],
     "benachrichtigungen": [
-        ("APP_URL", "Adresse der App für Links (z. B. http://192.168.1.10:8080)", "url"),
-        ("NTFY_URL", "ntfy: Thema-Adresse", "url"),
-        ("NTFY_TOKEN", "ntfy: Token (nur bei geschützten Themen)", "secret"),
-        ("PUSHOVER_TOKEN", "Pushover: App-Token", "secret"),
-        ("PUSHOVER_USER", "Pushover: User-Key", "text"),
-        ("HOMEASSISTANT_URL", "Home Assistant: Adresse", "url"),
-        ("HOMEASSISTANT_TOKEN", "Home Assistant: Zugriffstoken", "secret"),
-        ("HOMEASSISTANT_SERVICE", "Home Assistant: notify-Dienst (z. B. mobile_app_mein_iphone)", "text"),
-        ("SMTP_HOST", "E-Mail: SMTP-Server", "text"),
-        ("SMTP_PORT", "E-Mail: Port", "port"),
-        ("SMTP_SECURITY", "E-Mail: Verschlüsselung", "choice:starttls|ssl|none"),
-        ("SMTP_USERNAME", "E-Mail: Benutzer", "text"),
-        ("SMTP_PASSWORD", "E-Mail: Passwort", "secret"),
-        ("SMTP_FROM", "E-Mail: Absender", "text"),
-        ("NOTIFY_EMAIL_TO", "E-Mail: Empfänger", "text"),
+        ("APP_URL", "Adresse der App (z. B. http://192.168.1.10:8080)", "url"),
+        ("NTFY_URL", "Thema-Adresse (z. B. https://ntfy.sh/mein-geheimes-thema)", "url"),
+        ("NTFY_TOKEN", "Token (nur bei geschützten Themen)", "secret"),
+        ("PUSHOVER_TOKEN", "App-Token", "secret"),
+        ("PUSHOVER_USER", "User-Key", "text"),
+        ("HOMEASSISTANT_URL", "Adresse (z. B. http://homeassistant.local:8123)", "url"),
+        ("HOMEASSISTANT_TOKEN", "Langlebiges Zugriffstoken", "secret"),
+        ("HOMEASSISTANT_SERVICE", "notify-Dienst (z. B. mobile_app_mein_iphone)", "text"),
+        ("SMTP_HOST", "SMTP-Server", "text"),
+        ("SMTP_PORT", "Port", "port"),
+        ("SMTP_SECURITY", "Verschlüsselung", "choice:starttls|ssl|none"),
+        ("SMTP_USERNAME", "Benutzer", "text"),
+        ("SMTP_PASSWORD", "Passwort", "secret"),
+        ("SMTP_FROM", "Absender (leer = Benutzer)", "text"),
+        ("NOTIFY_EMAIL_TO", "Empfänger", "text"),
     ],
 }
+# Benachrichtigungs-Kanäle auf der Verbindungsseite (Name wie notify.channels).
+NOTIFY_CHANNEL_GROUPS: list[tuple[str | None, str, str, tuple[str, ...]]] = [
+    (None, "Link in Nachrichten",
+     "Optional: Mit der Adresse der App enthalten die Nachrichten einen Link, der direkt zur App führt.",
+     ("APP_URL",)),
+    ("ntfy", "ntfy", "Kostenlose Push-App für Handy und Desktop. Ein schwer zu erratendes Thema wählen und in der ntfy-App abonnieren.",
+     ("NTFY_URL", "NTFY_TOKEN")),
+    ("Pushover", "Pushover", "Push-App (einmalig kostenpflichtig). Token einer eigenen Anwendung und dein User-Key aus pushover.net.",
+     ("PUSHOVER_TOKEN", "PUSHOVER_USER")),
+    ("Home Assistant", "Home Assistant",
+     "Meldet über einen notify-Dienst deines Home Assistant, z. B. an die Companion-App. Token unter Profil → Sicherheit anlegen.",
+     ("HOMEASSISTANT_URL", "HOMEASSISTANT_TOKEN", "HOMEASSISTANT_SERVICE")),
+    ("E-Mail", "E-Mail", "Versand über den SMTP-Server deines Mail-Anbieters.",
+     ("SMTP_HOST", "SMTP_PORT", "SMTP_SECURITY", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "NOTIFY_EMAIL_TO")),
+]
 MAILBOX_FIELDS = (("NAME", "Name (optional)", "text"), ("HOST", "IMAP-Server", "text"), ("PORT", "Port", "port"),
                   ("USERNAME", "Benutzer", "text"), ("PASSWORD", "Passwort", "secret"), ("FOLDER", "Ordner", "text"))
 MAX_MAILBOXES = 9
@@ -3553,8 +3573,8 @@ def _connections_editable() -> tuple[bool, str]:
         return False, _("Im Demo-Modus nicht verfügbar.")
     if not _connection_state["ok"]:
         return False, _("Die gespeicherten Verbindungen sind nicht lesbar; es gelten die Werte aus .env.")
-    if not settings.app_password:
-        return False, _("Zum Bearbeiten zuerst den Zugangsschutz einschalten: APP_PASSWORD in .env setzen und die App neu starten.")
+    if not settings.app_password and not settings.connections_without_password:
+        return False, _("Bearbeiten erst mit Zugangsschutz: Ohne Passwort könnte jeder im Netz z. B. alle Mails an einen fremden KI-Server umleiten.")
     return True, ""
 
 
@@ -3585,6 +3605,12 @@ async def connections_page(request: Request):
         "editable": editable,
         "reason": reason,
         "sections": CONNECTION_SECTIONS,
+        "notify_groups": [
+            (channel, title, description, [field for key in keys for field in CONNECTION_SECTIONS["benachrichtigungen"] if field[0] == key])
+            for channel, title, description, keys in NOTIFY_CHANNEL_GROUPS
+        ],
+        "unprotected_edit": editable and not settings.app_password,
+        "active_channels": notify.channels(settings),
         "mailbox_fields": MAILBOX_FIELDS,
         "mailboxes": _mailbox_rows(stored),
         "max_mailboxes": MAX_MAILBOXES,

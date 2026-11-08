@@ -740,3 +740,22 @@ button.ghost:hover:not(:disabled) { background: var(--neutral-soft); color: var(
 .connections .setup-grid { gap: .8rem 1rem; margin-bottom: .4rem; }
 .connections .setup-grid label { display: grid; gap: .25rem; font-weight: 600; font-size: .9rem; align-content: start; }
 .connections .setup-grid input, .connections .setup-grid select { width: 100%; }
+
+/* Einstellungen: Übersicht der Verbindungen und Sprungmarken */
+.connection-cards { list-style: none; margin: .6rem 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); gap: .6rem; }
+.connection-card { display: flex; flex-direction: column; gap: .15rem; height: 100%; box-sizing: border-box; padding: .7rem .85rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); text-decoration: none; }
+.connection-card:hover { border-color: var(--primary); }
+.connection-card:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.connection-card-title { font-weight: 600; }
+.connection-card-hint { font-size: .85rem; color: var(--text-2); }
+.connection-card-value { margin-top: .3rem; overflow-wrap: anywhere; }
+.connection-card-value.missing { color: var(--warn-text); }
+.connection-card-action { margin-top: auto; padding-top: .4rem; color: var(--primary); font-size: .9rem; }
+.page-toc { display: flex; flex-wrap: wrap; gap: .3rem .9rem; align-items: baseline; margin: .8rem 0 1.2rem; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); font-size: .92rem; }
+.group-link { margin: -.3rem 0 .8rem; font-size: .92rem; color: var(--text-2); }
+main section[id], main section[aria-labelledby] { scroll-margin-top: 1rem; }
+.connections .lead { font-size: 1.05rem; margin-bottom: .3rem; }
+fieldset.channel { margin: .8rem 0; padding: .6rem .9rem .8rem; border: 1px solid var(--border); border-radius: 8px; }
+fieldset.channel legend { font-weight: 600; padding: 0 .3rem; }
+fieldset.channel .help { margin: 0 0 .7rem; }
+.badge.ok { background: var(--success-soft); color: var(--success); }

@@ -1663,11 +1663,33 @@ class ConnectionsPageTests(unittest.TestCase):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
                 page = client.get("/einstellungen/verbindungen").text
-                self.assertIn("APP_PASSWORD in .env setzen", page)
+                self.assertIn("APP_PASSWORD=dein-passwort", page)
+                self.assertIn("CONNECTIONS_EDIT_WITHOUT_PASSWORD=1", page)
                 self.assertIn(" disabled", page)
                 self.assertNotIn("Prüfen und speichern", page)
+                for anchor in ("postfaecher", "ki", "kalender", "benachrichtigungen"):
+                    self.assertIn(f'id="{anchor}"', page)
+                self.assertIn("<legend>ntfy", page)  # Kanäle einzeln gegliedert
                 self.assertEqual(client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "http://x/v1"}).status_code, 403)
-                self.assertIn('href="/einstellungen/verbindungen"', client.get("/einstellungen").text)
+                settings_page = client.get("/einstellungen").text
+                # Übersicht oben, vor den Verhaltens-Einstellungen
+                self.assertLess(settings_page.index('href="/einstellungen/verbindungen#postfaecher"'),
+                                settings_page.index('action="/einstellungen"'))
+                self.assertIn('href="/einstellungen/verbindungen#benachrichtigungen"', settings_page)
+                self.assertIn('id="ereignisse"', settings_page)
+                self.assertIn("Ansehen", settings_page)
+
+    def test_editable_without_password_when_allowed(self):
+        with patch.object(app_module.mail, "poll_mailbox"):
+            with TestClient(app_module.app) as client, \
+                    patch.object(app_module, "settings", replace(app_module.settings, connections_without_password=True)):
+                page = client.get("/einstellungen/verbindungen").text
+                self.assertIn("Prüfen und speichern", page)
+                self.assertIn("Bearbeiten ohne Passwort ist eingeschaltet", page)
+                with patch.object(app_module.setup_wizard, "ai_models", side_effect=app_module.setup_wizard.SetupError("KI weg")):
+                    response = client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "http://neu:1234/v1"})
+                self.assertEqual(response.status_code, 422)  # erlaubt, aber Test schlägt fehl
+                self.assertIn("Bearbeiten", client.get("/einstellungen").text)
 
     def test_save_tests_first_then_restarts(self):
         path = app_module.settings.database_path

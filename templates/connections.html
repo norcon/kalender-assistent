@@ -9,10 +9,35 @@
   <main id="main" class="connections">
   <p class="breadcrumb"><a href="/einstellungen">{{ _("Einstellungen") }}</a> › {{ _("Verbindungen") }}</p>
   <h1>{{ _("Verbindungen") }}</h1>
-  <p class="meta">{{ _("Postfächer, KI-Server, Kalender-Server und Benachrichtigungen. Passwörter und Tokens liegen verschlüsselt in der Datenbank; der Schlüssel liegt getrennt davon, Sicherungen der Datenbank allein sind deshalb wertlos. Jede geänderte Verbindung wird vor dem Speichern geprüft, danach startet die App kurz neu.") }}</p>
+  <p class="lead">{{ _("Hier steht, womit sich die App verbindet: von welchen Postfächern sie Mails liest, welcher KI-Server sie auswertet, in welchen Kalender sie Termine schreibt und über welche Kanäle sie dich benachrichtigt.") }}</p>
+  <p class="meta">{{ _("Passwörter und Tokens liegen verschlüsselt in der Datenbank; der Schlüssel liegt getrennt davon. Jede geänderte Verbindung wird vor dem Speichern geprüft, danach startet die App kurz neu. Wie oft abgerufen wird oder welche Ereignisse gemeldet werden, stellst du unter Einstellungen ein.") }}</p>
+  <nav class="page-toc" aria-label="{{ _("Auf dieser Seite") }}">
+    <a href="#postfaecher">{{ _("Postfächer") }}</a>
+    <a href="#ki">{{ _("KI-Server") }}</a>
+    <a href="#kalender">{{ _("Kalender-Server") }}</a>
+    <a href="#benachrichtigungen">{{ _("Benachrichtigungen") }}</a>
+  </nav>
 
   {% if store_error %}<p class="message problem" role="alert">{{ _("Die gespeicherten Verbindungen sind nicht lesbar ({error}); es gelten die Werte aus .env. Fehlt die Datei secret.key im Datenordner?", error=store_error) }}</p>{% endif %}
-  {% if not editable %}<p class="notice">{{ reason }}</p>{% endif %}
+  {% if not editable %}
+    <div class="notice">
+      <p><strong>{{ _("Nur Ansicht.") }}</strong> {{ reason }}</p>
+      {% if not login_required() and not demo_mode %}
+        <p>{{ _("So schaltest du das Bearbeiten frei:") }}</p>
+        <ol>
+          <li>{{ _("Auf dem Server in der Datei .env neben compose.yaml eine Zeile ergänzen:") }}
+            <ul>
+              <li>{{ _("mit Passwort (empfohlen):") }} <code>APP_PASSWORD=dein-passwort</code></li>
+              <li>{{ _("oder ohne Passwort, wenn nur vertrauenswürdige Geräte im Netz sind:") }} <code>CONNECTIONS_EDIT_WITHOUT_PASSWORD=1</code></li>
+            </ul>
+          </li>
+          <li>{{ _("Im selben Ordner ausführen:") }} <code>docker compose up -d</code></li>
+          <li>{{ _("Diese Seite neu laden – mit Passwort fragt die App einmal danach.") }}</li>
+        </ol>
+      {% endif %}
+    </div>
+  {% endif %}
+  {% if unprotected_edit %}<p class="notice compact">{{ _("Bearbeiten ohne Passwort ist eingeschaltet (CONNECTIONS_EDIT_WITHOUT_PASSWORD): Jeder in deinem Netz kann diese Verbindungen ändern.") }}</p>{% endif %}
   {% if pending_cleanup %}
     <div class="notice">
       <p>{{ _("Diese Werte stehen noch zusätzlich in .env, gelten aber bereits aus der App: {keys}", keys=pending_cleanup|join(", ")) }}{% if cleanup_message %} <span class="meta">({{ cleanup_message }})</span>{% endif %}</p>
@@ -22,7 +47,7 @@
   {% endif %}
 
   <form class="connection-form" data-section="postfaecher" novalidate>
-    <section aria-labelledby="mailboxes-heading">
+    <section id="postfaecher" aria-labelledby="mailboxes-heading">
       <h2 id="mailboxes-heading">{{ _("Postfächer") }}</h2>
       <p class="help">{{ _("Das erste Postfach ist Pflicht. Weitere Postfächer oder Ordner werden einzeln abgerufen. Den Ordner des ersten Postfachs stellst du unter Einstellungen → Postfach ein.") }}</p>
       <div class="mailbox-list">
@@ -38,26 +63,29 @@
 
   {% for section, fields in sections.items() %}
     <form class="connection-form" data-section="{{ section }}" novalidate>
-      <section aria-labelledby="section-{{ section }}">
+      <section id="{{ section }}" aria-labelledby="section-{{ section }}">
         <h2 id="section-{{ section }}">{{ {"ki": _("KI-Server"), "kalender": _("Kalender-Server"), "benachrichtigungen": _("Benachrichtigungen")}[section] }}</h2>
         {% if section == "kalender" %}<p class="help">{{ _("iCloud, Nextcloud, mailbox.org, Fastmail, Posteo oder ein anderer CalDAV-Server. Benutzer und Passwort leeren, um ohne Kalender zu arbeiten.") }}</p>{% endif %}
-        {% if section == "benachrichtigungen" %}<p class="help">{{ _("Jeder vollständig eingetragene Kanal wird genutzt. Welche Ereignisse gemeldet werden, stellst du unter Einstellungen → Benachrichtigungen ein.") }}</p>{% endif %}
+        {% if section == "benachrichtigungen" %}
+          <p class="help">{{ _("Die App meldet neue Vorschläge, Störungen, viele gelöschte Termine und neue Versionen. Trage einen oder mehrere Kanäle ein – jeder vollständig eingetragene wird genutzt.") }}
+            <a href="/einstellungen#ereignisse">{{ _("Welche Ereignisse gemeldet werden") }} <span aria-hidden="true">→</span></a></p>
+          {% if active_channels %}<p><button type="button" class="secondary" id="notify-test">{{ _("Test senden") }}</button> <span id="notify-test-result" role="status" aria-live="polite"></span></p>{% endif %}
+          {% for channel, title, description, channel_fields in notify_groups %}
+            <fieldset class="channel">
+              <legend>{{ _(title) }}{% if channel in active_channels %} <span class="badge ok">{{ _("eingerichtet") }}</span>{% endif %}</legend>
+              <p class="help">{{ _(description) }}</p>
+              <div class="setup-grid">
+                {% for key, label, kind in channel_fields %}{% include "_connection_field.html" %}{% endfor %}
+              </div>
+            </fieldset>
+          {% endfor %}
+        {% else %}
         <div class="setup-grid">
           {% for key, label, kind in fields %}
-            <label{% if kind == "url" %} class="wide"{% endif %}>{{ _(label) }}
-              {% if kind.startswith("choice:") %}
-                <select name="{{ key }}"{% if not editable %} disabled{% endif %}>
-                  {% for option in kind[7:].split("|") %}<option value="{{ option }}"{% if (stored.get(key) or kind[7:].split("|")[0]) == option %} selected{% endif %}>{{ option }}</option>{% endfor %}
-                </select>
-              {% elif kind == "secret" %}
-                <input type="password" name="{{ key }}" autocomplete="new-password" placeholder="{{ _("gesetzt – leer lassen für unverändert") if secret_set.get(key) else _("nicht gesetzt") }}"{% if not editable %} disabled{% endif %}>
-                {% if secret_set.get(key) and editable %}<span class="clear-secret"><input type="checkbox" name="{{ key }}__clear"> {{ _("löschen") }}</span>{% endif %}
-              {% else %}
-                <input type="{{ "number" if kind == "port" else "text" }}" name="{{ key }}" value="{{ stored.get(key, "") }}"{% if key == "CALDAV_URL" %} placeholder="https://caldav.icloud.com"{% elif key == "SMTP_PORT" %} placeholder="587"{% endif %} autocomplete="off"{% if not editable %} disabled{% endif %}>
-              {% endif %}
-            </label>
+            {% include "_connection_field.html" %}
           {% endfor %}
         </div>
+        {% endif %}
         {% include "_connection_actions.html" %}
       </section>
     </form>
