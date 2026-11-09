@@ -107,7 +107,7 @@ class ActivityApiTests(unittest.TestCase):
                 protocol = client.get("/protokoll")
                 self.assertEqual(protocol.status_code, 200)
                 self.assertIn('id="activity-log"', protocol.text)
-                self.assertIn('aria-current="page">Protokoll', protocol.text)
+                self.assertIn('data-nav="protokoll" aria-current="page"', protocol.text)
 
                 response = client.post("/api/check")
                 self.assertEqual(response.status_code, 200)
@@ -741,8 +741,8 @@ class StageTwoTests(unittest.TestCase):
                         lambda u, hs: {h: cloud[h] for h in hs},
                     )
                 page = client.get("/suggestions-fragment").text
-                self.assertIn("in iCloud: 2 Termine · 1 Überschneidung", page)
-                self.assertIn("Überschneidet sich mit 1 Termin(en) im Kalender „Mia“", page)
+                self.assertIn("⚠ 1 Überschneidung", page)
+                self.assertIn("in iCloud: 2 Termine", page)
                 self.assertIn("17:00–18:00", page)
                 self.assertIn("„Elternsprechtag am 10.11. um 17 Uhr“", page)
                 self.assertIn("--cal-color: #34c759", page)
@@ -789,7 +789,7 @@ class IgnoredSenderPageTests(unittest.TestCase):
                 rules = client.get("/korrekturen").text
                 self.assertIn("paketshop-test.de", rules)
                 self.assertIn("1 ausgeblendet", rules)
-                self.assertIn('aria-current="page">Regeln<', rules)
+                self.assertIn('data-nav="korrekturen" aria-current="page"', rules)
 
                 # Rückgängig aus der Einblendung
                 self.assertEqual(client.post("/api/ignored-senders/remove", json={"pattern": "paketshop-test.de"}).json()["shown"], 1)
@@ -951,7 +951,7 @@ class StageCTests(unittest.TestCase):
             with TestClient(app_module.app) as client:
                 page = client.get("/protokoll/wartung")
                 self.assertEqual(page.status_code, 200, page.text)
-                for text in ("Wartungs-Übersicht", "Fehlgeschlagen", "(50 %)", "1 min 15 s", "test-model", "Datenbank-Sicherungen", "Verarbeitete Mails", 'aria-current="page">Protokoll<'):
+                for text in ("Wartungs-Übersicht", "Fehlgeschlagen", "(50 %)", "1 min 15 s", "test-model", "Datenbank-Sicherungen", "Verarbeitete Mails", 'data-nav="protokoll" aria-current="page"'):
                     self.assertIn(text, page.text)
                 self.assertIn("/protokoll/wartung", client.get("/protokoll").text)
 
@@ -2072,13 +2072,14 @@ class ArchiveAndHelpTests(unittest.TestCase):
             with TestClient(app_module.app) as client:
                 help_page = client.get("/hilfe").text
                 self.assertIn("So funktioniert’s", help_page)
-                self.assertIn('class="help-link" href="/hilfe" aria-label="Hilfe: So funktioniert’s" aria-current="page"', help_page)
+                self.assertIn('class="item help-link" href="/hilfe" aria-label="Hilfe: So funktioniert’s" aria-current="page"', help_page)
                 for url in ("/", "/archiv", "/korrekturen", "/einstellungen", "/sicherungen", "/sicherungen/kalender", "/protokoll", "/hilfe"):
                     page = client.get(url).text
                     self.assertEqual(page.count('<main id="main"'), 1, url)
                     self.assertIn('href="#main">Zum Inhalt springen', page, url)
+                self.assertIn('class="info-toggle" aria-expanded="false"', client.get("/sicherungen").text)
                 index = client.get("/").text
-                self.assertIn('class="info-toggle" aria-expanded="false"', index)
+                self.assertNotIn('class="info-toggle"', index)  # Startseite ohne Info-Symbole
                 self.assertIn('<details class="status-panel" id="status-panel"', index)
                 self.assertIn('id="status-summary"', index)
                 self.assertNotIn('<a href="/protokoll" class="meta">', index)

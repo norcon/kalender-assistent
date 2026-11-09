@@ -283,3 +283,34 @@ document.addEventListener("click", function (event) {
   });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
+
+// Hauptmenü auf dem Handy: „Mehr“ öffnet Sicherungen, Protokoll, Einstellungen,
+// Hilfe, Sprache und Darstellung. Schließt bei Tipp daneben oder Escape.
+(function () {
+  function sheetParts() {
+    var toggle = document.querySelector(".nav-more-toggle");
+    var sheet = document.getElementById("nav-sheet");
+    return toggle && sheet ? { toggle: toggle, sheet: sheet } : null;
+  }
+  function setOpen(open) {
+    var parts = sheetParts();
+    if (!parts) return;
+    parts.toggle.setAttribute("aria-expanded", String(open));
+    document.body.classList.toggle("nav-sheet-open", open);
+  }
+  document.addEventListener("click", function (event) {
+    var parts = sheetParts();
+    if (!parts) return;
+    if (event.target.closest(".nav-more-toggle")) {
+      setOpen(parts.toggle.getAttribute("aria-expanded") !== "true");
+    } else if (document.body.classList.contains("nav-sheet-open") && !event.target.closest("#nav-sheet")) {
+      setOpen(false);
+    }
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape" || !document.body.classList.contains("nav-sheet-open")) return;
+    setOpen(false);
+    var parts = sheetParts();
+    if (parts) parts.toggle.focus();
+  });
+})();

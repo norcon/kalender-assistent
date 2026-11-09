@@ -671,6 +671,15 @@ def list_suggestions(database_path: str, include_dismissed: bool = False):
     return [_decode_suggestion(row) for row in rows]
 
 
+def count_open_suggestions(database_path: str) -> int:
+    """Sichtbare, noch nicht übertragene Vorschläge (Zahl im Hauptmenü)."""
+    with connect(database_path) as connection:
+        return int(connection.execute(
+            "SELECT COUNT(*) FROM suggestions WHERE dismissed = 0 AND icloud_exported_at IS NULL"
+            " AND COALESCE(hidden_reason, '') = ''"
+        ).fetchone()[0])
+
+
 def max_suggestion_id(database_path: str) -> int:
     with connect(database_path) as connection:
         return int(connection.execute("SELECT COALESCE(MAX(id), 0) FROM suggestions").fetchone()[0])

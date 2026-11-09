@@ -1,33 +1,34 @@
 <!doctype html>
 <html lang="{{ current_lang() }}">
 <head>
-  {% from "_macros.html" import info %}
+  {% from "_macros.html" import info, icon %}
   {% with page_title=_("Vorschläge") %}{% include "_head.html" %}{% endwith %}
 </head>
 <body>
   {% with active="vorschlaege" %}{% include "_nav.html" %}{% endwith %}
   <main id="main">
-  <h1>{{ _("Erkannte Terminvorschläge") }}</h1>
+  <h1 class="visually-hidden">{{ _("Erkannte Terminvorschläge") }}</h1>
   {% include "_mass_alert.html" %}
-  <div class="toolbar">
-    <button id="check-button" type="button">{{ _("Jetzt prüfen") }}</button>
-    <span id="check-status" role="status" aria-live="polite">{{ _("Lade Prüfstatus …") }}</span>
-  </div>
   {% set problems = status_items|selectattr("state", "in", ["warn", "error"])|list %}
-  <details class="status-panel" id="status-panel"{% if status_items|selectattr("state", "equalto", "error")|list %} open{% endif %}>
-    <summary>
-      <strong>{{ _("Systemstatus:") }}</strong>
-      <span class="status-dots" aria-hidden="true">{% for item in status_items %}<span class="dot {{ item.state }}"></span>{% endfor %}</span>
-      <span id="status-summary">{% if problems %}{{ _n("{count} Hinweis", "{count} Hinweise", problems|length) }}: {{ problems|map(attribute="label")|join(", ") }}{% else %}{{ _("Alles in Ordnung") }}{% endif %}</span>
-      {{ info(_("Grün = in Ordnung, gelb = Hinweis (z. B. länger kein Abruf), rot = Fehler, grau = nicht eingerichtet. Bei einem Fehler klappt die Liste von selbst auf; Details stehen im Protokoll."), _("Systemstatus")) }}
-    </summary>
-    <ul id="service-status" class="service-status" aria-label="{{ _("Systemstatus im Einzelnen") }}">
-      {% for item in status_items %}
-        <li class="status-{{ item.state }}" data-key="{{ item.key }}"><span class="dot" aria-hidden="true"></span><strong>{{ item.label }}:</strong> <span class="status-text">{{ item.text }}</span></li>
-      {% endfor %}
-    </ul>
-  </details>
-  <p class="notice compact">{{ _("Termine landen erst in iCloud, wenn du auf einen Kalender tippst.") }} <a href="/hilfe">{{ _("So funktioniert’s") }}</a></p>
+  {% set worst = "error" if status_items|selectattr("state", "equalto", "error")|list else ("warn" if problems else "ok") %}
+  <div class="page-status">
+    <details class="status-panel" id="status-panel"{% if worst == "error" %} open{% endif %}>
+      <summary>
+        <span class="status-dot dot {{ worst }}" aria-hidden="true"></span>
+        <span class="status-texts">
+          <span id="status-summary">{% if problems %}{{ _n("{count} Hinweis", "{count} Hinweise", problems|length) }}: {{ problems|map(attribute="label")|join(", ") }}{% else %}{{ _("Alles in Ordnung") }}{% endif %}</span>
+          <span id="check-status" class="meta" role="status" aria-live="polite">{{ _("Lade Prüfstatus …") }}</span>
+        </span>
+        <span class="visually-hidden">{{ _("Systemstatus im Einzelnen anzeigen") }}</span>
+      </summary>
+      <ul id="service-status" class="service-status" aria-label="{{ _("Systemstatus im Einzelnen") }}">
+        {% for item in status_items %}
+          <li class="status-{{ item.state }}" data-key="{{ item.key }}"><span class="dot" aria-hidden="true"></span><strong>{{ item.label }}:</strong> <span class="status-text">{{ item.text }}</span></li>
+        {% endfor %}
+      </ul>
+    </details>
+    <button id="check-button" type="button" class="icon-button" aria-label="{{ _("Jetzt prüfen") }}" title="{{ _("Jetzt prüfen") }}">{{ icon("refresh", 20) }}</button>
+  </div>
   {% if skipped_messages %}
     <details class="notice">
       <summary>{{ _("{count} E-Mail(s) konnten nicht ausgewertet werden und wurden übersprungen", count=skipped_messages|length) }}</summary>
@@ -42,20 +43,28 @@
   {% endif %}
   {% include "change-requests.html" %}
   <div class="filter-bar" role="search" aria-label="{{ _("Vorschläge filtern") }}">
-    <div class="chips" role="group" aria-label="{{ _("Nach Kalender filtern") }}">
-      <button type="button" class="chip" data-person="all" aria-pressed="true">{{ _("Alle") }} <span class="chip-count"></span></button>
-      {% for person in people %}
-        <button type="button" class="chip{% if calendar_colors.get(person) %} has-color{% endif %}" data-person="{{ person }}" aria-pressed="false" style="--cal-color: {{ calendar_colors.get(person, 'transparent') }}">{{ person }} <span class="chip-count"></span></button>
-      {% endfor %}
-      <button type="button" class="chip" data-person="none" aria-pressed="false">{{ _("Ohne Zuordnung") }} <span class="chip-count"></span></button>
+    <div class="filter-top">
+      <div class="chips" role="group" aria-label="{{ _("Nach Kalender filtern") }}">
+        <button type="button" class="chip" data-person="all" aria-pressed="true">{{ _("Alle") }} <span class="chip-count"></span></button>
+        {% for person in people %}
+          <button type="button" class="chip{% if calendar_colors.get(person) %} has-color{% endif %}" data-person="{{ person }}" aria-pressed="false" style="--cal-color: {{ calendar_colors.get(person, 'transparent') }}">{{ person }} <span class="chip-count"></span></button>
+        {% endfor %}
+        <button type="button" class="chip" data-person="none" aria-pressed="false">{{ _("Ohne Zuordnung") }} <span class="chip-count"></span></button>
+      </div>
+      <button type="button" id="search-toggle" class="icon-button ghost" aria-expanded="false" aria-controls="search-row" aria-label="{{ _("Suchen") }}" title="{{ _("Suchen") }}">{{ icon("search", 20) }}</button>
+      <details class="filter-menu">
+        <summary class="icon-button ghost" aria-label="{{ _("Weitere Optionen") }}" title="{{ _("Weitere Optionen") }}">{{ icon("more", 20) }}</summary>
+        <div class="menu-panel">
+          <button type="button" id="select-visible" class="menu-item">{{ _("Alle sichtbaren auswählen") }}</button>
+          <label class="menu-item details-toggle"><input type="checkbox" id="show-details"> {{ _("Alle Details zeigen") }}</label>
+        </div>
+      </details>
     </div>
-    <div class="filter-row">
+    <div class="search-row" id="search-row" hidden>
       <label class="search-field">
         <span class="visually-hidden">{{ _("Vorschläge durchsuchen") }}</span>
         <input type="search" id="suggestion-search" placeholder="{{ _("Suchen nach Titel, Ort, Betreff …") }}" maxlength="100" autocomplete="off">
       </label>
-      <button type="button" id="select-visible" class="secondary">{{ _("Alle sichtbaren auswählen") }}</button>
-      <label class="details-toggle"><input type="checkbox" id="show-details"> {{ _("Alle Details zeigen") }}</label>
     </div>
   </div>
   <p id="filter-empty" class="empty" hidden>{{ _("Keine Vorschläge passen zum Filter.") }}</p>

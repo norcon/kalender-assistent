@@ -4,6 +4,25 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.33.0 – 2026-11-09
+
+- **Neues Grundgerüst:** Auf dem Handy eine Leiste unten (Vorschläge, Archiv,
+  Regeln, Mehr) mit der Zahl offener Vorschläge; „Mehr“ öffnet Sicherungen,
+  Protokoll, Einstellungen, Hilfe, Sprache und Darstellung. Ab Tablet-Breite
+  eine Seitenleiste links. Schlanker Kopf, weichere Karten, kleinerer
+  Demo-Hinweis.
+- **Vorschläge aufgeräumt:** Prüfen und Systemstatus in einer Zeile mit ↻-Knopf;
+  der iCloud-Hinweiskasten entfällt. Kalender-Filter in einer wischbaren Zeile,
+  Suche hinter 🔍, „Alle sichtbaren auswählen“ und „Alle Details zeigen“ im
+  ⋯-Menü.
+- **Kompakte Karten:** Datum und Uhrzeit in einer Zeile, Ort und Wiederholung
+  nur, wenn vorhanden; die Fundstelle bleibt sichtbar (auf drei Zeilen gekürzt,
+  Antippen zeigt alles). Überschneidungen, Unsicherheit, mögliche Dubletten und
+  „Evtl. schon in iCloud“ als kleine Markierungen, die beim Antippen aufklappen.
+  Kalender-Knöpfe und Erinnerung bleiben direkt sichtbar, ✕ entfernt. Alles
+  Weitere (Hinweise, Zuordnung, Quelle, erneut auswerten, Absender ausblenden,
+  Verlauf) unter „Mehr“.
+
 ## 0.32.0 – 2026-11-09
 
 - **Verbindungen immer bearbeitbar:** Postfächer, KI-Server, Kalender und

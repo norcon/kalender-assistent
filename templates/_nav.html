@@ -1,33 +1,57 @@
 {#- Gemeinsames Hauptmenü. Erwartet die Variable `active`:
-    vorschlaege | archiv | korrekturen | sicherungen | einstellungen -#}
+    vorschlaege | archiv | korrekturen | sicherungen | protokoll | einstellungen | hilfe
+    Handy: Kopfzeile oben, Leiste unten (Vorschläge, Archiv, Regeln, Mehr).
+    Ab Tablet-Breite: Seitenleiste links mit allen Punkten. -#}
+{% from "_macros.html" import icon %}
 <a class="skip-link" href="#main">{{ _("Zum Inhalt springen") }}</a>
+<header class="app-header">
+  <a class="brand" href="/">
+    <img class="brand-icon" src="/static/icon.svg" width="22" height="22" alt="">
+    {{ _("Kalender-Assistent") }}
+  </a>
+</header>
+{% set open_count = open_suggestion_count() %}
 <nav class="main-nav" aria-label="{{ _("Hauptmenü") }}">
   <a class="brand" href="/">
     <img class="brand-icon" src="/static/icon.svg" width="22" height="22" alt="">
     {{ _("Kalender-Assistent") }}
   </a>
-  <ul>
-    {% for key, href, label in [
-      ("vorschlaege", "/", _("Vorschläge")),
-      ("archiv", "/archiv", _("Archiv")),
-      ("korrekturen", "/korrekturen", _("Regeln")),
-      ("sicherungen", "/sicherungen", _("Sicherungen")),
-      ("protokoll", "/protokoll", _("Protokoll")),
-      ("einstellungen", "/einstellungen", _("Einstellungen")),
+  <ul class="nav-main">
+    {% for key, href, label, symbol in [
+      ("vorschlaege", "/", _("Vorschläge"), "inbox"),
+      ("archiv", "/archiv", _("Archiv"), "archive"),
+      ("korrekturen", "/korrekturen", _("Regeln"), "rules"),
     ] %}
-      <li><a class="item" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a></li>
+      <li><a class="item" href="{{ href }}" data-nav="{{ key }}"{% if active == key %} aria-current="page"{% endif %}>
+        <span class="item-icon">{{ icon(symbol, 22) }}{% if key == "vorschlaege" and open_count %}<span class="nav-badge" id="nav-open-count">{{ open_count }}</span>{% endif %}</span>
+        <span class="item-label">{{ label }}{% if key == "vorschlaege" and open_count %}<span class="visually-hidden"> ({{ _n("{count} offen", "{count} offen", open_count) }})</span>{% endif %}</span>
+      </a></li>
     {% endfor %}
+    <li class="nav-more-item">
+      <button type="button" class="item nav-more-toggle{% if active in ("sicherungen", "protokoll", "einstellungen", "hilfe") %} is-active{% endif %}" aria-expanded="false" aria-controls="nav-sheet">
+        <span class="item-icon">{{ icon("more", 22) }}</span>
+        <span class="item-label">{{ _("Mehr") }}</span>
+      </button>
+    </li>
   </ul>
-  <div class="nav-tools">
-    {% if login_required() %}<form method="post" action="/abmelden" class="logout-form"><button type="submit" class="logout-button" aria-label="{{ _("Abmelden") }}" title="{{ _("Abmelden") }}"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button></form>{% endif %}
-    <a class="help-link" href="/hilfe" aria-label="{{ _("Hilfe: So funktioniert’s") }}"{% if active == "hilfe" %} aria-current="page"{% endif %}>?</a>
-    {% set other = "en" if current_lang() == "de" else "de" %}
-    <button type="button" id="language-toggle" class="language-toggle" data-lang="{{ other }}" lang="{{ other }}" aria-label="{{ "Switch to English" if other == "en" else "Auf Deutsch umschalten" }}">{{ other|upper }}</button>
-    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ _("Darstellung wechseln") }}">
-      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
-      <span class="theme-label">{{ _("Automatisch") }}</span>
-    </button>
+  <div class="nav-sheet" id="nav-sheet">
+    <ul class="nav-secondary">
+      {% for key, href, label, symbol in [
+        ("sicherungen", "/sicherungen", _("Sicherungen"), "shield"),
+        ("protokoll", "/protokoll", _("Protokoll"), "log"),
+        ("einstellungen", "/einstellungen", _("Einstellungen"), "settings"),
+      ] %}
+        <li><a class="item" href="{{ href }}" data-nav="{{ key }}"{% if active == key %} aria-current="page"{% endif %}><span class="item-icon">{{ icon(symbol, 20) }}</span><span class="item-label">{{ label }}</span></a></li>
+      {% endfor %}
+      <li><a class="item help-link" href="/hilfe" aria-label="{{ _("Hilfe: So funktioniert’s") }}"{% if active == "hilfe" %} aria-current="page"{% endif %}><span class="item-icon">{{ icon("help", 20) }}</span><span class="item-label">{{ _("Hilfe") }}</span></a></li>
+    </ul>
+    <div class="nav-tools">
+      {% set other = "en" if current_lang() == "de" else "de" %}
+      <button type="button" id="language-toggle" class="item language-toggle" data-lang="{{ other }}" lang="{{ other }}" aria-label="{{ "Switch to English" if other == "en" else "Auf Deutsch umschalten" }}"><span class="item-icon">{{ icon("language", 20) }}</span><span class="item-label">{{ "English" if other == "en" else "Deutsch" }}</span></button>
+      <button type="button" id="theme-toggle" class="item theme-toggle" aria-label="{{ _("Darstellung wechseln") }}"><span class="item-icon">{{ icon("theme", 20) }}</span><span class="item-label">{{ _("Darstellung:") }} <span class="theme-label">{{ _("Automatisch") }}</span></span></button>
+      {% if login_required() %}<form method="post" action="/abmelden" class="logout-form"><button type="submit" class="item logout-button"><span class="item-icon">{{ icon("logout", 20) }}</span><span class="item-label">{{ _("Abmelden") }}</span></button></form>{% endif %}
+    </div>
   </div>
 </nav>
-{% if demo_mode %}<p class="demo-banner" role="note">{{ _("Demo-Modus: erfundene Beispieldaten. Es werden keine Mails gelesen und nichts an iCloud gesendet.") }}</p>{% endif %}
+{% if demo_mode %}<p class="demo-banner" role="note">{{ _("Demo-Modus: erfundene Beispieldaten, nichts wird gesendet.") }}</p>{% endif %}
 {% if setup_skipped %}<div class="demo-banner setup-banner" role="note"><span>{{ _("Die Einrichtung wurde übersprungen: Es ist kein Postfach angebunden. Starte den Assistenten erneut oder trage die Zugangsdaten unter Einstellungen → Verbindungen ein.") }}</span> <button type="button" class="secondary" id="setup-resume">{{ _("Einrichtung starten") }}</button></div>{% endif %}

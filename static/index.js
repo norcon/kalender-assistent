@@ -138,8 +138,12 @@ document.addEventListener("click", async (event) => {
   }
 });
 
-function shortTime(value) {
-  return new Date(value).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
+// Heute nur die Uhrzeit, sonst Datum und Uhrzeit.
+function compactTime(value) {
+  const date = new Date(value);
+  const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  if (date.toDateString() === new Date().toDateString()) return t("{time} Uhr", { time });
+  return `${date.toLocaleDateString(locale, { day: "numeric", month: "short" })}, ${time}`;
 }
 
 async function refreshActivity() {
@@ -161,16 +165,17 @@ async function refreshActivity() {
     checkButton.disabled = state.status === "running";
     let statusText;
     if (state.status === "running") {
-      statusText = t("Prüfung läuft seit {time} Uhr.", { time: new Date(state.started_at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) });
+      statusText = t("Prüfe Postfach …");
     } else if (state.status === "success") {
-      statusText = t("Letzte Prüfung erfolgreich: {time}.", { time: shortTime(state.completed_at) });
+      statusText = t("Geprüft {time}", { time: compactTime(state.completed_at) });
     } else if (state.status === "error") {
-      statusText = t("Letzte Prüfung fehlgeschlagen: {time}. Details im Protokoll.", { time: shortTime(state.completed_at) });
+      statusText = t("Prüfung fehlgeschlagen {time}", { time: compactTime(state.completed_at) });
     } else {
       statusText = config.demo
-        ? t("Demo-Modus – es ist kein Postfach angebunden.")
-        : t("Automatische Prüfung alle {minutes} Minuten.", { minutes: config.pollMinutes });
+        ? t("Demo-Modus")
+        : t("Prüft alle {minutes} Min.", { minutes: config.pollMinutes });
     }
+    checkButton.classList.toggle("spinning", state.status === "running");
     // Nur bei Änderung setzen, sonst kündigen Screenreader den Text wiederholt an.
     if (checkStatus.textContent !== statusText) checkStatus.textContent = statusText;
   } catch {
@@ -190,12 +195,9 @@ function renderStatusSummary(items) {
     ? `${problems.length === 1 ? t("1 Hinweis") : t("{count} Hinweise", { count: problems.length })}: ${problems.map((item) => item.label).join(", ")}`
     : t("Alles in Ordnung");
   if (summary.textContent !== text) summary.textContent = text;
-  const dots = panel.querySelector(".status-dots");
-  dots.replaceChildren(...items.map((item) => {
-    const dot = document.createElement("span");
-    dot.className = `dot ${item.state}`;
-    return dot;
-  }));
+  const worst = items.some((item) => item.state === "error") ? "error" : (problems.length ? "warn" : "ok");
+  const dot = panel.querySelector(".status-dot");
+  if (dot) dot.className = `status-dot dot ${worst}`;
   // Bei neu auftretendem Fehler aufklappen; sonst die Wahl des Nutzers respektieren.
   const hasError = items.some((item) => item.state === "error");
   if (hasError && !hadError) panel.open = true;
@@ -356,9 +358,9 @@ function assumedEnd(values) {
 
 function formatDate(isoDate) {
   const [year, month, day] = isoDate.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(locale, {
-    weekday: "short", day: "numeric", month: "short", year: "numeric",
-  });
+  const options = { weekday: "short", day: "numeric", month: "short" };
+  if (year !== new Date().getFullYear()) options.year = "numeric";
+  return new Date(year, month - 1, day).toLocaleDateString(locale, options);
 }
 
 function displayFieldValue(field, values) {
@@ -376,9 +378,12 @@ function displayFieldValue(field, values) {
       ? t("gleicher Tag")
       : t("{date} (angenommen)", { date: formatDate(parts.date) });
   }
-  if (!value) return match[1] === "end" ? "–" : t("Hinzufügen");
+  if (!value) return match[1] === "end" ? t("Ende hinzufügen") : t("Hinzufügen");
   const parts = dateTimeParts(value);
-  if (match[2] === "time") return parts.time ? t("{time} Uhr", { time: parts.time }) : t("Ganztägig");
+  if (match[2] === "time") {
+    if (!parts.time) return t("Ganztägig");
+    return match[1] === "start" ? parts.time : t("{time} Uhr", { time: parts.time });
+  }
   if (!parts.date) return t("Hinzufügen");
   return formatDate(parts.date);
 }
@@ -390,6 +395,23 @@ function inputValue(field, values) {
     return dateTimeParts(value)[match[2]];
   }
   return values[field] || "";
+}
+
+function updateWhenLine(card) {
+  const line = card.querySelector(".fact-when");
+  if (!line) return;
+  const values = JSON.parse(card.dataset.suggestion);
+  const start = dateTimeParts(values.start);
+  const endValue = values.end || assumedEnd(values);
+  const end = dateTimeParts(endValue);
+  const endDate = line.querySelector("[data-field='end-date']");
+  const endTime = line.querySelector("[data-field='end-time']");
+  const startTime = line.querySelector("[data-field='start-time']");
+  endDate.hidden = !endValue || end.date === start.date;
+  endTime.hidden = Boolean(endValue) && !end.time;
+  endTime.classList.toggle("add-end", !endValue);
+  startTime.hidden = !start.time && Boolean(endValue) && !end.time && end.date !== start.date;
+  line.querySelector(".range-sep").hidden = !endValue || (endDate.hidden && endTime.hidden);
 }
 
 function setDisplayValues(container) {
@@ -404,6 +426,7 @@ function setDisplayValues(container) {
       /^end-/.test(button.dataset.field) && !values.end && Boolean(assumedEnd(values)),
     );
   });
+  container.querySelectorAll(".card").forEach(updateWhenLine);
 }
 
 function updateDateTimeValue(payload, field, value) {
@@ -919,6 +942,22 @@ const filterState = { person: "all", query: "" };
 try { Object.assign(filterState, JSON.parse(sessionStorage.getItem("suggestionFilter") || "{}")); } catch { /* egal */ }
 const searchInput = document.getElementById("suggestion-search");
 searchInput.value = filterState.query;
+const searchToggle = document.getElementById("search-toggle");
+const searchRow = document.getElementById("search-row");
+function showSearch(open) {
+  searchRow.hidden = !open;
+  searchToggle.setAttribute("aria-expanded", String(open));
+}
+showSearch(Boolean(filterState.query));
+searchToggle.addEventListener("click", () => {
+  const open = searchRow.hidden;
+  showSearch(open);
+  if (open) searchInput.focus();
+  else if (searchInput.value) {
+    searchInput.value = "";
+    searchInput.dispatchEvent(new Event("input"));
+  }
+});
 
 function cardMatches(card) {
   const person = card.dataset.person;
@@ -1003,6 +1042,7 @@ document.addEventListener("change", (event) => {
 });
 
 document.getElementById("select-visible").addEventListener("click", () => {
+  document.querySelector(".filter-menu")?.removeAttribute("open");
   document.querySelectorAll(".card:not([hidden]) .card-select").forEach((box) => selected.add(box.value));
   updateSelection();
 });
@@ -1061,6 +1101,12 @@ detailsToggle.addEventListener("change", () => {
 
 // Nach jedem Neuzeichnen der Liste: Filter, Auswahl und Details wiederherstellen.
 function afterSuggestionsRendered() {
+  const badge = document.getElementById("nav-open-count");
+  if (badge) {
+    const open = document.querySelectorAll("#suggestions-container .card-select").length;
+    badge.textContent = open;
+    badge.hidden = !open;
+  }
   applyFilter();
   updateSelection();
   applyDetailsPreference();
@@ -1070,3 +1116,22 @@ setDisplayValues(document.getElementById("suggestions-container"));
 afterSuggestionsRendered();
 refreshActivity();
 window.setInterval(refreshActivity, 2000);
+
+// Lange Fundstellen sind auf drei Zeilen gekürzt; Antippen zeigt alles.
+document.addEventListener("click", (event) => {
+  const quote = event.target.closest(".source-quote blockquote");
+  if (quote) quote.classList.toggle("clamped");
+});
+document.addEventListener("keydown", (event) => {
+  const quote = event.target.closest?.(".source-quote blockquote");
+  if (quote && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    quote.classList.toggle("clamped");
+  }
+});
+// Menüs schließen beim Tipp daneben.
+document.addEventListener("click", (event) => {
+  document.querySelectorAll(".filter-menu[open]").forEach((menu) => {
+    if (!menu.contains(event.target)) menu.removeAttribute("open");
+  });
+});

@@ -1017,6 +1017,16 @@ async def logout():
 
 
 templates.env.globals["login_required"] = lambda: bool(settings.password_hash)
+
+
+def _open_suggestion_count() -> int:
+    try:
+        return db.count_open_suggestions(settings.database_path)
+    except Exception:  # Menü soll nie an der Zahl scheitern
+        return 0
+
+
+templates.env.globals["open_suggestion_count"] = _open_suggestion_count
 templates.env.globals["service_name"] = i18n.service_name
 templates.env.globals["notify_channels"] = lambda: notify.channels(settings)
 templates.env.globals["ai_providers"] = setup_wizard.AI_PROVIDERS
