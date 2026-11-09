@@ -4,6 +4,23 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.34.0 – 2026-11-09
+
+- **Sicherungen neu gegliedert:** Oben die Kalender-Sicherung mit Statuszeile
+  (zuletzt gesichert, Zahl der Termine, ↻ zum Sichern), Änderungsverlauf und
+  Terminsuche direkt auf der Seite – die Unterseite „Termine durchsuchen“
+  entfällt, alte Links führen dorthin. Darunter die Datenbank-Sicherung mit
+  Statuszeile; je Sicherung nur „Wiederherstellen“, Herunterladen und Löschen im
+  ⋯-Menü, ältere hinter „Alle anzeigen“.
+- **Änderungen eines Zeitraums:** Ein Klick auf Tag, Woche oder Monat im
+  Änderungsverlauf vergleicht den Stand davor mit dem Stand am Ende des
+  Zeitraums und zeigt standardmäßig alle neuen, geänderten und gelöschten
+  Termine (kommende und vergangene). Neuer Reiter „Alle Änderungen“; „Alle“
+  heißt jetzt „Ganzer Stand“. Ist ein gelöschter Termin heute wieder in iCloud,
+  steht „heute wieder vorhanden“ dabei.
+- **Version und Updates** sowie Zeitplan, Aufbewahrung und Auswahl der zu
+  sichernden Kalender stehen jetzt unter Einstellungen.
+
 ## 0.33.0 – 2026-11-09
 
 - **Neues Grundgerüst:** Auf dem Handy eine Leiste unten (Vorschläge, Archiv,

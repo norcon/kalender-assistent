@@ -38,6 +38,7 @@ _DE = {
     "summer": ("Sommerfest Verein", "Sommerfest"),
     "cancel": ("Fußballtraining", "Training fällt aus"),
     "cloud": ("Yoga", "Elternabend 4b"),
+    "cloud_changes": ("Klavierstunde", "Kinderarzt Ben"),
 }
 _EN = {
     "family": "Family",
@@ -63,6 +64,7 @@ _EN = {
     "summer": ("Club summer party", "Summer party"),
     "cancel": ("Football training", "Training cancelled"),
     "cloud": ("Yoga", "Parents’ evening 4b"),
+    "cloud_changes": ("Piano lesson", "Paediatrician Ben"),
 }
 _COLORS = ("#ff2968", "#ffcc00", "#1badf8", "#63da38", "#cc73e1")
 
@@ -206,11 +208,27 @@ def seed(database_path: str, calendar_store_path: str, language: str = "de") -> 
         "/a.ics": ('"a"', f"BEGIN:VEVENT\r\nUID:a\r\nSUMMARY:{yoga}\r\nDTSTART;TZID=Europe/Berlin:{fmt(1, '19:00')}\r\nDTEND;TZID=Europe/Berlin:{fmt(1, '20:00')}\r\nEND:VEVENT\r\n"),
         "/b.ics": ('"b"', f"BEGIN:VEVENT\r\nUID:b\r\nSUMMARY:{evening}\r\nDTSTART;TZID=Europe/Berlin:{fmt(1, '19:30')}\r\nDTEND;TZID=Europe/Berlin:{fmt(1, '21:00')}\r\nEND:VEVENT\r\n"),
     }
-    calendar_backup.take_snapshot(
-        calendar_store_path, [{"name": "Sam", "url": "demo://Sam"}],
-        lambda _url: {href: etag for href, (etag, _) in cloud.items()},
-        lambda _url, hrefs: {href: cloud[href] for href in hrefs},
-    )
+    # Drei Stände für den Änderungsverlauf: vorgestern, gestern (ein Termin gelöscht,
+    # einer verschoben, einer neu) und heute.
+    piano, doctor = text["cloud_changes"]
+    event = lambda uid, title, offset, start, end: (  # noqa: E731
+        f'"{uid}{start}"', f"BEGIN:VEVENT\r\nUID:{uid}\r\nSUMMARY:{title}\r\nDTSTART;TZID=Europe/Berlin:{fmt(offset, start)}\r\n"
+        f"DTEND;TZID=Europe/Berlin:{fmt(offset, end)}\r\nEND:VEVENT\r\n")
+    earlier = {"/a.ics": cloud["/a.ics"], "/p.ics": event("p", piano, 2, "16:00", "16:45"),
+               "/d.ics": event("d", doctor, 4, "09:00", "09:30")}
+    states = [
+        (2, earlier),
+        (1, {**cloud, "/d.ics": event("d", doctor, 4, "10:30", "11:00")}),
+    ]
+    states.append((0, states[-1][1]))  # heute ohne Änderungen
+    snapshot_time = datetime.now(timezone.utc)
+    for days_ago, state in states:
+        calendar_backup.take_snapshot(
+            calendar_store_path, [{"name": "Sam", "url": "demo://Sam"}],
+            lambda _url, s=state: {href: etag for href, (etag, _) in s.items()},
+            lambda _url, hrefs, s=state: {href: s[href] for href in hrefs},
+            now=snapshot_time - timedelta(days=days_ago),
+        )
     for seconds, ok in ((95, True), (140, True), (60, False), (210, True)):
         db.record_ai_run(database_path, seconds, ok, "demo-model")
     logger.info("Demo-Modus: Beispieldaten angelegt (%s).", language)

@@ -322,9 +322,9 @@ def _check_new_version() -> None:
         return
     _in_language(lambda: notify.send(
         settings, _("Neue Version {version}", version=newest),
-        _("Kalender-Assistent {version} ist verfügbar (installiert: {current}). Update unter Sicherungen → Version und Updates.",
+        _("Kalender-Assistent {version} ist verfügbar (installiert: {current}). Update unter Einstellungen → Version und Updates.",
           version=newest, current=version.VERSION),
-        path="/sicherungen#version",
+        path="/einstellungen#version",
     ))
     db.set_service_state(settings.database_path, notified_version=newest)
 
@@ -638,7 +638,7 @@ def _check_mass_deletion(result: dict[str, Any]) -> None:
             settings, _("Auffällig viele Termine fehlen"),
             _("Bei der Kalendersicherung fehlten plötzlich {count} Termine ({calendars}). Wurde versehentlich etwas gelöscht?",
               count=alert["deleted"], calendars=", ".join(hit["calendar"] for hit in hits)),
-            path=(_mass_alert() or {}).get("link") or "/sicherungen/kalender", urgent=True,
+            path=(_mass_alert() or {}).get("link") or "/sicherungen#kalender", urgent=True,
         ))
 
 
@@ -650,9 +650,9 @@ def _mass_alert() -> dict[str, Any] | None:
         return None
     if not alert or not alert.get("before_id"):
         return alert
-    alert["link"] = "/sicherungen/kalender?" + urlencode(
+    alert["link"] = "/sicherungen?" + urlencode(
         {"stand": alert["before_id"], "status": "gelöscht", "zeitraum": "alle"}
-    )
+    ) + "#kalender"
     return alert
 
 
@@ -2940,21 +2940,17 @@ async def restore(suggestion_id: int):
     return RedirectResponse("/archiv", status_code=303)
 
 
-BACKUP_GROUPS = {"Backup", "Kalender-Sicherung"}
 _DEFAULT_SETTINGS = Settings.from_env(environ={})  # eingebaute Standardwerte
 
 
 def _parameter_fields(
     *,
-    include_backup: bool,
     form: dict[str, str] | None,
     errors: dict[str, str] | None,
 ) -> dict[str, list[dict[str, object]]]:
     stored = db.get_app_settings(settings.database_path)
     groups: dict[str, list[dict[str, object]]] = {}
     for parameter in settings_store.PARAMETERS:
-        if (parameter.group in BACKUP_GROUPS) != include_backup:
-            continue
         groups.setdefault(parameter.group, []).append(
             {
                 "parameter": parameter,
@@ -3042,7 +3038,9 @@ def _render_settings_page(
         name="settings.html",
         status_code=status_code,
         context={
-            "groups": _parameter_fields(include_backup=False, form=form, errors=errors),
+            "groups": _parameter_fields(form=form, errors=errors),
+            "known_calendars": calendar_backup.known_calendars(settings.calendar_store_path),
+            "excluded_calendars": _excluded_calendars(),
             "target_rows": _target_calendar_rows(),
             "calendar_colors": calendar_backup.calendar_colors(settings.calendar_store_path),
             "errors": errors or {},
@@ -3169,13 +3167,14 @@ def _render_backup_page(
     message: str | None = None,
     problem: str | None = None,
     status_code: int = 200,
+    browser: dict[str, Any] | None = None,
 ):
     return templates.TemplateResponse(
         request=request,
         name="backups.html",
         status_code=status_code,
         context={
-            "groups": _parameter_fields(include_backup=True, form=form, errors=errors),
+            **(browser or {}),
             "errors": errors or {},
             "message": message,
             "problem": problem,
@@ -3266,12 +3265,12 @@ async def save_access(request: Request):
 
 @app.post("/einstellungen", response_class=HTMLResponse)
 async def save_settings(request: Request):
-    form = await _read_form(request)
+    body = (await request.body()).decode("utf-8", errors="replace")
+    raw = parse_qs(body)
     form = {
-        key: value
-        for key, value in form.items()
+        key: values[-1]
+        for key, values in raw.items()
         if key in settings_store.PARAMETERS_BY_KEY
-        and settings_store.PARAMETERS_BY_KEY[key].group not in BACKUP_GROUPS
     }
     values, errors = settings_store.parse_form(form)
     if errors:
@@ -3279,28 +3278,53 @@ async def save_settings(request: Request):
             request, form=form, errors=errors, status_code=422
         )
     _store_settings(values)
+    if "backup_calendars_shown" in raw:  # Auswahl der zu sichernden Kalender (Teil des Formulars)
+        _save_excluded_calendars(set(raw.get("backup_calendar", [])))
     return RedirectResponse("/einstellungen?saved=1", status_code=303)
 
 
 @app.get("/sicherungen", response_class=HTMLResponse)
-async def backups_page(request: Request, saved: str | None = None):
-    return _render_backup_page(request, message=_(_MESSAGES[saved]) if saved in _MESSAGES else None)
+async def backups_page(
+    request: Request,
+    saved: str | None = None,
+    stand: int | None = None,
+    bis: int | None = None,
+    q: str = Query(default="", max_length=200),
+    kalender: str = Query(default="", max_length=200),
+    status: str = Query(default="", max_length=20),
+    zeitraum: str = Query(default="kommend", max_length=20),
+    seite: int = Query(default=1, ge=1, le=1000),
+    teil: str = Query(default="", max_length=10),
+    verlauf: str = Query(default="", max_length=10),
+    restored: str | None = None,
+    problem: str | None = None,
+):
+    browser = await _calendar_browser(
+        request, stand=stand, bis=bis, q=q, kalender=kalender, status=status,
+        zeitraum=zeitraum, seite=seite, verlauf=verlauf,
+    )
+    message = _(_MESSAGES[saved]) if saved in _MESSAGES else None
+    if restored:
+        message = _("„{title}“ wurde in iCloud wiederhergestellt.", title=restored)
+    if teil in ("liste", "mehr", "verlauf"):
+        name = {"liste": "_calendar_backup_results.html", "mehr": "_calendar_backup_more.html",
+                "verlauf": "_calendar_backup_history.html"}[teil]
+        return templates.TemplateResponse(
+            request=request, name=name,
+            context={**browser, "caldav_configured": _caldav_configured()},
+        )
+    response = _render_backup_page(request, message=message, problem=problem, browser=browser)
+    if verlauf in HISTORY_GROUPINGS:  # Wahl pro Gerät merken
+        response.set_cookie("verlauf", verlauf, max_age=31536000, samesite="lax")
+    return response
 
 
-@app.post("/sicherungen/einstellungen", response_class=HTMLResponse)
-async def save_backup_settings(request: Request):
-    form = await _read_form(request)
-    form = {
-        key: value
-        for key, value in form.items()
-        if key in settings_store.PARAMETERS_BY_KEY
-        and settings_store.PARAMETERS_BY_KEY[key].group in BACKUP_GROUPS
-    }
-    values, errors = settings_store.parse_form(form)
-    if errors:
-        return _render_backup_page(request, form=form, errors=errors, status_code=422)
-    _store_settings(values)
-    return RedirectResponse("/sicherungen?saved=1", status_code=303)
+async def _backup_problem(request: Request, problem: str, status_code: int):
+    """Sicherungsseite mit Fehlermeldung (Terminsuche im Ausgangszustand)."""
+    browser = await _calendar_browser(
+        request, stand=None, bis=None, q="", kalender="", status="", zeitraum="kommend", seite=1, verlauf="",
+    )
+    return _render_backup_page(request, problem=problem, status_code=status_code, browser=browser)
 
 
 @app.post("/sicherungen/erstellen", response_class=HTMLResponse)
@@ -3309,11 +3333,7 @@ async def backup_now(request: Request):
         await _run_backup()
     except Exception as error:
         logger.error("Datenbanksicherung fehlgeschlagen: %s", error)
-        return _render_backup_page(
-            request,
-            problem=_("Sicherung fehlgeschlagen. Details stehen im Live-Log."),
-            status_code=500,
-        )
+        return await _backup_problem(request, _("Sicherung fehlgeschlagen. Details stehen im Live-Log."), 500)
     return RedirectResponse("/sicherungen?saved=backup", status_code=303)
 
 
@@ -3342,14 +3362,10 @@ async def restore_backup(request: Request, name: str):
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail=_("Sicherung nicht gefunden")) from error
     if _mail_check_lock.locked():
-        return _render_backup_page(
-            request,
-            problem=_(
+        return await _backup_problem(request, _(
                 "Gerade läuft eine Postfachprüfung. Bitte warten, bis sie "
                 "abgeschlossen ist, und dann erneut versuchen."
-            ),
-            status_code=409,
-        )
+            ), 409)
     # Während der Wiederherstellung keine Mailprüfung und keine Bearbeitung.
     async with _mail_check_lock, _suggestion_lock:
         try:
@@ -3362,11 +3378,7 @@ async def restore_backup(request: Request, name: str):
             db.initialize(settings.database_path)  # ältere Sicherungen nachrüsten
         except Exception as error:
             logger.error("Wiederherstellung fehlgeschlagen: %s", error)
-            return _render_backup_page(
-                request,
-                problem=_("Wiederherstellung fehlgeschlagen. Details stehen im Live-Log."),
-                status_code=500,
-            )
+            return await _backup_problem(request, _("Wiederherstellung fehlgeschlagen. Details stehen im Live-Log."), 500)
         _reload_settings()
     return RedirectResponse("/sicherungen?saved=restored", status_code=303)
 
@@ -3374,31 +3386,18 @@ async def restore_backup(request: Request, name: str):
 @app.post("/sicherungen/kalender/abgleichen", response_class=HTMLResponse)
 async def calendar_backup_now(request: Request):
     if not _caldav_configured():
-        return _render_backup_page(
-            request, problem=_("Keine iCloud-Zugangsdaten eingerichtet (Einstellungen → Verbindungen)."), status_code=503
-        )
+        return await _backup_problem(request, _("Keine iCloud-Zugangsdaten eingerichtet (Einstellungen → Verbindungen)."), 503)
     if _calendar_backup_lock.locked():
-        return _render_backup_page(
-            request,
-            problem=_("Eine Kalendersicherung läuft bereits. Bitte kurz warten."),
-            status_code=409,
-        )
+        return await _backup_problem(request, _("Eine Kalendersicherung läuft bereits. Bitte kurz warten."), 409)
     try:
         await _run_calendar_backup()
     except Exception as error:
         logger.error("Kalendersicherung fehlgeschlagen: %s", type(error).__name__)
-        return _render_backup_page(
-            request,
-            problem=_("Kalendersicherung fehlgeschlagen. Details stehen im Live-Log."),
-            status_code=502,
-        )
+        return await _backup_problem(request, _("Kalendersicherung fehlgeschlagen. Details stehen im Live-Log."), 502)
     return RedirectResponse("/sicherungen?saved=calendar", status_code=303)
 
 
-@app.post("/sicherungen/kalender/auswahl")
-async def save_calendar_selection(request: Request):
-    body = (await request.body()).decode("utf-8", errors="replace")
-    chosen = set(parse_qs(body).get("calendar", []))
+def _save_excluded_calendars(chosen: set[str]) -> None:
     known = set(calendar_backup.known_calendars(settings.calendar_store_path))
     excluded = sorted(known - chosen)
     db.save_app_settings(
@@ -3409,11 +3408,17 @@ async def save_calendar_selection(request: Request):
         "Auswahl der Kalendersicherung gespeichert; ausgenommen: %s.",
         ", ".join(excluded) or "keine",
     )
-    return RedirectResponse("/sicherungen?saved=calendars", status_code=303)
+
+
+@app.post("/sicherungen/kalender/auswahl")
+async def save_calendar_selection(request: Request):
+    body = (await request.body()).decode("utf-8", errors="replace")
+    _save_excluded_calendars(set(parse_qs(body).get("calendar", [])))
+    return RedirectResponse("/einstellungen?saved=calendars#kalender-sicherung", status_code=303)
 
 
 BACKUP_PAGE_SIZE = 100
-BACKUP_STATUSES = ("gelöscht", "geändert", "neu", "alle")
+BACKUP_STATUSES = ("änderungen", "gelöscht", "geändert", "neu", "alle")
 HISTORY_GROUPINGS = ("tag", "woche", "monat")
 
 
@@ -3442,8 +3447,9 @@ def _history_groups(points: list[dict[str, Any]], grouping: str) -> list[dict[st
             key, label = monday.isoformat(), formatting.week_label(monday)
             period = _("in {week}", week=label)
         if not groups or groups[-1]["key"] != key:
+            # Punkte sind neueste zuerst → der erste Punkt ist das Ende des Zeitraums.
             groups.append({"key": key, "first": False, "label": label, "period": period,
-                           "deleted": 0, "changed": 0, "added": 0, "runs": 0})
+                           "after_id": point["id"], "deleted": 0, "changed": 0, "added": 0, "runs": 0})
         group = groups[-1]
         group["deleted"] += point["deleted"]
         group["changed"] += point["changed"]
@@ -3451,7 +3457,7 @@ def _history_groups(points: list[dict[str, Any]], grouping: str) -> list[dict[st
         group["runs"] += 1
         group["before_id"] = point["before_id"]  # Punkte sind neueste zuerst → zuletzt = älteste
     return groups
-_BACKUP_FILTERS = ("stand", "q", "kalender", "status", "zeitraum")
+_BACKUP_FILTERS = ("stand", "bis", "q", "kalender", "status", "zeitraum")
 
 
 def _backup_groups(items: list[dict[str, Any]], today: date) -> list[dict[str, Any]]:
@@ -3498,39 +3504,53 @@ def _backup_groups(items: list[dict[str, Any]], today: date) -> list[dict[str, A
     return groups
 
 
-@app.get("/sicherungen/kalender", response_class=HTMLResponse)
-async def calendar_backup_search(
+@app.get("/sicherungen/kalender")
+async def calendar_backup_search(request: Request):
+    """Früher eine eigene Seite – die Terminsuche steht jetzt direkt unter Sicherungen."""
+    query = request.url.query
+    return RedirectResponse("/sicherungen" + (f"?{query}" if query else "") + "#kalender", status_code=303)
+
+
+async def _calendar_browser(
     request: Request,
-    stand: int | None = None,
-    q: str = Query(default="", max_length=200),
-    kalender: str = Query(default="", max_length=200),
-    status: str = Query(default="", max_length=20),
-    zeitraum: str = Query(default="kommend", max_length=20),
-    seite: int = Query(default=1, ge=1, le=1000),
-    teil: str = Query(default="", max_length=10),
-    verlauf: str = Query(default="", max_length=10),
-    nur_aenderungen: str | None = None,
-    restored: str | None = None,
-    problem: str | None = None,
-):
+    *,
+    stand: int | None,
+    bis: int | None,
+    q: str,
+    kalender: str,
+    status: str,
+    zeitraum: str,
+    seite: int,
+    verlauf: str,
+) -> dict[str, Any]:
+    """Änderungsverlauf und Terminsuche der Kalender-Sicherung (Teil der Seite Sicherungen).
+
+    Mit stand und bis: Änderungen innerhalb eines Zeitraums (Stand davor gegen
+    Stand am Ende). Nur stand: Vergleich dieses Stands mit heute.
+    """
     store = settings.calendar_store_path
     snapshots = calendar_backup.list_snapshots(store)
     newest = snapshots[0] if snapshots else None
     selected = next((item for item in snapshots if item["id"] == stand), newest)
     is_newest = selected is None or newest is None or selected["id"] == newest["id"]
+    until = next((item for item in snapshots if item["id"] == bis), None) if not is_newest else None
+    if until and selected and until["id"] <= selected["id"]:
+        until = None
     period = zeitraum if zeitraum in calendar_backup.PERIODS else "kommend"
     today = datetime.now(ZoneInfo(settings.caldav_timezone)).date()
-    filters = {"text": q, "calendar": kalender, "period": period, "today": today}
+    filters = {"text": q, "calendar": kalender, "period": period, "today": today,
+               "until": until["id"] if until else None}
+    empty = {"änderungen": 0, "gelöscht": 0, "geändert": 0, "unverändert": 0, "alle": 0, "neu": 0}
     counts = (
         await asyncio.to_thread(calendar_backup.count_by_status, store, int(selected["id"]), **filters)
-        if selected else {"gelöscht": 0, "geändert": 0, "unverändert": 0, "alle": 0, "neu": 0}
+        if selected else empty
     )
     if is_newest:
         chosen = "alle"  # im neuesten Stand ist nichts gelöscht oder geändert
     elif status in BACKUP_STATUSES:
         chosen = status
-    else:  # Standard: dorthin, wo es etwas zu sehen gibt
-        chosen = next((key for key in ("gelöscht", "geändert", "neu") if counts[key]), "alle")
+    else:  # Standard: alle Änderungen zusammen
+        chosen = "änderungen"
     rows = (
         await asyncio.to_thread(
             calendar_backup.search, store, int(selected["id"]),
@@ -3542,6 +3562,7 @@ async def calendar_backup_search(
     has_more = len(rows) > BACKUP_PAGE_SIZE
     state = {
         "stand": "" if is_newest or not selected else str(selected["id"]),
+        "bis": str(until["id"]) if until else "",
         "q": q.strip(), "kalender": kalender,
         "status": "" if is_newest or status not in BACKUP_STATUSES else status,
         "zeitraum": "" if period == "kommend" else period,
@@ -3550,7 +3571,7 @@ async def calendar_backup_search(
     def link(**changes: Any) -> str:
         merged = {**state, **{key: "" if value is None else str(value) for key, value in changes.items()}}
         query = urlencode({key: value for key, value in merged.items() if value})
-        return "/sicherungen/kalender" + (f"?{query}" if query else "")
+        return "/sicherungen" + (f"?{query}" if query else "") + "#kalender"
 
     points = calendar_backup.change_points(snapshots)
     grouping = verlauf if verlauf in HISTORY_GROUPINGS else request.cookies.get("verlauf", "")
@@ -3559,42 +3580,28 @@ async def calendar_backup_search(
     selected_point = next(
         (group for group in history if selected and group["before_id"] == selected["id"]), None
     )
-    name = {"liste": "_calendar_backup_results.html", "mehr": "_calendar_backup_more.html"}.get(
-        teil, "calendar-backup.html"
-    )
-    response = templates.TemplateResponse(
-        request=request,
-        name=name,
-        context={
-            "snapshots": snapshots,
-            "selected": selected,
-            "is_newest": is_newest,
-            "selected_point": selected_point,
-            "points": points,
-            "history": history,
-            "grouping": grouping,
-            "counts": counts,
-            "chosen": chosen,
-            "period": period,
-            "groups": _backup_groups(rows[:BACKUP_PAGE_SIZE], today),
-            "has_more": has_more,
-            "next_page": seite + 1,
-            "page": seite,
-            "link": link,
-            "q": q,
-            "kalender": kalender,
-            "calendars": calendar_backup.known_calendars(store),
-            "calendar_colors": calendar_backup.calendar_colors(store),
-            "message": (
-                _("„{title}“ wurde in iCloud wiederhergestellt.", title=restored) if restored else None
-            ),
-            "problem": problem,
-            "caldav_configured": _caldav_configured(),
-        },
-    )
-    if verlauf in HISTORY_GROUPINGS:  # Wahl pro Gerät merken
-        response.set_cookie("verlauf", verlauf, max_age=31536000, samesite="lax")
-    return response
+    return {
+        "snapshots": snapshots,
+        "selected": selected,
+        "until": until,
+        "is_newest": is_newest,
+        "selected_point": selected_point,
+        "points": points,
+        "history": history,
+        "grouping": grouping,
+        "counts": counts,
+        "chosen": chosen,
+        "period": period,
+        "groups": _backup_groups(rows[:BACKUP_PAGE_SIZE], today),
+        "has_more": has_more,
+        "next_page": seite + 1,
+        "page": seite,
+        "link": link,
+        "q": q,
+        "kalender": kalender,
+        "calendars": calendar_backup.known_calendars(store),
+        "calendar_colors": calendar_backup.calendar_colors(store),
+    }
 
 
 # ---------- Verbindungen (Postfächer, KI, Kalender, Benachrichtigungen) ----------
@@ -3910,7 +3917,7 @@ async def restore_calendar_event(request: Request, presence_id: int):
     }
 
     def with_param(key: str, value: str) -> str:
-        return "/sicherungen/kalender?" + urlencode({**filters, key: value})
+        return "/sicherungen?" + urlencode({**filters, key: value}) + "#kalender"
 
     if not _caldav_configured():
         return RedirectResponse(

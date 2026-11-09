@@ -2,6 +2,7 @@
 <html lang="{{ current_lang() }}">
 <head>
   {% from "_macros.html" import info %}
+  {% set group_titles = {"Backup": "Datenbank-Sicherung"} %}
   {% with page_title=_("Einstellungen") %}{% include "_head.html" %}{% endwith %}
 </head>
 <body>
@@ -27,10 +28,16 @@
     </ul>
   </section>
 
+  <section id="version" aria-labelledby="update-heading">
+    <h2 id="update-heading">{{ _("Version und Updates") }} {{ info(_("Vor jedem Update legt die App automatisch eine Vollsicherung an (Datenbank, Kalender-Sicherung und Konfiguration). Startet die neue Version nicht sauber, kehrt der Updater von selbst zur bisherigen Version zurück."), _("Updates")) }}</h2>
+    <div id="update-container" data-src="/sicherungen/update-fragment"><p class="meta">{{ _("Lade Versionsinformationen …") }}</p></div>
+  </section>
+
   <nav class="page-toc" aria-label="{{ _("Auf dieser Seite") }}">
     <span class="meta">{{ _("Auf dieser Seite:") }}</span>
     <a href="#verbindungen">{{ _("Verbindungen") }}</a>
-    {% for group in groups %}<a href="#group-{{ loop.index }}">{{ _(group) }}</a>{% endfor %}
+    <a href="#version">{{ _("Version und Updates") }}</a>
+    {% for group in groups %}<a href="#group-{{ loop.index }}">{{ _(group_titles.get(group, group)) }}</a>{% endfor %}
     <a href="#zielkalender">{{ _("Zielkalender") }}</a>
     {% if not demo_mode %}<a href="#zugangsschutz">{{ _("Zugangsschutz") }}</a>{% endif %}
   </nav>
@@ -164,6 +171,7 @@
       }
     });
   </script>
+  <script src="/static/update.js?v={{ app_version }}" defer></script>
   </main>
   {% include "_footer.html" %}
 </body>

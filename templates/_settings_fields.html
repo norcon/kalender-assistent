@@ -1,7 +1,8 @@
 {% from "_macros.html" import info %}
     {% for group, fields in groups.items() %}
-      <section aria-labelledby="group-{{ loop.index }}"{% if group == "Benachrichtigungen" %} id="ereignisse"{% endif %}>
-        <h2 id="group-{{ loop.index }}">{{ _(group) }}</h2>
+      {% set section_ids = {"Benachrichtigungen": "ereignisse", "Kalender-Sicherung": "kalender-sicherung", "Backup": "datenbank-sicherung"} %}
+      <section aria-labelledby="group-{{ loop.index }}"{% if section_ids.get(group) %} id="{{ section_ids[group] }}"{% endif %}>
+        <h2 id="group-{{ loop.index }}">{{ _({"Backup": "Datenbank-Sicherung"}.get(group, group)) }}</h2>
         {% set link = {
           "Postfach": ("postfaecher", _("Server und Zugangsdaten der Postfächer")),
           "KI-Auswertung": ("ki", _("Adresse des KI-Servers")),
@@ -31,6 +32,24 @@
             </div>
           </div>
         {% endfor %}
+        {% if group == "Kalender-Sicherung" and known_calendars is defined %}
+          <div class="field">
+            <span class="field-label">{{ _("Zu sichernde Kalender") }}</span>
+            <div>
+              {% if known_calendars %}
+                <input type="hidden" name="backup_calendars_shown" value="1">
+                <div class="calendar-selection">
+                  {% for name in known_calendars %}
+                    <label><input type="checkbox" name="backup_calendar" value="{{ name }}" {% if name not in excluded_calendars %}checked{% endif %}> {{ name }}</label>
+                  {% endfor %}
+                </div>
+                <p class="help">{{ _("Neu angelegte Kalender werden automatisch mitgesichert. Abgewählte Kalender behalten ihre bisherigen Sicherungen, werden aber nicht mehr aktualisiert.") }}</p>
+              {% else %}
+                <p class="help">{{ _("Die Kalenderliste erscheint nach der ersten Sicherung (automatisch kurz nach dem Start oder über „Jetzt sichern“). Standardmäßig werden alle Kalender gesichert.") }}</p>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
         {% if group == "Benachrichtigungen" %}
           {% set channels = notify_channels() %}
           <div class="notify-channels">

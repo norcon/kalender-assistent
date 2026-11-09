@@ -1,0 +1,40 @@
+{#- Änderungsverlauf der Kalender-Sicherung, gruppiert nach Tag, Woche oder Monat.
+    Ein Klick auf einen Zeitraum zeigt genau die Änderungen darin. -#}
+{%- from "_macros.html" import info -%}
+<div class="change-history" id="change-history">
+  <div class="history-head">
+    <h3 class="subhead">{{ _("Änderungsverlauf") }} {{ info(_("Ein Klick auf einen Zeitraum zeigt die Termine, die darin neu angelegt, geändert oder gelöscht wurden – verglichen wird der Stand davor mit dem Stand am Ende des Zeitraums. Gelöschte und geänderte Termine lassen sich einzeln wiederherstellen."), _("Änderungsverlauf")) }}</h3>
+    <div class="segmented history-grouping" role="group" aria-label="{{ _("Gruppieren nach") }}">
+      {% for key, label in [("tag", _("Tag")), ("woche", _("Woche")), ("monat", _("Monat"))] %}
+        <a class="segment" href="{{ link(verlauf=key) }}"{% if grouping == key %} aria-current="true"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% macro group_item(group) %}
+    <li>
+      {% if group.before_id %}
+      <a data-live data-history href="{{ link(stand=group.before_id, bis=group.after_id, status=None, zeitraum='alle', seite=None) }}"{% if selected_point and selected_point.key == group.key and until %} aria-current="true"{% endif %}>
+      {% else %}<span class="first-backup">{% endif %}
+        <span class="when">{{ group.label }}</span>
+        <span class="counts">
+          {% if group.first %}<span>{{ _("Erste Sicherung") }}</span>{% else %}
+          {% if group.deleted %}<span class="count-deleted">{{ _("{count} gelöscht", count=group.deleted) }}</span>{% endif %}
+          {% if group.changed %}<span class="count-changed">{{ _("{count} geändert", count=group.changed) }}</span>{% endif %}
+          {% if group.added %}<span class="count-added">{{ _("{count} neu", count=group.added) }}</span>{% endif %}
+          {% endif %}
+        </span>
+      {% if group.before_id %}</a>{% else %}</span>{% endif %}
+    </li>
+  {% endmacro %}
+  <ol class="history-list">
+    <li><a data-live data-history href="{{ link(stand=None, bis=None, status=None, zeitraum=None, seite=None) }}"{% if is_newest %} aria-current="true"{% endif %}><span class="when">{{ _("Aktueller Stand") }}</span><span class="counts"><span>{{ _("gesichert {age}", age=snapshots[0].taken_at|relative_time) }}</span></span></a></li>
+    {% for group in history[:5] %}{{ group_item(group) }}{% endfor %}
+  </ol>
+  {% if history|length > 5 %}
+    <details class="history-more"{% if selected_point and selected_point in history[5:] %} open{% endif %}>
+      <summary>{{ _("Ältere Änderungen ({count})", count=history|length - 5) }}</summary>
+      <ol class="history-list">{% for group in history[5:] %}{{ group_item(group) }}{% endfor %}</ol>
+    </details>
+  {% endif %}
+  {% if not points %}<p class="meta">{{ _("Seit Beginn der Sicherung hat sich nichts geändert.") }}</p>{% endif %}
+</div>

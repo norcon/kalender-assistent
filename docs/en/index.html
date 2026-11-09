@@ -160,7 +160,7 @@ docker compose --profile updater up -d</code></pre>
       <h3>With one click (recommended)</h3>
       <p>Enable the updater once:</p>
       <pre><code>docker compose --profile updater up -d</code></pre>
-      <p>The app then shows new versions with their changes under <em>Backups → Version and updates</em>. One tap is enough: the app creates a full backup, switches versions and checks that everything starts cleanly – otherwise it returns to the previous version by itself. Switching to an earlier version works there too, optionally with the data from before the last update.</p>
+      <p>The app then shows new versions with their changes under <em>Settings → Version and updates</em>. One tap is enough: the app creates a full backup, switches versions and checks that everything starts cleanly – otherwise it returns to the previous version by itself. Switching to an earlier version works there too, optionally with the data from before the last update.</p>
       <div class="warn">The updater has access to Docker and can be used on your home network without a login – but it only accepts official versions. Details in <a href="https://github.com/norcon/kalender-assistent/blob/main/SECURITY.md">SECURITY.md</a>.</div>
       <h3>By hand</h3>
       <pre><code>cd kalender-assistent
@@ -168,7 +168,7 @@ docker compose pull
 docker compose up -d</code></pre>
       <p>The database is upgraded automatically on start. The app makes a backup every night; before an update you can create an extra one under <em>Backups → Back up now</em>.</p>
       <h3>Back to an earlier version</h3>
-      <p>Easiest with one click under <em>Backups → Version and updates</em>. By hand: put the version you want into <code>compose.yaml</code> (all versions are listed in the <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">changelog</a>):</p>
+      <p>Easiest with one click under <em>Settings → Version and updates</em>. By hand: put the version you want into <code>compose.yaml</code> (all versions are listed in the <a href="https://github.com/norcon/kalender-assistent/blob/main/CHANGELOG.md">changelog</a>):</p>
       <pre><code>image: ghcr.io/norcon/kalender-assistent:${KALENDER_VERSION:-0.28.0}</code></pre>
       <pre><code>docker compose pull
 docker compose up -d</code></pre>

@@ -946,3 +946,51 @@ fieldset.channel .help { margin: 0 0 .7rem; }
 #change-requests .card h3 { font-size: 1.05rem; margin: 0 0 .2rem; }
 #change-requests .card p { margin: .2rem 0; }
 #change-requests .card > p:first-of-type { font-weight: 600; }
+
+/* ---------- Sicherungen (ab 0.34): Statuszeilen, Verlauf, App-Daten ---------- */
+
+.backup-section { padding: 1rem 1.1rem; }
+.section-title { font-size: 1.15rem; margin: 0 0 .7rem; }
+.section-title .meta { font-weight: 400; font-size: .9rem; }
+.status-row { display: flex; align-items: center; gap: .75rem; padding: .6rem .8rem; border-radius: .75rem; background: var(--surface-2); }
+.status-row .status-dot { width: .75rem; height: .75rem; border-radius: 50%; flex: none; background: var(--dot-off); }
+.status-row .dot.ok { background: var(--dot-ok); } .status-row .dot.warn { background: var(--dot-warn); }
+.status-row .dot.error { background: var(--dot-error); } .status-row .dot.off { background: var(--dot-off); }
+.status-row-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .35rem; }
+.status-row-detail { flex-basis: 100%; font-size: .82rem; }
+.status-row form { margin: 0; }
+.subhead { display: flex; align-items: center; gap: .2rem; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); margin: 0; }
+.history-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin: 1.1rem 0 .5rem; }
+.history-head .history-grouping { margin: 0; }
+.change-history .history-list a { min-height: 2.75rem; }
+.backup-browser .backup-search { margin: 1rem 0 .5rem; }
+.backup-browser .backup-search input[type="search"] { width: 100%; }
+.backup-filters { grid-template-columns: minmax(0, 1fr); }
+.scroll-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: .1rem; }
+.scroll-chips::-webkit-scrollbar { display: none; }
+.tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: .1rem; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: none; white-space: nowrap; }
+.tab-änderungen[aria-current="true"] { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.stand-banner { margin: .8rem 0 .2rem; }
+.backup-browser .month-group { padding: .2rem 0 .4rem; background: none; border: 0; box-shadow: none; margin: 0; }
+.db-backups { list-style: none; margin: .6rem 0 0; padding: 0; }
+.db-backup { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem 0; border-top: 1px solid var(--border-subtle); }
+.db-backups:first-child .db-backup:first-child { border-top: 0; }
+.db-backup-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; min-width: 0; }
+.db-backup-actions { display: flex; align-items: center; gap: .2rem; flex: none; }
+.db-backup-actions form { margin: 0; }
+.row-menu { position: relative; }
+.row-menu > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.row-menu > summary::-webkit-details-marker { display: none; }
+.row-menu .menu-panel { min-width: 11rem; }
+.row-menu .menu-panel form { margin: 0; }
+a.menu-item { text-decoration: none; }
+.menu-item.danger-text { color: var(--danger); }
+.settings-hint { margin: .2rem 0 1rem; }
+.field-label { font-weight: 600; padding-top: .45rem; }
+.field .calendar-selection label { font-weight: 400; padding-top: 0; }
+@media (max-width: 640px) {
+  .field-label { padding-top: 0; }
+  .backup-section { padding: .9rem 1rem; }
+}

@@ -439,13 +439,27 @@ STATUS_SQL = (
     "WHEN c.version_hash = p.version_hash THEN 'unverändert' ELSE 'geändert' END"
 )
 PERIODS = ("kommend", "vergangen", "alle")
-_FROM_SQL = """
+# Vergleichsstand „c“: heute (valid_to IS NULL) oder eine bestimmte Sicherung (:until).
+_CURRENT_SQL = "c.valid_to IS NULL"
+_UNTIL_SQL = "c.valid_from <= :until AND (c.valid_to IS NULL OR c.valid_to > :until)"
+
+
+def _from_sql(until: int | None) -> str:
+    return f"""
     FROM presence p
     JOIN event_versions v ON v.hash = p.version_hash
     LEFT JOIN presence c
-        ON c.calendar = p.calendar AND c.href = p.href AND c.valid_to IS NULL
+        ON c.calendar = p.calendar AND c.href = p.href AND {_UNTIL_SQL if until else _CURRENT_SQL}
     LEFT JOIN event_versions cv ON cv.hash = c.version_hash
 """
+
+
+# Heute (wieder) in iCloud vorhanden – wichtig, wenn mit einem früheren Stand verglichen wird.
+_PRESENT_NOW_SQL = (
+    "EXISTS (SELECT 1 FROM presence n WHERE n.calendar = p.calendar AND n.href = p.href "
+    "AND n.valid_to IS NULL)"
+)
+CHANGE_STATUSES = ("gelöscht", "geändert", "neu")
 # Kommend: beginnt heute oder später – oder ist eine Serie, die noch läuft.
 _UPCOMING_SQL = (
     "(substr(v.dtstart, 1, 10) >= :today OR (v.recurring = 1 AND ("
@@ -482,6 +496,7 @@ def search(
     store_path: str,
     snapshot_id: int,
     *,
+    until: int | None = None,
     text: str = "",
     calendar: str = "",
     only_changed: bool = False,
@@ -491,16 +506,41 @@ def search(
     limit: int = 200,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
-    """Termine im Stand einer Sicherung, verglichen mit dem neuesten Stand.
+    """Termine im Stand einer Sicherung, verglichen mit dem neuesten Stand
+    oder – mit until – mit dem Stand einer späteren Sicherung.
 
-    status: unverändert / geändert / gelöscht (bezogen auf die neueste Sicherung).
+    status: unverändert / geändert / gelöscht / neu, „änderungen“ = alle drei
+    Änderungsarten zusammen, leer = der ganze Stand.
     Reihenfolge: kommende Termine aufsteigend, danach vergangene absteigend.
     """
+    if status == "änderungen":
+        # Beide Teillisten bis zur gewünschten Seite holen, gemeinsam sortieren, ausschneiden.
+        common = dict(until=until, text=text, calendar=calendar, period=period, today=today,
+                      limit=offset + limit, offset=0)
+        rows = (search(store_path, snapshot_id, only_changed=True, **common)
+                + search(store_path, snapshot_id, status="neu", **common))
+        today_text = (today or date.today()).isoformat()
+
+        def start(row: dict[str, Any]) -> str:
+            return str(row["dtstart"] or "")
+
+        def running(row: dict[str, Any]) -> int:  # laufende Serie: Beginn liegt zurück
+            return 1 if row["recurring"] and start(row)[:10] < today_text else 0
+
+        # Wie in SQL: kommende aufsteigend, danach vergangene absteigend.
+        upcoming = sorted((row for row in rows if row["upcoming"]),
+                          key=lambda row: (running(row), start(row), row["summary"] or ""))
+        past = sorted((row for row in rows if not row["upcoming"]), key=lambda row: row["summary"] or "")
+        past.sort(key=start, reverse=True)
+        past.sort(key=running)
+        return (upcoming + past)[offset:offset + limit]
     conditions, params = _conditions(snapshot_id, text, calendar, period, today)
     params.update(limit=limit, offset=offset, today=params.get("today", (today or date.today()).isoformat()))
     params.setdefault("today_compact", (today or date.today()).strftime("%Y%m%d"))
+    if until:
+        params["until"] = until
     if status == "neu":
-        return _search_added(store_path, conditions[2:], params)
+        return _search_added(store_path, conditions[2:], params, until)
     if only_changed:
         conditions.append("(c.id IS NULL OR c.version_hash != p.version_hash)")
     if status == "gelöscht":
@@ -511,8 +551,9 @@ def search(
         SELECT p.id, p.calendar, p.href, v.summary, v.dtstart, v.dtend, v.location, v.recurring,
                {STATUS_SQL} AS status, {_UPCOMING_SQL} AS upcoming,
                cv.summary AS current_summary, cv.dtstart AS current_dtstart,
-               cv.dtend AS current_dtend, cv.location AS current_location
-        {_FROM_SQL}
+               cv.dtend AS current_dtend, cv.location AS current_location,
+               {_PRESENT_NOW_SQL} AS present_now
+        {_from_sql(until)}
         WHERE {' AND '.join(conditions)}
         ORDER BY upcoming DESC,
                  -- laufende Serien (Beginn liegt zurück) nach den datierten Terminen
@@ -525,22 +566,27 @@ def search(
         return [dict(row) for row in connection.execute(query, params)]
 
 
-# Heute vorhanden, im gewählten Stand aber noch nicht (seitdem neu angelegt).
-_ADDED_SQL = (
-    "p.valid_to IS NULL AND NOT EXISTS (SELECT 1 FROM presence o "
+# Im Vergleichsstand (heute oder :until) vorhanden, im gewählten Stand aber noch nicht.
+_NOT_IN_SNAPSHOT_SQL = (
+    "NOT EXISTS (SELECT 1 FROM presence o "
     "WHERE o.calendar = p.calendar AND o.href = p.href AND o.valid_from <= :snapshot "
     "AND (o.valid_to IS NULL OR o.valid_to > :snapshot))"
 )
+_ADDED_SQL = "p.valid_to IS NULL AND " + _NOT_IN_SNAPSHOT_SQL
+_ADDED_UNTIL_SQL = "p.valid_from <= :until AND (p.valid_to IS NULL OR p.valid_to > :until) AND " + _NOT_IN_SNAPSHOT_SQL
 
 
-def _search_added(store_path: str, filters: list[str], params: dict[str, Any]) -> list[dict[str, Any]]:
+def _search_added(
+    store_path: str, filters: list[str], params: dict[str, Any], until: int | None = None
+) -> list[dict[str, Any]]:
     query = f"""
         SELECT p.id, p.calendar, p.href, v.summary, v.dtstart, v.dtend, v.location, v.recurring,
                'neu' AS status, {_UPCOMING_SQL} AS upcoming,
                v.summary AS current_summary, v.dtstart AS current_dtstart,
-               v.dtend AS current_dtend, v.location AS current_location
+               v.dtend AS current_dtend, v.location AS current_location,
+               {_PRESENT_NOW_SQL} AS present_now
         FROM presence p JOIN event_versions v ON v.hash = p.version_hash
-        WHERE {' AND '.join([_ADDED_SQL, *filters])}
+        WHERE {' AND '.join([_ADDED_UNTIL_SQL if until else _ADDED_SQL, *filters])}
         ORDER BY upcoming DESC,
                  CASE WHEN v.recurring = 1 AND substr(v.dtstart, 1, 10) < :today THEN 1 ELSE 0 END,
                  CASE WHEN {_UPCOMING_SQL} THEN v.dtstart END ASC,
@@ -555,17 +601,22 @@ def count_by_status(
     store_path: str,
     snapshot_id: int,
     *,
+    until: int | None = None,
     text: str = "",
     calendar: str = "",
     period: str = "alle",
     today: date | None = None,
 ) -> dict[str, int]:
     """Anzahl je Status (gelöscht/geändert/unverändert), „alle“ (= Termine des
-    Stands) und „neu“ (seitdem hinzugekommen, nicht Teil von „alle“)."""
+    Stands), „neu“ (seitdem hinzugekommen, nicht Teil von „alle“) und
+    „änderungen“ (gelöscht + geändert + neu). Verglichen wird mit heute oder
+    mit der Sicherung until."""
     conditions, params = _conditions(snapshot_id, text, calendar, period, today)
+    if until:
+        params["until"] = until
     query = f"""
         SELECT {STATUS_SQL} AS status, COUNT(*) AS n
-        {_FROM_SQL}
+        {_from_sql(until)}
         WHERE {' AND '.join(conditions)}
         GROUP BY status
     """
@@ -574,8 +625,10 @@ def count_by_status(
         for row in connection.execute(query, params):
             counts[row["status"]] = row["n"]
         counts["alle"] = sum(counts.values())
-        added = f"SELECT COUNT(*) FROM presence p JOIN event_versions v ON v.hash = p.version_hash WHERE {' AND '.join([_ADDED_SQL, *conditions[2:]])}"
+        added_sql = _ADDED_UNTIL_SQL if until else _ADDED_SQL
+        added = f"SELECT COUNT(*) FROM presence p JOIN event_versions v ON v.hash = p.version_hash WHERE {' AND '.join([added_sql, *conditions[2:]])}"
         counts["neu"] = connection.execute(added, params).fetchone()[0]
+    counts["änderungen"] = sum(counts[key] for key in CHANGE_STATUSES)
     return counts
 
 

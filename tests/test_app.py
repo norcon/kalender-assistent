@@ -1189,7 +1189,8 @@ class UpdatePageTests(unittest.TestCase):
                     self.assertIn('data-version="9.0.0" disabled', page)
                     self.assertEqual(client.post("/api/update", json={"version": "8.8.8"}).status_code, 422)
                     self.assertEqual(client.post("/api/update", json={"version": "9.0.0"}).status_code, 503)
-                self.assertIn('id="update-container"', client.get("/sicherungen").text)
+                self.assertIn('id="update-container"', client.get("/einstellungen").text)
+                self.assertNotIn('id="update-container"', client.get("/sicherungen").text)
 
     def test_start_update_backs_up_first(self):
         with patch.object(app_module.mail, "poll_mailbox"):
@@ -1238,10 +1239,13 @@ class CalendarBackupPageTests(unittest.TestCase):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
                 first = self._seed()
-                latest = client.get("/sicherungen/kalender?zeitraum=alle").text
+                old = client.get("/sicherungen/kalender?zeitraum=alle", follow_redirects=False)  # alte Adresse
+                self.assertEqual((old.status_code, old.headers["location"]), (303, "/sicherungen?zeitraum=alle#kalender"))
+                latest = client.get("/sicherungen?zeitraum=alle").text
                 self.assertIn("0 Termine", latest)
-                self.assertIn(f'href="/sicherungen/kalender?stand={first}&amp;zeitraum=alle"', latest)  # Änderungsverlauf
-                page = client.get(f"/sicherungen/kalender?stand={first}&zeitraum=alle")
+                # Änderungsverlauf: Zeitraum = Stand davor bis Stand am Ende, kommende und vergangene
+                self.assertIn(f'href="/sicherungen?stand={first}&amp;bis={first + 1}&amp;zeitraum=alle#kalender"', latest)
+                page = client.get(f"/sicherungen?stand={first}&bis={first + 1}&zeitraum=alle")
                 self.assertEqual(page.status_code, 200)
                 self.assertIn("Martinszug", page.text)
                 self.assertIn("status-gelöscht", page.text)
@@ -1259,11 +1263,12 @@ class CalendarBackupPageTests(unittest.TestCase):
                 ):
                     response = client.post(
                         f"/sicherungen/kalender/eintrag/{presence_id}/wiederherstellen",
-                        headers={"Referer": f"http://testserver/sicherungen/kalender?stand={first}&restored=alt"},
+                        headers={"Referer": f"http://testserver/sicherungen?stand={first}&restored=alt"},
                         follow_redirects=False,
                     )
                 self.assertEqual(response.status_code, 303)
                 self.assertIn("restored=Martinszug", response.headers["location"])
+                self.assertTrue(response.headers["location"].startswith("/sicherungen?stand="))
                 self.assertNotIn("restored=alt", response.headers["location"])
                 args = restore.call_args.args
                 self.assertEqual(args[1:3], ("https://p1.example/c/fam-neu/", "a.ics"))
@@ -1282,7 +1287,7 @@ class CalendarBackupPageTests(unittest.TestCase):
                         lambda u: {h: e for h, (e, _) in cloud.items()},
                         lambda u, hs: {h: cloud[h] for h in hs},
                     )
-                page = client.get("/sicherungen/kalender?zeitraum=alle").text
+                page = client.get("/sicherungen?zeitraum=alle").text.split('id="datenbank"')[0]
                 self.assertIn("Repair Café", page)
                 self.assertNotIn("status-unverändert", page)
                 self.assertEqual(page.count("Wiederherstellen</button>"), 1)
@@ -1321,42 +1326,48 @@ class CalendarBackupPageTests(unittest.TestCase):
         with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "datetime", wraps=datetime) as clock:
             clock.now.side_effect = lambda tz=None: today.astimezone(tz) if tz else today
             with TestClient(app_module.app) as client:
-                newest = client.get("/sicherungen/kalender").text
+                newest = client.get("/sicherungen").text
                 self.assertIn(f"stand={before}", newest)
                 self.assertIn("1 gelöscht", newest)
                 self.assertIn("1 geändert", newest)
                 self.assertIn("Erste Sicherung", newest)
                 self.assertNotIn("Sommerfest", newest)  # vergangen, Standard „Kommende“
-                self.assertIn("Sommerfest", client.get("/sicherungen/kalender?zeitraum=vergangen").text)
+                self.assertIn("Sommerfest", client.get("/sicherungen?zeitraum=vergangen").text)
 
-                page = client.get(f"/sicherungen/kalender?stand={before}").text
-                self.assertIn('aria-current="true"', page)
-                self.assertIn("Stand vor den Änderungen", page)
-                self.assertRegex(page, r'tab-gelöscht" data-live href="[^"]*"\s*aria-current="true">Gelöscht <span class="chip-count">1')
-                self.assertIn("Martinszug", page)
-                self.assertNotIn("Elternabend", page.split('id="backup-list"')[1])
+                # Klick auf den Zeitraum: alle Änderungen darin, standardmäßig zusammen
+                page = client.get(f"/sicherungen?stand={before}&bis={before + 1}&zeitraum=alle").text
+                self.assertIn("Änderungen in KW", page)
+                self.assertRegex(page, r'tab-änderungen" data-live href="[^"]*"\s*aria-current="true">Alle Änderungen <span class="chip-count">3')
+                listing = page.split('id="backup-list"')[1].split('id="datenbank"')[0]
+                for title in ("Martinszug", "Elternabend", "Laternenbasteln"):
+                    self.assertIn(title, listing)
+                self.assertNotIn("Sommerfest", listing)  # unverändert
+                self.assertRegex(page, r'tab-gelöscht" data-live href="[^"]*">Gelöscht <span class="chip-count">1')
+                # Nur ein Stand gewählt: Vergleich mit heute
+                self.assertIn("verglichen mit heute", client.get(f"/sicherungen?stand={before}").text)
 
-                changed = client.get(f"/sicherungen/kalender?stand={before}&status=geändert").text
-                listing = changed.split('id="backup-list"')[1]
+                changed = client.get(f"/sicherungen?stand={before}&bis={before + 1}&status=geändert").text
+                listing = changed.split('id="backup-list"')[1].split('id="datenbank"')[0]
                 self.assertIn("<mark>Raum 12</mark>", listing)
                 self.assertIn("<mark>Aula</mark>", listing)
+                self.assertIn("<dt>Danach</dt>", listing)
                 self.assertEqual(listing.count("Wiederherstellen</button>"), 1)
 
                 self.assertRegex(page, r'tab-neu" data-live href="[^"]*">Neu <span class="chip-count">1')
-                added = client.get(f"/sicherungen/kalender?stand={before}&status=neu").text.split('id="backup-list"')[1]
+                added = client.get(f"/sicherungen?stand={before}&status=neu").text.split('id="backup-list"')[1].split('id="datenbank"')[0]
                 self.assertIn("Laternenbasteln", added)
                 self.assertIn("status-neu", added)
                 self.assertNotIn("Wiederherstellen</button>", added)  # „neu“ lässt sich nicht wiederherstellen
                 self.assertNotIn("Martinszug", added)
 
-                part = client.get(f"/sicherungen/kalender?stand={before}&status=alle&teil=liste").text
+                part = client.get(f"/sicherungen?stand={before}&status=alle&teil=liste").text
                 self.assertNotIn("<html", part)
                 self.assertIn('id="backup-list"', part)
                 with patch.object(app_module, "BACKUP_PAGE_SIZE", 1):
-                    first_page = client.get(f"/sicherungen/kalender?stand={before}&status=alle&teil=liste").text
+                    first_page = client.get(f"/sicherungen?stand={before}&status=alle&teil=liste").text
                     self.assertIn("seite=2", first_page)
                     self.assertIn("Martinszug", first_page)
-                    more = client.get(f"/sicherungen/kalender?stand={before}&status=alle&seite=2&teil=mehr").text
+                    more = client.get(f"/sicherungen?stand={before}&status=alle&seite=2&teil=mehr").text
                     self.assertIn("Elternabend", more)
                     self.assertNotIn("Martinszug", more)
                     self.assertNotIn("seite=3", more)
@@ -1389,11 +1400,11 @@ class CalendarBackupPageTests(unittest.TestCase):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
                 self._seed()
-                page = client.get("/sicherungen/kalender").text
-                self.assertRegex(page, r'verlauf=woche"\s*aria-current="true"')  # Standard: Woche
-                response = client.get("/sicherungen/kalender?verlauf=monat")
+                page = client.get("/sicherungen").text
+                self.assertRegex(page, r'verlauf=woche#kalender"\s*aria-current="true"')  # Standard: Woche
+                response = client.get("/sicherungen?verlauf=monat")
                 self.assertEqual(response.cookies.get("verlauf"), "monat")
-                self.assertRegex(client.get("/sicherungen/kalender").text, r'verlauf=monat"\s*aria-current="true"')
+                self.assertRegex(client.get("/sicherungen").text, r'verlauf=monat#kalender"\s*aria-current="true"')
                 client.cookies.clear()
 
     def test_mass_deletion_warning_and_dismiss(self):
@@ -1409,7 +1420,7 @@ class CalendarBackupPageTests(unittest.TestCase):
                 for url in ("/", "/sicherungen", "/sicherungen/kalender"):
                     page = client.get(url).text
                     self.assertIn("Auffällig viele Termine fehlen", page, url)
-                self.assertIn(f"/sicherungen/kalender?stand={first}&amp;status=gel%C3%B6scht&amp;zeitraum=alle", page)
+                self.assertIn(f"/sicherungen?stand={first}&amp;status=gel%C3%B6scht&amp;zeitraum=alle#kalender", page)
                 self.assertIn("8 Termine (Familie)", page)
                 response = client.post("/sicherungen/warnung/ausblenden", headers={"Referer": "http://testserver/sicherungen"}, follow_redirects=False)
                 self.assertEqual((response.status_code, response.headers["location"]), (303, "/sicherungen"))
@@ -1424,16 +1435,16 @@ class CalendarBackupPageTests(unittest.TestCase):
                 self._seed()
                 configured = replace(app_module.settings, caldav_username="t@example.org", caldav_app_password="pw")
                 with patch.object(app_module, "settings", configured):
-                    page = client.get("/sicherungen").text
+                    page = client.get("/einstellungen").text
                     self.assertRegex(page, r'value="Privat" checked')
-                    self.assertIn("Letzte Sicherung", page)
+                    self.assertIn("Gesichert", client.get("/sicherungen").text)
                     client.post(
-                        "/sicherungen/kalender/auswahl",
-                        content="calendar=Familie",
+                        "/einstellungen",
+                        content="backup_calendars_shown=1&backup_calendar=Familie",
                         headers={"Content-Type": "application/x-www-form-urlencoded"},
                     )
                     self.assertEqual(app_module._excluded_calendars(), {"Privat"})
-                    page = client.get("/sicherungen").text
+                    page = client.get("/einstellungen").text
                     self.assertRegex(page, r'value="Familie" checked')
                     self.assertNotRegex(page, r'value="Privat" checked')
 
@@ -2077,7 +2088,7 @@ class ArchiveAndHelpTests(unittest.TestCase):
                     page = client.get(url).text
                     self.assertEqual(page.count('<main id="main"'), 1, url)
                     self.assertIn('href="#main">Zum Inhalt springen', page, url)
-                self.assertIn('class="info-toggle" aria-expanded="false"', client.get("/sicherungen").text)
+                self.assertIn('class="info-toggle" aria-expanded="false"', client.get("/einstellungen").text)
                 index = client.get("/").text
                 self.assertNotIn('class="info-toggle"', index)  # Startseite ohne Info-Symbole
                 self.assertIn('<details class="status-panel" id="status-panel"', index)
@@ -2178,17 +2189,20 @@ class SettingsPageTests(unittest.TestCase):
             with TestClient(app_module.app):
                 self.assertEqual(app_module.settings.default_event_minutes, 45)
 
-    def test_settings_page_ignores_backup_fields(self):
+    def test_settings_page_contains_backup_fields(self):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
                 page = client.get("/einstellungen").text
-                self.assertNotIn('name="backup_hour"', page)
+                self.assertIn('name="backup_hour"', page)
+                self.assertIn('id="kalender-sicherung"', page)
+                self.assertIn('id="version"', page)
+                self.assertNotIn('name="backup_hour"', client.get("/sicherungen").text)
                 client.post(
                     "/einstellungen",
                     content="backup_hour=7",
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                 )
-                self.assertEqual(app_module.settings.backup_hour, 3)
+                self.assertEqual(app_module.settings.backup_hour, 7)
 
 
 class BackupPageTests(unittest.TestCase):
@@ -2222,12 +2236,12 @@ class BackupPageTests(unittest.TestCase):
                         client.get(f"/sicherungen/{bad}/download").status_code, 404
                     )
 
-                response = self._form(client, "/sicherungen/einstellungen", "backup_hour=5&backup_keep_days=30")
+                response = self._form(client, "/einstellungen", "backup_hour=5&backup_keep_days=30")
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(app_module.settings.backup_hour, 5)
                 self.assertEqual(app_module.settings.backup_keep_days, 30)
 
-                response = self._form(client, "/sicherungen/einstellungen", "backup_hour=25")
+                response = self._form(client, "/einstellungen", "backup_hour=25")
                 self.assertEqual(response.status_code, 422)
                 self.assertEqual(app_module.settings.backup_hour, 5)
 

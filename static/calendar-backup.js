@@ -1,9 +1,11 @@
-// Kalender-Sicherung durchsuchen: Filter ohne Neuladen, „Weitere laden“, Rückfrage vor dem Wiederherstellen.
+// Kalender-Sicherung (Seite Sicherungen): Verlauf und Filter ohne Neuladen,
+// „Weitere laden“, Rückfrage vor dem Wiederherstellen einzelner Termine.
 // Ohne JavaScript funktioniert die Seite über normale Links und das Suchformular.
 "use strict";
 (function () {
   const results = document.getElementById("backup-results");
   const form = document.getElementById("backup-search");
+  const history = document.getElementById("change-history");
   if (!results || !form) return;
   document.documentElement.classList.add("js");
   const search = form.elements.q;
@@ -34,6 +36,7 @@
       url.searchParams.delete("seite");
       window.history.replaceState(null, "", url.pathname + url.search);
       syncForm(url);
+      markHistory(url);
     } catch {
       window.location.href = href; // Fallback: normal laden
     } finally {
@@ -43,7 +46,7 @@
 
   // Versteckte Felder des Suchformulars an die aktuellen Filter angleichen.
   function syncForm(url) {
-    for (const key of ["stand", "kalender", "status", "zeitraum"]) {
+    for (const key of ["stand", "bis", "kalender", "status", "zeitraum"]) {
       let input = form.querySelector(`input[type="hidden"][name="${key}"]`);
       const value = url.searchParams.get(key) || "";
       if (!value) { if (input) input.remove(); continue; }
@@ -52,6 +55,16 @@
         form.prepend(input);
       }
       input.value = value;
+    }
+  }
+
+  // Gewählten Zeitraum im Änderungsverlauf hervorheben.
+  function markHistory(url) {
+    if (!history) return;
+    for (const link of history.querySelectorAll("a[data-history]")) {
+      const target = new URL(link.getAttribute("href"), window.location.origin);
+      const same = ["stand", "bis"].every((key) => (target.searchParams.get(key) || "") === (url.searchParams.get(key) || ""));
+      if (same) link.setAttribute("aria-current", "true"); else link.removeAttribute("aria-current");
     }
   }
 
@@ -101,7 +114,7 @@
 
   document.addEventListener("click", async (event) => {
     const live = event.target.closest("a[data-live]");
-    if (live && results.contains(live)) {
+    if (live && (results.contains(live) || (history && history.contains(live)))) {
       event.preventDefault();
       load(live.getAttribute("href"));
       return;
@@ -127,7 +140,7 @@
 
   document.addEventListener("submit", (event) => {
     const restore = event.target.closest("form[data-confirm]");
-    if (!restore) return;
+    if (!restore || !results.contains(restore)) return;
     if (!window.confirm(restore.dataset.confirm)) { event.preventDefault(); return; }
     const button = restore.querySelector("button");
     button.disabled = true;

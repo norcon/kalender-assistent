@@ -129,6 +129,33 @@ class CalendarBackupTests(unittest.TestCase):
         self.assertEqual(points[1]["before_id"], sid)
         self.assertIsNone(points[2]["before_id"])
 
+    def test_changes_within_a_period_ignore_later_changes(self):
+        t0 = datetime(2026, 11, 4, 10, tzinfo=timezone.utc)
+        first = self.snapshot(t0)["snapshot_id"]
+        # Zeitraum: Elternabend geändert, Laternenbasteln neu
+        self.cloud.calendars["familie"]["/c/f/b.ics"] = ("2", ics("b", "Elternabend", "20261120T200000"))
+        self.cloud.calendars["familie"]["/c/f/n.ics"] = ("1", ics("n", "Laternenbasteln"))
+        end = self.snapshot(t0 + timedelta(hours=1))["snapshot_id"]
+        # Danach: Elternabend gelöscht, Martinszug gelöscht – gehört nicht mehr zum Zeitraum
+        del self.cloud.calendars["familie"]["/c/f/b.ics"]
+        del self.cloud.calendars["familie"]["/c/f/a.ics"]
+        self.snapshot(t0 + timedelta(hours=2))
+
+        counts = calendar_backup.count_by_status(self.store, first, until=end)
+        self.assertEqual((counts["gelöscht"], counts["geändert"], counts["neu"], counts["änderungen"]), (0, 1, 1, 2))
+        rows = calendar_backup.search(self.store, first, until=end, status="änderungen", today=date(2026, 1, 1))
+        self.assertEqual({(row["summary"], row["status"]) for row in rows}, {("Elternabend", "geändert"), ("Laternenbasteln", "neu")})
+        # Ohne Ende des Zeitraums: Vergleich mit heute – dann sind beide gelöscht
+        today = calendar_backup.count_by_status(self.store, first)
+        self.assertEqual((today["gelöscht"], today["neu"], today["änderungen"]), (2, 1, 3))
+        # Gemeinsame Liste sortiert und seitenweise wie die Einzellisten
+        merged = calendar_backup.search(self.store, first, status="änderungen", today=date(2026, 1, 1))
+        self.assertEqual([row["summary"] for row in merged], ["Laternenbasteln", "St. Martinszug", "Elternabend"])
+        self.assertEqual([row["summary"] for row in calendar_backup.search(
+            self.store, first, status="änderungen", today=date(2026, 1, 1), limit=1, offset=1)], ["St. Martinszug"])
+        deleted = calendar_backup.search(self.store, first, status="gelöscht")
+        self.assertTrue(all(not row["present_now"] for row in deleted))
+
     def test_mass_deletion_thresholds(self):
         md = calendar_backup.mass_deletion
         self.assertEqual(md({"deleted": 3, "deleted_by_calendar": {"A": 3}, "before_by_calendar": {"A": 4}}), [])

@@ -84,7 +84,7 @@ Version legst du in `compose.yaml` fest, z. B.
 macht auch der Updater nach jedem Update und jeder Rückkehr.
 
 **Update auf Knopfdruck:** `docker compose --profile updater up -d` startet
-zusätzlich den Updater. Unter *Sicherungen → Version und Updates* zeigt die App
+zusätzlich den Updater. Unter *Einstellungen → Version und Updates* zeigt die App
 dann neue Versionen mit Änderungen an, legt vor jedem Update eine Vollsicherung
 an (Datenbank, Kalender-Sicherung, `compose.yaml`) und kehrt
 automatisch zur bisherigen Version zurück, wenn die neue nicht sauber startet.
@@ -448,9 +448,11 @@ gesichert. Ist der Server zu dieser Zeit aus, wird die Sicherung später am Tag
 nachgeholt. Sicherungen älter als die eingestellte Aufbewahrung (Standard 14
 Tage) werden gelöscht; die neueste bleibt immer erhalten.
 
-Die Seite **Sicherungen** (`/sicherungen`) zeigt alle Sicherungen und bietet
-**Jetzt sichern**, **Herunterladen**, **Löschen** und **Wiederherstellen**.
-Uhrzeit und Aufbewahrung lassen sich dort ebenfalls einstellen. Vor einer
+Die Seite **Sicherungen** (`/sicherungen`) zeigt unter **Datenbank-Sicherung**,
+wann zuletzt gesichert wurde, einen Knopf zum sofortigen Sichern und die
+Sicherungen mit **Wiederherstellen**; **Herunterladen** und **Löschen** stehen
+im ⋯-Menü der Zeile. Uhrzeit und Aufbewahrung stellst du unter
+**Einstellungen → Datenbank-Sicherung** ein. Vor einer
 Wiederherstellung wird der aktuelle Stand automatisch als neue Sicherung
 abgelegt, sodass sie sich rückgängig machen lässt. Während einer laufenden
 Postfachprüfung ist die Wiederherstellung gesperrt.
@@ -458,7 +460,7 @@ Postfachprüfung ist die Wiederherstellung gesperrt.
 ### Kalender-Sicherung (iCloud)
 
 Zusätzlich werden die iCloud-Kalender regelmäßig gesichert (Standard: stündlich,
-30 Tage Aufbewahrung, beides auf der Seite **Sicherungen** einstellbar). Pro
+30 Tage Aufbewahrung, beides unter **Einstellungen → Kalender-Sicherung**). Pro
 Kalender fragt die App zuerst nur die ETags ab und lädt anschließend nur neue
 oder geänderte Termine (gesammelt per `calendar-multiget`). Gespeichert wird
 jede Termin-Version genau einmal zusammen mit dem Zeitraum, in dem sie im
@@ -466,17 +468,20 @@ Kalender stand – der Speicherbedarf wächst also mit den Änderungen, nicht mi
 der Zahl der Sicherungen. Die Daten liegen in
 `./backups/calendar-history.sqlite3`.
 
-Welche Kalender gesichert werden, wird per Häkchen gewählt; standardmäßig alle,
+Welche Kalender gesichert werden, wird dort per Häkchen gewählt; standardmäßig alle,
 neu angelegte Kalender werden automatisch mitgesichert. Ist ein Kalender bei
 einer Sicherung nicht erreichbar, bleibt sein letzter Stand unverändert und die
 Sicherung wird als „unvollständig“ markiert.
 
-Unter **Termine durchsuchen und wiederherstellen** (`/sicherungen/kalender`)
-zeigt der **Änderungsverlauf** nur die Sicherungen, bei denen sich etwas
-geändert hat („1 gelöscht · 2 geändert“). Ein Klick öffnet den Stand direkt
-davor; Reiter zeigen, was seitdem gelöscht oder geändert wurde – geänderte
-Termine mit Vorher/Nachher. Suche, Zeitraum (kommende/vergangene) und Kalender
-filtern sofort, die Liste ist nach Monat und Tag gruppiert.
+Auf der Seite **Sicherungen** steht oben die **Kalender-Sicherung** mit
+Statuszeile, Änderungsverlauf und Terminsuche. Der **Änderungsverlauf** fasst
+die Änderungen nach Tag, Woche oder Monat zusammen („1 gelöscht · 2
+geändert“). Ein Klick auf einen Zeitraum zeigt genau die Änderungen darin
+(Stand davor gegen Stand am Ende des Zeitraums): standardmäßig alle neuen,
+geänderten und gelöschten Termine, kommende wie vergangene. Reiter grenzen auf
+Gelöscht, Geändert oder Neu ein, „Ganzer Stand“ zeigt alle Termine der
+Sicherung; geänderte Termine erscheinen mit Vorher/Nachher. Suche, Zeitraum
+und Kalender filtern sofort, die Liste ist nach Monat und Tag gruppiert.
 **Wiederherstellen** schreibt den gesicherten Stand in den ursprünglichen
 Kalender: Fehlt der Termin in iCloud, wird er neu angelegt, ansonsten mit dem
 Stand aus der Sicherung überschrieben.

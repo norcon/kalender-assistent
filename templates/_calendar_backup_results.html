@@ -1,29 +1,35 @@
 {%- from "_macros.html" import info -%}
+{% if not is_newest %}
+  <p class="stand-banner" role="status">
+    <span>{% if until and selected_point %}{{ _("Änderungen {period}.", period=selected_point.period) }}{% elif until %}{{ _("Änderungen vom {start} bis {end}.", start=selected.taken_at|timestamp, end=until.taken_at|timestamp) }}{% else %}{{ _("Stand vom {date}, verglichen mit heute.", date=selected.taken_at|timestamp) }}{% endif %}</span>
+    <a data-live data-history href="{{ link(stand=None, bis=None, status=None, zeitraum=None, seite=None) }}">{{ _("Zum aktuellen Stand") }}</a>
+  </p>
+{% endif %}
 <div class="backup-filters">
+  {% if not is_newest %}
+  <div class="tabs" role="group" aria-label="{{ _("Status") }}">
+    {% for key, label in [("änderungen", _("Alle Änderungen")), ("gelöscht", _("Gelöscht")), ("geändert", _("Geändert")), ("neu", _("Neu")), ("alle", _("Ganzer Stand"))] %}
+      <a class="tab tab-{{ key }}" data-live href="{{ link(status=key, seite=None) }}"{% if chosen == key %} aria-current="true"{% endif %}>{{ label }} <span class="chip-count">{{ counts[key] }}</span></a>
+    {% endfor %}
+  </div>
+  {% endif %}
   <div class="segmented" role="group" aria-label="{{ _("Zeitraum") }}">
     {% for key, label in [("kommend", _("Kommende")), ("vergangen", _("Vergangene")), ("alle", _("Alle"))] %}
       <a class="segment" data-live href="{{ link(zeitraum=None if key == "kommend" else key, seite=None) }}"{% if period == key %} aria-current="true"{% endif %}>{{ label }}</a>
     {% endfor %}
   </div>
   {% if calendars|length > 1 %}
-  <div class="chips" role="group" aria-label="{{ _("Nach Kalender filtern") }}">
-    <a class="chip" data-live href="{{ link(kalender=None) }}"{% if not kalender %} aria-current="true"{% endif %}>{{ _("Alle Kalender") }}</a>
+  <div class="chips scroll-chips" role="group" aria-label="{{ _("Nach Kalender filtern") }}">
+    <a class="chip" data-live href="{{ link(kalender=None, seite=None) }}"{% if not kalender %} aria-current="true"{% endif %}>{{ _("Alle Kalender") }}</a>
     {% for name in calendars %}
-      <a class="chip{% if calendar_colors.get(name) %} has-color{% endif %}" data-live href="{{ link(kalender=name) }}"{% if name == kalender %} aria-current="true"{% endif %} style="--cal-color: {{ calendar_colors.get(name, 'transparent') }}">{{ name }}</a>
-    {% endfor %}
-  </div>
-  {% endif %}
-  {% if not is_newest %}
-  <div class="tabs" role="group" aria-label="{{ _("Status") }}">
-    {% for key, label in [("gelöscht", _("Gelöscht")), ("geändert", _("Geändert")), ("neu", _("Neu")), ("alle", _("Alle"))] %}
-      <a class="tab tab-{{ key }}" data-live href="{{ link(status=key) }}"{% if chosen == key %} aria-current="true"{% endif %}>{{ label }} <span class="chip-count">{{ counts[key] }}</span></a>
+      <a class="chip{% if calendar_colors.get(name) %} has-color{% endif %}" data-live href="{{ link(kalender=name, seite=None) }}"{% if name == kalender %} aria-current="true"{% endif %} style="--cal-color: {{ calendar_colors.get(name, 'transparent') }}">{{ name }}</a>
     {% endfor %}
   </div>
   {% endif %}
 </div>
 <p class="result-summary">
   {{ _n("{count} Termin", "{count} Termine", counts[chosen]) }}
-  {{ info(_("„Gelöscht“ fehlt heute in iCloud, „geändert“ sieht heute anders aus, „neu“ ist seitdem hinzugekommen. „Alle“ zeigt den Stand der Sicherung. „Wiederherstellen“ schreibt den gezeigten Stand in den ursprünglichen Kalender zurück: Fehlt der Termin, wird er neu angelegt, sonst überschrieben."), _("Status")) }}
+  {{ info(_("„Gelöscht“ fehlt danach in iCloud, „geändert“ sieht danach anders aus, „neu“ ist hinzugekommen. „Ganzer Stand“ zeigt alle Termine der Sicherung. „Wiederherstellen“ schreibt den gezeigten Stand in den ursprünglichen Kalender zurück: Fehlt der Termin, wird er neu angelegt, sonst überschrieben."), _("Status")) }}
 </p>
 <div id="backup-list" class="backup-list">
   {% include "_calendar_backup_groups.html" %}
