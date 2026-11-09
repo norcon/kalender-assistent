@@ -1522,6 +1522,13 @@ class LoginTests(unittest.TestCase):
                                       headers=form, follow_redirects=False)
                     self.assertEqual(off.status_code, 303)
                     self.assertFalse(app_module.settings.password_hash)
+                    self.assertFalse(app_module.settings.connections_without_password)  # Häkchen nicht gesetzt
+                    client.post("/einstellungen/zugangsschutz", content="aktion=setzen&neu=geheim-123&wiederholung=geheim-123", headers=form)
+                    client.post("/einstellungen/zugangsschutz", content="aktion=abschalten&aktuell=geheim-123&verbindungen_offen=1", headers=form)
+                    self.assertEqual((app_module.settings.password_hash, app_module.settings.connections_without_password), ("", True))
+                    self.assertIn('value="ohne-passwort-aus"', client.get("/einstellungen").text)
+                    client.post("/einstellungen/zugangsschutz", content="aktion=ohne-passwort-aus", headers=form)
+                    self.assertIn("src.access ohne-passwort-an", client.get("/einstellungen").text)
                     # Bearbeiten ohne Passwort: in der Oberfläche nur abschaltbar
                     app_module.access.set_without_password(path, True)
                     app_module._reload_settings()

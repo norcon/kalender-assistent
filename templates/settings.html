@@ -99,8 +99,9 @@
       <form method="post" action="/einstellungen/zugangsschutz" class="access-form" data-confirm="{{ _("Passwortschutz wirklich abschalten? Dann kann jeder in deinem Netz die Oberfläche samt Inhalten aus E-Mails sehen.") }}">
         <input type="hidden" name="aktion" value="abschalten">
         <h3>{{ _("Passwortschutz abschalten") }}</h3>
-        <p class="meta">{{ _("Nur sinnvoll, wenn ausschließlich vertrauenswürdige Geräte in deinem Netz sind. Verbindungen lassen sich danach nicht mehr bearbeiten, bis wieder ein Passwort gesetzt ist.") }}</p>
+        <p class="meta">{{ _("Nur sinnvoll, wenn ausschließlich vertrauenswürdige Geräte in deinem Netz sind.") }}</p>
         <label>{{ _("Bisheriges Passwort") }} <input type="password" name="aktuell" autocomplete="current-password" required></label>
+        <label class="check"><input type="checkbox" name="verbindungen_offen" value="1" checked> {{ _("Verbindungen weiter ohne Passwort bearbeiten (kann dann jeder in deinem Netz)") }}</label>
         <div class="actions"><button type="submit" class="danger">{{ _("Passwortschutz abschalten") }}</button></div>
       </form>
     {% else %}
@@ -111,6 +112,8 @@
           <input type="hidden" name="aktion" value="ohne-passwort-aus">
           <button type="submit" class="secondary">{{ _("Bearbeiten ohne Passwort abschalten") }}</button>
         </form>
+      {% else %}
+        <p class="meta">{{ _("Verbindungen sind ohne Passwort gesperrt. Freigeben lassen sie sich nur auf dem Server: docker compose exec kalender-assistent python -m src.access ohne-passwort-an") }}</p>
       {% endif %}
       <form method="post" action="/einstellungen/zugangsschutz" class="access-form">
         <input type="hidden" name="aktion" value="setzen">

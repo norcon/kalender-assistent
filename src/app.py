@@ -3245,7 +3245,10 @@ async def save_access(request: Request):
             return problem(_("Das bisherige Passwort stimmt nicht."))
     if action == "abschalten":
         access.set_password(settings.database_path, None)
-        logger.info("Passwortschutz abgeschaltet (von %s).", _client_ip(request))
+        keep_open = form.get("verbindungen_offen") == "1"
+        access.set_without_password(settings.database_path, keep_open)
+        logger.info("Passwortschutz abgeschaltet (von %s); Verbindungen ohne Passwort bearbeitbar: %s.",
+                    _client_ip(request), "ja" if keep_open else "nein")
         _reload_settings()
         return RedirectResponse("/einstellungen?saved=passwort-aus#zugangsschutz", status_code=303)
     if len(new) < access.MIN_LENGTH:

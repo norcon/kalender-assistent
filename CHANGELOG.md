@@ -4,6 +4,15 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.31.1 – 2026-11-09
+
+- **Passwortschutz abschalten ohne Sperre:** Beim Abschalten (mit dem
+  bisherigen Passwort) gibt es jetzt das Häkchen „Verbindungen weiter ohne
+  Passwort bearbeiten“, standardmäßig gesetzt. Bisher waren die Verbindungen
+  danach gesperrt, bis man sie auf dem Server freigab.
+- Ohne Passwort und ohne Freigabe zeigt Zugangsschutz den Serverbefehl zum
+  Freigeben an.
+
 ## 0.31.0 – 2026-11-08
 
 - **Keine `.env` mehr:** Alles liegt in der Datenbank der App. Der
