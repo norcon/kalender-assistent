@@ -151,7 +151,7 @@ MIGRATED_MARKER = "KALENDER_VERBINDUNGEN"  # =app: Zugangsdaten liegen verschlü
 # Ältere Versionen lesen Zugangsdaten nur aus .env – nach dem Aufräumen liefen
 # sie ohne Postfach, KI und Kalender.
 MIN_VERSION_AFTER_MIGRATION = (0, 28, 0)
-KEEP_STATE = ("connections_v1", "app_password_hash", "connections_without_password")  # überdauert eine Datenbank-Wiederherstellung
+KEEP_STATE = ("connections_v1", "app_password_hash")  # überdauert eine Datenbank-Wiederherstellung
 
 
 def _carry_over_state(current: Path, restored: Path) -> None:

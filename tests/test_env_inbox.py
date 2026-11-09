@@ -79,27 +79,19 @@ class AccessTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             access.set_password(self.path, "kurz")
         access.set_password(self.path, "geheim-123")
-        self.assertTrue(access.verify_password("geheim-123", access.load(self.path)[0]))
+        self.assertTrue(access.verify_password("geheim-123", access.load(self.path)))
         access.set_password(self.path, None)
-        self.assertEqual(access.load(self.path), ("", False))
+        self.assertEqual(access.load(self.path), "")
 
     def test_env_values_are_taken_over_once(self):
-        removable = access.absorb_env(self.path, {"APP_PASSWORD": "alt-pw", "CONNECTIONS_EDIT_WITHOUT_PASSWORD": "0"})
+        removable = access.absorb_env(self.path, {"APP_PASSWORD": "alt-pw", "CONNECTIONS_EDIT_WITHOUT_PASSWORD": "1"})
         self.assertEqual(set(removable), {"APP_PASSWORD", "CONNECTIONS_EDIT_WITHOUT_PASSWORD"})
         self.assertEqual(removable["APP_PASSWORD"], digest("alt-pw"))
-        password_hash, without = access.load(self.path)
-        self.assertTrue(access.verify_password("alt-pw", password_hash))  # kurze alte Passwörter bleiben gültig
-        self.assertFalse(without)
+        self.assertTrue(access.verify_password("alt-pw", access.load(self.path)))  # kurze alte Passwörter bleiben gültig
         # Änderung in der Oberfläche überlebt den alten Wert in .env
         access.set_password(self.path, "neues-passwort")
         access.absorb_env(self.path, {"APP_PASSWORD": "alt-pw"})
-        self.assertTrue(access.verify_password("neues-passwort", access.load(self.path)[0]))
-        # Schalter: neu eingetragenes „1“ gilt, danach bleibt eine Abschaltung in der Oberfläche bestehen
-        access.absorb_env(self.path, {"CONNECTIONS_EDIT_WITHOUT_PASSWORD": "1"})
-        self.assertTrue(access.load(self.path)[1])
-        access.set_without_password(self.path, False)
-        access.absorb_env(self.path, {"CONNECTIONS_EDIT_WITHOUT_PASSWORD": "1"})
-        self.assertFalse(access.load(self.path)[1])
+        self.assertTrue(access.verify_password("neues-passwort", access.load(self.path)))
         self.assertEqual(access.absorb_env(self.path, {"APP_PASSWORD": ""}), {"APP_PASSWORD": digest("")})
 
     def test_command_line(self):
@@ -109,8 +101,7 @@ class AccessTests(unittest.TestCase):
         access.set_password(self.path, "geheim-123")
         with patch.dict("os.environ", {"APP_DATABASE_PATH": self.path}), redirect_stdout(io.StringIO()) as out:
             access.main(["passwort-weg"])
-            access.main(["ohne-passwort-an"])
-        self.assertEqual(access.load(self.path), ("", True))
+        self.assertEqual(access.load(self.path), "")
         self.assertIn("Passwortschutz: aus", out.getvalue())
 
 

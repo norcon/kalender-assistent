@@ -1,12 +1,10 @@
 """Zugangsschutz der Oberfläche – gespeichert in der Datenbank.
 
 - Das Passwort liegt nur als scrypt-Hash in `service_state` (nie im Klartext).
-- „Verbindungen ohne Passwort bearbeiten“ ist ein eigener Schalter. Einschalten
-  lässt er sich nur im Einrichtungsassistenten oder auf dem Server
-  (`python -m src.access`), abschalten jederzeit in der Oberfläche – sonst könnte
-  ihn jeder im Netz einschalten.
-- APP_PASSWORD und CONNECTIONS_EDIT_WITHOUT_PASSWORD in `.env` (ältere
-  Versionen) werden beim Start übernommen und danach vom Updater entfernt.
+- Ein Passwort ist optional; mit Passwort fragt die Oberfläche beim Öffnen danach.
+- APP_PASSWORD in `.env` (ältere Versionen) wird beim Start übernommen und danach
+  vom Updater entfernt – ebenso das frühere CONNECTIONS_EDIT_WITHOUT_PASSWORD,
+  das keine Bedeutung mehr hat.
 """
 
 import argparse
@@ -21,10 +19,9 @@ from typing import Mapping
 from . import db
 
 PASSWORD_KEY = "app_password_hash"
-WITHOUT_PASSWORD_KEY = "connections_without_password"
 ENV_SEEN_KEY = "access_env_seen"  # was zuletzt aus .env übernommen wurde
 MIN_LENGTH = 8
-KEEP_STATE = (PASSWORD_KEY, WITHOUT_PASSWORD_KEY)  # überdauern eine Wiederherstellung
+KEEP_STATE = (PASSWORD_KEY,)  # überdauern eine Wiederherstellung
 _TRUE = {"1", "true", "yes", "ja"}
 _SCRYPT = {"n": 2**14, "r": 8, "p": 1}
 
@@ -47,10 +44,9 @@ def verify_password(password: str, stored: str) -> bool:
     return hmac.compare_digest(actual.hex(), digest)
 
 
-def load(database_path: str) -> tuple[str, bool]:
-    """(Passwort-Hash oder "", Verbindungen ohne Passwort bearbeitbar)."""
-    state = db.get_service_state(database_path)
-    return state.get(PASSWORD_KEY, ""), state.get(WITHOUT_PASSWORD_KEY) == "1"
+def load(database_path: str) -> str:
+    """Passwort-Hash oder "" (kein Passwort)."""
+    return db.get_service_state(database_path).get(PASSWORD_KEY, "")
 
 
 def set_password(database_path: str, password: str | None) -> None:
@@ -63,12 +59,8 @@ def set_password(database_path: str, password: str | None) -> None:
         db.delete_service_state(database_path, PASSWORD_KEY)
 
 
-def set_without_password(database_path: str, allowed: bool) -> None:
-    db.set_service_state(database_path, **{WITHOUT_PASSWORD_KEY: "1" if allowed else "0"})
-
-
 def absorb_env(database_path: str, environ: Mapping[str, str]) -> dict[str, str]:
-    """APP_PASSWORD / CONNECTIONS_EDIT_WITHOUT_PASSWORD aus .env übernehmen.
+    """APP_PASSWORD aus .env übernehmen (CONNECTIONS_EDIT_WITHOUT_PASSWORD nur entfernen).
 
     Übernommen wird nur ein neuer oder geänderter Wert – ein alter Wert in .env
     überschreibt nie eine Änderung aus der Oberfläche. Rückgabe:
@@ -90,17 +82,9 @@ def absorb_env(database_path: str, environ: Mapping[str, str]) -> dict[str, str]
             seen["APP_PASSWORD"] = hash_password(password)
             changed = True
         removable["APP_PASSWORD"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-    if "CONNECTIONS_EDIT_WITHOUT_PASSWORD" in environ:
+    if "CONNECTIONS_EDIT_WITHOUT_PASSWORD" in environ:  # früherer Schalter, ohne Bedeutung
         raw = environ["CONNECTIONS_EDIT_WITHOUT_PASSWORD"]
-        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-        if seen.get("CONNECTIONS_EDIT_WITHOUT_PASSWORD") != digest:
-            enabled = raw.strip().lower() in _TRUE
-            # Ein „0“ aus der alten Vorlage ändert nichts, solange nichts eingeschaltet war.
-            if enabled or "CONNECTIONS_EDIT_WITHOUT_PASSWORD" in seen:
-                set_without_password(database_path, enabled)
-            seen["CONNECTIONS_EDIT_WITHOUT_PASSWORD"] = digest
-            changed = True
-        removable["CONNECTIONS_EDIT_WITHOUT_PASSWORD"] = digest
+        removable["CONNECTIONS_EDIT_WITHOUT_PASSWORD"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     if changed:
         db.set_service_state(database_path, **{ENV_SEEN_KEY: json.dumps(seen, sort_keys=True)})
     return removable
@@ -109,22 +93,14 @@ def absorb_env(database_path: str, environ: Mapping[str, str]) -> dict[str, str]
 def main(argv: list[str] | None = None) -> int:
     """Auf dem Server, z. B.:  docker compose exec kalender-assistent python -m src.access passwort-weg"""
     parser = argparse.ArgumentParser(prog="python -m src.access", description="Zugangsschutz verwalten")
-    parser.add_argument("befehl", choices=("status", "passwort-weg", "ohne-passwort-an", "ohne-passwort-aus"))
+    parser.add_argument("befehl", choices=("status", "passwort-weg"))
     args = parser.parse_args(argv)
     database_path = os.getenv("APP_DATABASE_PATH", "/data/calendar-assistant.sqlite3")
     db.initialize(database_path)
     if args.befehl == "passwort-weg":
         set_password(database_path, None)
         print("Passwort entfernt. Neu setzen unter Einstellungen → Zugangsschutz.")
-    elif args.befehl == "ohne-passwort-an":
-        set_without_password(database_path, True)
-        print("Verbindungen lassen sich jetzt auch ohne Passwort bearbeiten.")
-    elif args.befehl == "ohne-passwort-aus":
-        set_without_password(database_path, False)
-        print("Verbindungen lassen sich nur noch mit Passwort bearbeiten.")
-    password_hash, without = load(database_path)
-    print(f"Passwortschutz: {'an' if password_hash else 'aus'} · "
-          f"Verbindungen ohne Passwort bearbeiten: {'an' if without else 'aus'}")
+    print(f"Passwortschutz: {'an' if load(database_path) else 'aus'}")
     print("Die laufende App übernimmt Änderungen nach:  docker compose restart kalender-assistent")
     return 0
 

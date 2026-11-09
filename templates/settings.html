@@ -25,7 +25,6 @@
         </a></li>
       {% endfor %}
     </ul>
-    {% if not connections_editable and not demo_mode %}<p class="meta">{{ _("Bearbeiten lässt sich das erst mit Passwort für die Oberfläche – wie das geht, steht auf der Seite Verbindungen.") }}</p>{% endif %}
   </section>
 
   <nav class="page-toc" aria-label="{{ _("Auf dieser Seite") }}">
@@ -101,20 +100,10 @@
         <h3>{{ _("Passwortschutz abschalten") }}</h3>
         <p class="meta">{{ _("Nur sinnvoll, wenn ausschließlich vertrauenswürdige Geräte in deinem Netz sind.") }}</p>
         <label>{{ _("Bisheriges Passwort") }} <input type="password" name="aktuell" autocomplete="current-password" required></label>
-        <label class="check"><input type="checkbox" name="verbindungen_offen" value="1" checked> {{ _("Verbindungen weiter ohne Passwort bearbeiten (kann dann jeder in deinem Netz)") }}</label>
         <div class="actions"><button type="submit" class="danger">{{ _("Passwortschutz abschalten") }}</button></div>
       </form>
     {% else %}
-      <p>{{ _("Die Oberfläche hat kein Passwort: Jeder in deinem Netz kann sie öffnen und Inhalte aus E-Mails sehen.") }}</p>
-      {% if without_password %}
-        <p class="notice compact">{{ _("Verbindungen lassen sich auch ohne Passwort bearbeiten – das kann jeder in deinem Netz.") }}</p>
-        <form method="post" action="/einstellungen/zugangsschutz">
-          <input type="hidden" name="aktion" value="ohne-passwort-aus">
-          <button type="submit" class="secondary">{{ _("Bearbeiten ohne Passwort abschalten") }}</button>
-        </form>
-      {% else %}
-        <p class="meta">{{ _("Verbindungen sind ohne Passwort gesperrt. Freigeben lassen sie sich nur auf dem Server: docker compose exec kalender-assistent python -m src.access ohne-passwort-an") }}</p>
-      {% endif %}
+      <p>{{ _("Die Oberfläche hat kein Passwort: Jeder in deinem Netz kann sie öffnen, Inhalte aus E-Mails sehen und die Verbindungen ändern.") }}</p>
       <form method="post" action="/einstellungen/zugangsschutz" class="access-form">
         <input type="hidden" name="aktion" value="setzen">
         <h3>{{ _("Passwort setzen") }}</h3>

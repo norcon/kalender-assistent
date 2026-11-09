@@ -99,8 +99,6 @@ class Settings:
     updater_url: str = "http://updater:8000"
     update_check: bool = True
     password_hash: str = ""  # leer = kein Zugangsschutz (aus der DB, siehe access.py)
-    # Verbindungen auch ohne Passwort in der Oberfläche änderbar (aus der DB, siehe access.py)
-    connections_without_password: bool = False
     app_url: str = ""  # Adresse für Links in Benachrichtigungen
     imap_name: str = ""  # Anzeigename des (ersten) Postfachs
     extra_mailboxes: tuple = ()  # weitere Postfächer aus IMAP2_* … IMAP9_*

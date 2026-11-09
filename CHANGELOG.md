@@ -4,6 +4,17 @@ Versionsschema: `MAJOR.MINOR.PATCH` – MINOR für neue Funktionen, PATCH für
 Korrekturen und kleine Anpassungen. Die aktuelle Version steht in
 `src/version.py` und im Footer jeder Seite.
 
+## 0.32.0 – 2026-11-09
+
+- **Verbindungen immer bearbeitbar:** Postfächer, KI-Server, Kalender und
+  Benachrichtigungen lassen sich unter Einstellungen → Verbindungen jetzt immer
+  ändern – mit oder ohne Passwort für die Oberfläche. Der Schalter
+  „Bearbeiten ohne Passwort“ (Assistent, Zugangsschutz, `python -m src.access
+  ohne-passwort-an/-aus`) entfällt ersatzlos; ein alter Eintrag
+  `CONNECTIONS_EDIT_WITHOUT_PASSWORD` in `.env` wird nur noch entfernt.
+- Zugangsschutz weist darauf hin, dass ohne Passwort jeder im Netz die
+  Verbindungen ändern kann.
+
 ## 0.31.1 – 2026-11-09
 
 - **Passwortschutz abschalten ohne Sperre:** Beim Abschalten (mit dem

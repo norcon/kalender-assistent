@@ -22,16 +22,8 @@
   {% if not editable %}
     <div class="notice">
       <p><strong>{{ _("Nur Ansicht.") }}</strong> {{ reason }}</p>
-      {% if not login_required() and not demo_mode %}
-        <p>{{ _("So schaltest du das Bearbeiten frei:") }}</p>
-        <ul>
-          <li>{{ _("Empfohlen:") }} <a href="/einstellungen#zugangsschutz">{{ _("Passwort setzen unter Einstellungen → Zugangsschutz") }}</a></li>
-          <li>{{ _("Oder ohne Passwort, wenn nur vertrauenswürdige Geräte im Netz sind – auf dem Server ausführen:") }} <code>docker compose exec kalender-assistent python -m src.access ohne-passwort-an</code> {{ _("und danach") }} <code>docker compose restart kalender-assistent</code></li>
-        </ul>
-      {% endif %}
     </div>
   {% endif %}
-  {% if unprotected_edit %}<p class="notice compact">{{ _("Bearbeiten ohne Passwort ist eingeschaltet: Jeder in deinem Netz kann diese Verbindungen ändern.") }} <a href="/einstellungen#zugangsschutz">{{ _("Zugangsschutz") }}</a></p>{% endif %}
   {% if pending_cleanup %}
     <div class="notice">
       <p>{{ _("Diese Werte stehen noch zusätzlich in .env, gelten aber bereits aus der App: {keys}", keys=pending_cleanup|join(", ")) }}{% if cleanup_message %} <span class="meta">({{ cleanup_message }})</span>{% endif %}</p>

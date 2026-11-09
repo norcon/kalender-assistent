@@ -142,7 +142,7 @@ def delete_backup(backup_dir: str, name: str) -> None:
 # verschlüsselten Verbindungen (connections.STATE_KEY) und der Zugangsschutz
 # (access.KEEP_STATE). Sonst brächte eine ältere Sicherung alte – oder vor 0.28
 # gar keine – Zugangsdaten bzw. ein altes Passwort zurück.
-KEEP_STATE = ("connections_v1", "app_password_hash", "connections_without_password")
+KEEP_STATE = ("connections_v1", "app_password_hash")
 
 
 def _kept_state(connection: sqlite3.Connection) -> list[tuple[str, str]]:

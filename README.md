@@ -316,14 +316,9 @@ unter **Einstellungen → Verbindungen** – die Einstellungsseite zeigt sie obe
 als Übersicht mit direktem Link. Passwörter und Tokens liegen dort
 verschlüsselt in der Datenbank; der Schlüssel liegt getrennt in
 `data/secret.key` (oder `APP_SECRET_KEY`), Datenbank-Sicherungen allein sind
-also wertlos. Bearbeiten lassen sich die Verbindungen mit eingeschaltetem
-Zugangsschutz – oder, wenn nur vertrauenswürdige Geräte im Netz sind, auch
-ohne. Das schaltest du mit dem Haken im Einrichtungsassistenten ein oder auf dem
-Server mit `docker compose exec kalender-assistent python -m src.access
-ohne-passwort-an` (danach `docker compose restart kalender-assistent`).
-Abschalten geht jederzeit unter Einstellungen → Zugangsschutz. Im Browser
-einschalten lässt es sich bewusst nicht – sonst könnte das jeder im Netz. Jede
-Änderung wird vor dem Speichern geprüft, danach startet die App kurz neu.
+also wertlos. Jede Änderung wird vor dem Speichern geprüft, danach startet die
+App kurz neu. Ohne Passwort für die Oberfläche kann das jeder in deinem Netz –
+wer andere Geräte im Netz hat, setzt eines unter Einstellungen → Zugangsschutz.
 
 ### Umstieg von älteren Versionen (`.env`)
 
@@ -364,9 +359,10 @@ Protokolleinträge bleiben deutsch.
 Beispieldaten und ohne Verbindung zu Postfach, KI oder iCloud – zum
 Ausprobieren und für Screenshots. Übertragen wird nur simuliert.
 
-Ohne Passwort (und ohne „Bearbeiten ohne Passwort“) werden die Verbindungen nur
-angezeigt, Passwörter nie. Sonst könnte jemand im Netz
-z. B. alle E-Mails an einen fremden KI-Server umleiten.
+Gespeicherte Passwörter zeigt die Oberfläche nie an. Ohne Passwort für die
+Oberfläche kann jeder im Netz die Verbindungen ändern und z. B. alle E-Mails an
+einen fremden KI-Server umleiten – dann nur in einem vertrauenswürdigen Netz
+betreiben.
 
 ## KI-Anbieter
 

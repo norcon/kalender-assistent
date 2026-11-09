@@ -766,4 +766,3 @@ fieldset.channel .help { margin: 0 0 .7rem; }
 .access-form h3 { margin: 0; font-size: 1rem; }
 .access-form label { display: grid; gap: .2rem; }
 .access-form .actions { margin-top: .3rem; }
-.access-form label.check { display: flex; align-items: center; gap: .4rem; min-height: var(--tap); font-weight: normal; }

@@ -23,13 +23,11 @@ Was die App selbst absichert:
   steht getrennt davon in `data/secret.key` (nur für die App lesbar) oder in
   `APP_SECRET_KEY`. Datenbank-Sicherungen allein sind deshalb wertlos – den
   Datenordner samt `secret.key` beim Umzug mitnehmen.
-- Bearbeiten lassen sich diese Verbindungen in der Oberfläche **nur mit
-  eingeschaltetem Zugangsschutz** – sonst könnte jemand im Netz z. B. alle
-  Mails an einen fremden KI-Server umleiten. Wer das bewusst in Kauf nimmt,
-  erlaubt es im Einrichtungsassistenten oder auf dem Server
-  (`python -m src.access ohne-passwort-an`) auch ohne Passwort; im Browser
-  lässt es sich nur abschalten. Die Seite weist darauf hin. Jede Änderung wird
-  vor dem Speichern geprüft.
+- Bearbeiten lassen sich diese Verbindungen unter Einstellungen →
+  Verbindungen. **Ohne Passwort kann das jeder in deinem Netz** – und z. B. alle
+  Mails an einen fremden KI-Server umleiten. Sind andere Geräte im Netz, ein
+  Passwort setzen. Gespeicherte Passwörter zeigt die Oberfläche nie an; jede
+  Änderung wird vor dem Speichern geprüft.
 - Eine `.env` aus älteren Versionen wird beim Start übernommen und danach vom
   Updater geleert bzw. gelöscht; vorher sichert er sie nach
   `backups/env-vor-aufraeumen-…/`. Diese Sicherung enthält die Zugangsdaten
@@ -89,11 +87,10 @@ reverse proxy.
 
 Credentials and server addresses are stored **encrypted** in the database; the
 key is kept separately in `data/secret.key` (or `APP_SECRET_KEY`), so database
-backups alone are useless. They can be edited in the interface only when access
-protection is on – or, accepting that anyone on the network can change them,
-after allowing it in the setup wizard or on the server
-(`python -m src.access ohne-passwort-an`); in the browser it can only be turned
-off. Every change is tested first. A `.env` from older versions is imported at
+backups alone are useless. They can be edited under Settings → Connections;
+without a password anyone on your network can do so (and, for example, redirect
+all mail to a foreign AI server), so set one if other devices share the
+network. Stored passwords are never shown; every change is tested first. A `.env` from older versions is imported at
 start-up and then emptied or deleted by the updater (after backing it up to
 `backups/env-vor-aufraeumen-…/`, which contains the values in plain text and
 can be deleted once everything works). The mailbox is opened read-only; iCloud

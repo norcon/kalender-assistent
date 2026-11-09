@@ -1127,7 +1127,6 @@ class SetupModeTests(unittest.TestCase):
     def test_finish_stores_everything_in_the_app(self):
         payload = {"language": "en", "timezone": "Europe/Berlin", "imap_host": "imap.example.org", "imap_username": "a@b.de",
                    "imap_password": "it's $x", "ai_base_url": "http://ki:1/v1/", "ai_model": "m1",
-                   "edit_without_password": True,
                    "targets": [{"name": "Neu", "description": "Test", "shared": False}]}
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
@@ -1136,7 +1135,6 @@ class SetupModeTests(unittest.TestCase):
                         patch.object(app_module.db, "save_app_settings") as save_settings, \
                         patch.object(app_module.db, "save_target_calendars") as save_targets, \
                         patch.object(app_module.access, "set_password") as set_password, \
-                        patch.object(app_module.access, "set_without_password") as set_without, \
                         patch.object(app_module, "_schedule_restart") as restart:
                     self.assertEqual(client.post("/api/setup/finish", json=payload).json(), {"mode": "restart"})
                     stored = update.call_args.args[1]
@@ -1146,12 +1144,9 @@ class SetupModeTests(unittest.TestCase):
                                      {"language": "en", "imap_folder": "INBOX", "ai_model": "m1", "caldav_timezone": "Europe/Berlin"})
                     self.assertEqual(save_targets.call_args.args[1][0]["name"], "Neu")
                     set_password.assert_called_once_with(app_module.settings.database_path, None)
-                    set_without.assert_called_once_with(app_module.settings.database_path, True)
                     restart.assert_called_once()
-                    set_without.reset_mock()
                     client.post("/api/setup/finish", json={**payload, "app_password": "12345678"})
                     self.assertEqual(set_password.call_args.args[1], "12345678")
-                    set_without.assert_not_called()  # mit Passwort überflüssig
                     for bad in ({"timezone": "Mond/Krater"}, {"app_password": "kurz"}, {"imap_folder": "a\nb"}):
                         self.assertEqual(client.post("/api/setup/finish", json={**payload, **bad}).status_code, 422, bad)
 
@@ -1522,23 +1517,8 @@ class LoginTests(unittest.TestCase):
                                       headers=form, follow_redirects=False)
                     self.assertEqual(off.status_code, 303)
                     self.assertFalse(app_module.settings.password_hash)
-                    self.assertFalse(app_module.settings.connections_without_password)  # Häkchen nicht gesetzt
-                    client.post("/einstellungen/zugangsschutz", content="aktion=setzen&neu=geheim-123&wiederholung=geheim-123", headers=form)
-                    client.post("/einstellungen/zugangsschutz", content="aktion=abschalten&aktuell=geheim-123&verbindungen_offen=1", headers=form)
-                    self.assertEqual((app_module.settings.password_hash, app_module.settings.connections_without_password), ("", True))
-                    self.assertIn('value="ohne-passwort-aus"', client.get("/einstellungen").text)
-                    client.post("/einstellungen/zugangsschutz", content="aktion=ohne-passwort-aus", headers=form)
-                    self.assertIn("src.access ohne-passwort-an", client.get("/einstellungen").text)
-                    # Bearbeiten ohne Passwort: in der Oberfläche nur abschaltbar
-                    app_module.access.set_without_password(path, True)
-                    app_module._reload_settings()
-                    self.assertIn('value="ohne-passwort-aus"', client.get("/einstellungen").text)
-                    client.post("/einstellungen/zugangsschutz", content="aktion=ohne-passwort-aus", headers=form)
-                    self.assertFalse(app_module.settings.connections_without_password)
-                    self.assertEqual(client.post("/einstellungen/zugangsschutz", content="aktion=ohne-passwort-an", headers=form).status_code, 422)
         finally:
             app_module.access.set_password(path, None)
-            app_module.access.set_without_password(path, False)
             app_module._reload_settings()
             app_module._login_failures.clear()
 
@@ -1726,30 +1706,27 @@ class ConnectionsPageTests(unittest.TestCase):
     def _login(self, client):
         client.post("/anmelden", content="passwort=geheim-123", headers={"Content-Type": "application/x-www-form-urlencoded"})
 
-    def test_read_only_without_password(self):
+    def test_overview_without_password(self):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client:
                 page = client.get("/einstellungen/verbindungen").text
-                self.assertIn('href="/einstellungen#zugangsschutz"', page)
-                self.assertIn("python -m src.access ohne-passwort-an", page)
-                self.assertIn(" disabled", page)
-                self.assertNotIn("Prüfen und speichern", page)
+                self.assertIn("Prüfen und speichern", page)
+                self.assertNotIn("Nur Ansicht", page)
                 for anchor in ("postfaecher", "ki", "kalender", "benachrichtigungen"):
                     self.assertIn(f'id="{anchor}"', page)
                 self.assertIn("<legend>ntfy", page)  # Kanäle einzeln gegliedert
-                self.assertEqual(client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "http://x/v1"}).status_code, 403)
                 settings_page = client.get("/einstellungen").text
                 # Übersicht oben, vor den Verhaltens-Einstellungen
                 self.assertLess(settings_page.index('href="/einstellungen/verbindungen#postfaecher"'),
                                 settings_page.index('action="/einstellungen"'))
                 self.assertIn('href="/einstellungen/verbindungen#benachrichtigungen"', settings_page)
                 self.assertIn('id="ereignisse"', settings_page)
-                self.assertIn("Ansehen", settings_page)
+                self.assertIn('connection-card-action">Bearbeiten', settings_page)
 
     def test_ai_provider_presets_and_model_choice(self):
         with patch.object(app_module.mail, "poll_mailbox"), patch.object(app_module, "_schedule_restart") as restart:
             with TestClient(app_module.app) as client, \
-                    patch.object(app_module, "settings", replace(app_module.settings, connections_without_password=True)):
+                    patch.object(app_module, "settings", replace(app_module.settings)):
                 page = client.get("/einstellungen/verbindungen").text
                 self.assertIn('data-url="https://api.anthropic.com/v1"', page)
                 self.assertIn('name="AI_MODEL"', page)
@@ -1770,13 +1747,12 @@ class ConnectionsPageTests(unittest.TestCase):
         db.reset_app_settings(app_module.settings.database_path)
         app_module._reload_settings()
 
-    def test_editable_without_password_when_allowed(self):
+    def test_editable_without_password(self):
         with patch.object(app_module.mail, "poll_mailbox"):
             with TestClient(app_module.app) as client, \
-                    patch.object(app_module, "settings", replace(app_module.settings, connections_without_password=True)):
+                    patch.object(app_module, "settings", replace(app_module.settings)):
                 page = client.get("/einstellungen/verbindungen").text
                 self.assertIn("Prüfen und speichern", page)
-                self.assertIn("Bearbeiten ohne Passwort ist eingeschaltet", page)
                 with patch.object(app_module.setup_wizard, "ai_models", side_effect=app_module.setup_wizard.SetupError("KI weg")):
                     response = client.post("/api/verbindungen/ki", json={"AI_BASE_URL": "http://neu:1234/v1"})
                 self.assertEqual(response.status_code, 422)  # erlaubt, aber Test schlägt fehl

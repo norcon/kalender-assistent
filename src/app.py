@@ -494,8 +494,7 @@ def _reload_settings() -> None:
     if skipped:
         settings = replace(settings, setup_mode=False)
     if not settings.demo_mode:
-        password_hash, without_password = access.load(_env_settings.database_path)
-        settings = replace(settings, password_hash=password_hash, connections_without_password=without_password)
+        settings = replace(settings, password_hash=access.load(_env_settings.database_path))
     logging.getLogger().setLevel(getattr(logging, settings.log_level, logging.INFO))
     i18n.set_service_name(settings.caldav_name)
     caldav.set_auth_mode(settings.caldav_auth)
@@ -1066,7 +1065,6 @@ class SetupFinishRequest(BaseModel):
     caldav_password: str = Field(default="", max_length=500)
     caldav_name: str = Field(default="", max_length=60)
     app_password: str = Field(default="", max_length=200)
-    edit_without_password: bool = False
     targets: list[dict] = Field(default_factory=list, max_length=30)
 
 
@@ -1190,8 +1188,6 @@ async def setup_finish(request: SetupFinishRequest):
         raise HTTPException(status_code=500, detail=_("Die Zugangsdaten ließen sich nicht verschlüsselt speichern.")) from error
     db.save_app_settings(settings.database_path, chosen)
     access.set_password(settings.database_path, request.app_password or None)
-    if request.edit_without_password and not request.app_password:
-        access.set_without_password(settings.database_path, True)
     if targets:
         db.save_target_calendars(settings.database_path, targets)
     logger.info("Ersteinrichtung abgeschlossen; die App startet mit den neuen Einstellungen neu.")
@@ -2977,7 +2973,6 @@ _MESSAGES = {
     ),
     "passwort": "Passwort gespeichert. Andere Geräte müssen sich neu anmelden.",
     "passwort-aus": "Passwortschutz abgeschaltet. Die Oberfläche ist jetzt ohne Anmeldung erreichbar.",
-    "ohne-passwort-aus": "Verbindungen lassen sich jetzt nur noch mit Passwort bearbeiten.",
 }
 
 
@@ -3046,7 +3041,6 @@ def _render_settings_page(
             "connections_editable": _connections_editable()[0],
             "access_error": access_error,
             "password_set": bool(settings.password_hash),
-            "without_password": settings.connections_without_password and not settings.password_hash,
         },
     )
 
@@ -3218,7 +3212,7 @@ async def settings_page(request: Request, saved: str | None = None):
 
 @app.post("/einstellungen/zugangsschutz", response_class=HTMLResponse)
 async def save_access(request: Request):
-    """Passwort setzen, ändern oder abschalten; Bearbeiten ohne Passwort abschalten."""
+    """Passwort setzen, ändern oder abschalten."""
     if settings.demo_mode:
         raise HTTPException(status_code=403, detail=_("Im Demo-Modus nicht verfügbar."))
     form = await _read_form(request)
@@ -3229,11 +3223,6 @@ async def save_access(request: Request):
     def problem(text: str):
         return _render_settings_page(request, access_error=text, status_code=422)
 
-    if action == "ohne-passwort-aus":
-        access.set_without_password(settings.database_path, False)
-        logger.info("Bearbeiten der Verbindungen ohne Passwort abgeschaltet.")
-        _reload_settings()
-        return RedirectResponse("/einstellungen?saved=ohne-passwort-aus#zugangsschutz", status_code=303)
     if action not in ("setzen", "abschalten"):
         return problem(_("Unbekannte Aktion."))
     if settings.password_hash:
@@ -3245,10 +3234,7 @@ async def save_access(request: Request):
             return problem(_("Das bisherige Passwort stimmt nicht."))
     if action == "abschalten":
         access.set_password(settings.database_path, None)
-        keep_open = form.get("verbindungen_offen") == "1"
-        access.set_without_password(settings.database_path, keep_open)
-        logger.info("Passwortschutz abgeschaltet (von %s); Verbindungen ohne Passwort bearbeitbar: %s.",
-                    _client_ip(request), "ja" if keep_open else "nein")
+        logger.info("Passwortschutz abgeschaltet (von %s).", _client_ip(request))
         _reload_settings()
         return RedirectResponse("/einstellungen?saved=passwort-aus#zugangsschutz", status_code=303)
     if len(new) < access.MIN_LENGTH:
@@ -3663,8 +3649,6 @@ def _connections_editable() -> tuple[bool, str]:
         return False, _("Im Demo-Modus nicht verfügbar.")
     if not _connection_state["ok"]:
         return False, _("Die gespeicherten Verbindungen sind nicht lesbar. Fehlt die Datei secret.key im Datenordner?")
-    if not settings.password_hash and not settings.connections_without_password:
-        return False, _("Bearbeiten erst mit Zugangsschutz: Ohne Passwort könnte jeder im Netz z. B. alle Mails an einen fremden KI-Server umleiten.")
     return True, ""
 
 
@@ -3699,7 +3683,6 @@ async def connections_page(request: Request):
             (channel, title, description, [field for key in keys for field in CONNECTION_SECTIONS["benachrichtigungen"] if field[0] == key])
             for channel, title, description, keys in NOTIFY_CHANNEL_GROUPS
         ],
-        "unprotected_edit": editable and not settings.password_hash,
         "active_channels": notify.channels(settings),
         "ai_model": settings.ai_model,
         "mailbox_fields": MAILBOX_FIELDS,
