@@ -27,7 +27,7 @@ httptools==0.9.0
 idna==3.20
 MarkupSafe==3.0.4
 opentelemetry-api==1.45.2
-pydantic==2.14.2
+pydantic==2.14.3
 pydantic_core==2.50.2
 python-dotenv==1.2.4
 PyYAML==6.0.3
